@@ -36,6 +36,15 @@ interface PitchCanvasProps {
   // dragging to also be on.
   annotationMode?: boolean
   onCanvasClick?: (position: NormalizedPoint) => void
+  // When true, clicking/tapping an existing player/cone/ball/annotation
+  // reports it back via `onElementClick`/`onAnnotationClick` instead of (or
+  // alongside — dragging still works, since Konva suppresses the click that
+  // would otherwise follow a real drag once the pointer moves past its
+  // threshold) whatever `editable` already wires up. Independent of
+  // `editable`/`annotationMode`, same as those are independent of each other.
+  removeMode?: boolean
+  onElementClick?: (elementType: DrillElementType, elementId: string) => void
+  onAnnotationClick?: (annotationId: string) => void
 }
 
 const DEFAULT_MAX_WIDTH = 420
@@ -92,6 +101,9 @@ export function PitchCanvas({
   onElementDragEnd,
   annotationMode = false,
   onCanvasClick,
+  removeMode = false,
+  onElementClick,
+  onAnnotationClick,
 }: PitchCanvasProps) {
   const { containerRef, width } = useMeasuredWidth(maxWidth)
   const aspectRatio = getPitchAspectRatio(pitchFormat) // width / length
@@ -174,17 +186,17 @@ export function PitchCanvas({
           width={width}
           height={height}
           className="overflow-hidden rounded-lg shadow-sm"
-          style={annotationMode ? { cursor: 'crosshair' } : undefined}
+          style={annotationMode ? { cursor: 'crosshair' } : removeMode ? { cursor: 'pointer' } : undefined}
           onClick={handleStageClick}
           onTap={handleStageClick}
         >
           {/* Non-interactive when fully read-only; listening turns on for
-              editable (2b, draggable players/cones/balls) and/or
-              annotationMode (2c, click-to-place notes) — markings, arrows,
-              and existing annotations stay non-listening either way so they
-              can never intercept a drag or a note-placement tap meant for
-              the empty pitch behind or near them. */}
-          <Layer listening={editable || annotationMode}>
+              editable (2b, draggable players/cones/balls), annotationMode
+              (2c, click-to-place notes), and/or removeMode (click-to-remove
+              an existing element/annotation) — markings and arrows stay
+              non-listening in every mode so they can never intercept a drag,
+              placement tap, or removal click meant for something else. */}
+          <Layer listening={editable || annotationMode || removeMode}>
             {/* Turf background */}
             <Rect x={0} y={0} width={width} height={height} fill={TURF.fill} listening={false} />
 
@@ -270,6 +282,8 @@ export function PitchCanvas({
                   dragBoundFunc={editable ? makeDragBound(coneRadius) : undefined}
                   onDragMove={editable ? makeDragMoveHandler('cones', cone.id) : undefined}
                   onDragEnd={editable ? makeDragEndHandler('cones', cone.id) : undefined}
+                  onClick={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
+                  onTap={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
                 />
               )
             })}
@@ -289,6 +303,8 @@ export function PitchCanvas({
                   dragBoundFunc={editable ? makeDragBound(ballRadius) : undefined}
                   onDragMove={editable ? makeDragMoveHandler('balls', ball.id) : undefined}
                   onDragEnd={editable ? makeDragEndHandler('balls', ball.id) : undefined}
+                  onClick={removeMode ? () => onElementClick?.('balls', ball.id) : undefined}
+                  onTap={removeMode ? () => onElementClick?.('balls', ball.id) : undefined}
                 />
               )
             })}
@@ -311,6 +327,8 @@ export function PitchCanvas({
                   dragBoundFunc={editable ? makeDragBound(playerRadius) : undefined}
                   onDragMove={editable ? makeDragMoveHandler('players', player.id) : undefined}
                   onDragEnd={editable ? makeDragEndHandler('players', player.id) : undefined}
+                  onClick={removeMode ? () => onElementClick?.('players', player.id) : undefined}
+                  onTap={removeMode ? () => onElementClick?.('players', player.id) : undefined}
                 >
                   <Circle x={0} y={0} radius={playerRadius} fill={fill} />
                   {player.number != null && (
@@ -347,7 +365,14 @@ export function PitchCanvas({
             {phase?.annotations.map((note) => {
               const p = toPx(note)
               return (
-                <Label key={note.id} x={p.x} y={p.y} listening={false}>
+                <Label
+                  key={note.id}
+                  x={p.x}
+                  y={p.y}
+                  listening={removeMode}
+                  onClick={removeMode ? () => onAnnotationClick?.(note.id) : undefined}
+                  onTap={removeMode ? () => onAnnotationClick?.(note.id) : undefined}
+                >
                   <Tag fill={ANNOTATION.background} stroke={ANNOTATION.border} strokeWidth={1} cornerRadius={4} />
                   <Text text={note.text} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
                 </Label>

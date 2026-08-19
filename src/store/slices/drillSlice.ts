@@ -101,6 +101,32 @@ export interface DrillSlice {
   // at `position` (already normalized 0-1, same coordinate space every
   // other phase element uses), onto the phase at `phaseIndex`.
   addAnnotation: (drillId: string, phaseIndex: number, position: PhasePoint, text: string) => void
+
+  // Local-only append of a new player/cone/ball onto the phase at
+  // `phaseIndex`, positioned at `position` — same split as every other
+  // phases-array mutation here (local update now, caller fires one
+  // `updateDrill` write). `extra` carries the one or two fields each
+  // element type needs beyond position: players need a `team` label (drives
+  // color assignment — see pitchTheme.ts), cones optionally take a `color`,
+  // balls take nothing.
+  addElement: (
+    drillId: string,
+    phaseIndex: number,
+    elementType: DrillElementType,
+    position: PhasePoint,
+    extra?: { team?: string; color?: string }
+  ) => void
+
+  // Local-only removal of one player/cone/ball from the phase at
+  // `phaseIndex`, by element id.
+  removeElement: (drillId: string, phaseIndex: number, elementType: DrillElementType, elementId: string) => void
+
+  // Local-only removal of one annotation from the phase at `phaseIndex`.
+  removeAnnotation: (drillId: string, phaseIndex: number, annotationId: string) => void
+
+  // Local-only patch of a phase's own metadata (label, duration) — same
+  // local-mutate-then-one-write split as every other phases mutation here.
+  updatePhaseMeta: (drillId: string, phaseIndex: number, patch: { label?: string; duration_seconds?: number }) => void
 }
 
 export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (set, get) => {
@@ -134,8 +160,13 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
 
     createDrill: async (input) => {
       set({ drillsLoading: true, drillsError: null })
+      // A drill always keeps at least one phase (see deletePhase) — enforce
+      // that from creation too, rather than only once something tries to
+      // delete down to zero. Without this, a freshly created drill would
+      // have no phase to view/edit/place elements on at all.
+      const withPhase = { ...input, phases: input.phases ?? [makeBlankPhase()] }
       const { data, error } = await runSupabaseAction<Drill[]>(
-        () => supabase.from('drill').insert(input).select(),
+        () => supabase.from('drill').insert(withPhase).select(),
         "Couldn't create drill, try again."
       )
       const drill = data?.[0] ?? null
@@ -222,6 +253,82 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
                 ? { ...ph, annotations: [...ph.annotations, { id: generateId('note'), text, ...position }] }
                 : ph
             ),
+          }
+        }),
+      })
+    },
+
+    addElement: (drillId, phaseIndex, elementType, position, extra) => {
+      set({
+        drills: get().drills.map((d) => {
+          if (d.id !== drillId) return d
+          return {
+            ...d,
+            phases: d.phases.map((ph, i) => {
+              if (i !== phaseIndex) return ph
+              switch (elementType) {
+                case 'players':
+                  return {
+                    ...ph,
+                    players: [...ph.players, { id: generateId('player'), team: extra?.team ?? 'A', ...position }],
+                  }
+                case 'cones':
+                  return {
+                    ...ph,
+                    cones: [...ph.cones, { id: generateId('cone'), color: extra?.color, ...position }],
+                  }
+                case 'balls':
+                  return { ...ph, balls: [...ph.balls, { id: generateId('ball'), ...position }] }
+              }
+            }),
+          }
+        }),
+      })
+    },
+
+    removeElement: (drillId, phaseIndex, elementType, elementId) => {
+      set({
+        drills: get().drills.map((d) => {
+          if (d.id !== drillId) return d
+          return {
+            ...d,
+            phases: d.phases.map((ph, i) => {
+              if (i !== phaseIndex) return ph
+              switch (elementType) {
+                case 'players':
+                  return { ...ph, players: ph.players.filter((p) => p.id !== elementId) }
+                case 'cones':
+                  return { ...ph, cones: ph.cones.filter((c) => c.id !== elementId) }
+                case 'balls':
+                  return { ...ph, balls: ph.balls.filter((b) => b.id !== elementId) }
+              }
+            }),
+          }
+        }),
+      })
+    },
+
+    removeAnnotation: (drillId, phaseIndex, annotationId) => {
+      set({
+        drills: get().drills.map((d) => {
+          if (d.id !== drillId) return d
+          return {
+            ...d,
+            phases: d.phases.map((ph, i) =>
+              i === phaseIndex ? { ...ph, annotations: ph.annotations.filter((a) => a.id !== annotationId) } : ph
+            ),
+          }
+        }),
+      })
+    },
+
+    updatePhaseMeta: (drillId, phaseIndex, patch) => {
+      set({
+        drills: get().drills.map((d) => {
+          if (d.id !== drillId) return d
+          return {
+            ...d,
+            phases: d.phases.map((ph, i) => (i === phaseIndex ? { ...ph, ...patch } : ph)),
           }
         }),
       })

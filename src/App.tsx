@@ -30,8 +30,8 @@ function App() {
     return (
       <>
         <OfflineBanner />
-        <div className="flex min-h-svh items-center justify-center bg-white">
-          <p className="text-slate-400">Loading…</p>
+        <div className="flex min-h-svh items-center justify-center bg-surface">
+          <p className="text-ink-muted">Loading…</p>
         </div>
       </>
     )

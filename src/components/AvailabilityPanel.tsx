@@ -1,6 +1,8 @@
 import { useMemo, useState, type FormEvent } from 'react'
 import { useStore } from '../store'
 import type { Availability, AvailabilityStatus, Player, SessionWithRelations } from '../store'
+import { Badge } from './ui/Badge'
+import { availabilityTone } from './ui/badgeTones'
 
 const STATUS_OPTIONS: AvailabilityStatus[] = ['unconfirmed', 'available', 'unavailable']
 
@@ -47,14 +49,14 @@ export function AvailabilityPanel({ session }: { session: SessionWithRelations }
 
   if (teamPlayers.length === 0) {
     return (
-      <div className="mt-3 border-t border-slate-200 pt-3">
-        <p className="text-sm text-slate-400">No players on the roster yet.</p>
+      <div className="mt-3 border-t border-line pt-3">
+        <p className="text-sm text-ink-muted">No players on the roster yet.</p>
       </div>
     )
   }
 
   return (
-    <div className="mt-3 border-t border-slate-200 pt-3">
+    <div className="mt-3 border-t border-line pt-3">
       <ul className="space-y-2">
         {teamPlayers.map((player) => (
           <AvailabilityRow
@@ -97,38 +99,39 @@ function AvailabilityRow({
   // so there's no availability id to write an update against here.
   if (!availability) {
     return (
-      <li className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2">
-        <p className="text-sm text-slate-900">{player.name}</p>
-        <p className="text-xs text-slate-400">No availability record</p>
+      <li className="flex items-center justify-between rounded-md border border-line px-3 py-2">
+        <p className="text-sm text-ink">{player.name}</p>
+        <p className="text-xs text-ink-muted">No availability record</p>
       </li>
     )
   }
 
   return (
-    <li className="rounded-md border border-slate-200 px-3 py-2">
+    <li className="rounded-md border border-line px-3 py-2">
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
         <div className="min-w-28 flex-1">
-          <p className="text-sm font-medium text-slate-900">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-ink">
             {player.squad_number != null && (
-              <span className="mr-1.5 text-slate-400">#{player.squad_number}</span>
+              <span className="text-ink-muted">#{player.squad_number}</span>
             )}
             {player.name}
+            <Badge tone={availabilityTone(availability.status)}>{STATUS_LABEL[availability.status]}</Badge>
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink-muted">
             {availability.responded_at
               ? `Responded ${new Date(availability.responded_at).toLocaleString()}`
               : 'No response yet'}
           </p>
         </div>
         <div className="w-32">
-          <label className="block text-xs font-medium text-slate-500">Status</label>
+          <label className="block text-xs font-medium text-ink-muted">Status</label>
           <select
             value={status}
             onChange={(e) => {
               setStatus(e.target.value as AvailabilityStatus)
               setDirty(true)
             }}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s} value={s}>
@@ -138,7 +141,7 @@ function AvailabilityRow({
           </select>
         </div>
         <div className="min-w-32 flex-1">
-          <label className="block text-xs font-medium text-slate-500">Reason (optional)</label>
+          <label className="block text-xs font-medium text-ink-muted">Reason (optional)</label>
           <input
             value={reason}
             onChange={(e) => {
@@ -146,13 +149,13 @@ function AvailabilityRow({
               setDirty(true)
             }}
             placeholder="e.g. injured, on holiday"
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <button
           type="submit"
           disabled={saving || !dirty}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>

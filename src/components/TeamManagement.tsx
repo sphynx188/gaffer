@@ -31,8 +31,8 @@ export function TeamManagement() {
 
   return (
     <section className="space-y-4 text-left">
-      {teamsError && <p className="text-sm text-red-600">{teamsError}</p>}
-      {teamsLoading && teams.length === 0 && <p className="text-sm text-slate-400">Loading…</p>}
+      {teamsError && <p className="text-sm text-bad">{teamsError}</p>}
+      {teamsLoading && teams.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
 
       {teams.length > 0 && (
         <ul className="space-y-2">
@@ -66,9 +66,9 @@ function CreateTeamForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-4">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 border-t border-line pt-4">
       <div className="flex-1">
-        <label htmlFor="new-team-name" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-team-name" className="block text-xs font-medium text-ink-muted">
           Team name
         </label>
         <input
@@ -76,18 +76,18 @@ function CreateTeamForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. U12 Reds"
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div>
-        <label htmlFor="new-team-format" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-team-format" className="block text-xs font-medium text-ink-muted">
           Format
         </label>
         <select
           id="new-team-format"
           value={format}
           onChange={(e) => setFormat(e.target.value as PitchFormat)}
-          className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         >
           {formatOptions.map((f) => (
             <option key={f} value={f}>
@@ -99,7 +99,7 @@ function CreateTeamForm({
       <button
         type="submit"
         disabled={submitting || !name.trim()}
-        className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Creating…' : 'Create team'}
       </button>
@@ -148,8 +148,8 @@ function TeamRow({
 
   if (confirmingDelete) {
     return (
-      <li className="rounded-md border border-red-200 bg-red-50 px-3 py-2">
-        <p className="text-sm text-red-700">
+      <li className="rounded-md border border-bad/30 bg-bad/10 px-3 py-2">
+        <p className="text-sm text-bad">
           Delete <span className="font-medium">{team.name}</span>? Its roster, sessions and drills go with it — this
           can&rsquo;t be undone.
         </p>
@@ -158,7 +158,7 @@ function TeamRow({
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            className="rounded-md bg-bad px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {deleting ? 'Deleting…' : 'Delete team'}
           </button>
@@ -166,7 +166,7 @@ function TeamRow({
             type="button"
             onClick={() => setConfirmingDelete(false)}
             disabled={deleting}
-            className="px-2 py-1.5 text-sm text-slate-500"
+            className="px-2 py-1.5 text-sm text-ink-muted"
           >
             Cancel
           </button>
@@ -177,23 +177,23 @@ function TeamRow({
 
   if (!editing) {
     return (
-      <li className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2">
+      <li className="flex items-center justify-between rounded-md border border-line px-3 py-2">
         <div>
-          <p className="text-sm font-medium text-slate-900">{team.name}</p>
-          <p className="text-xs text-slate-500">{formatLabel[team.format]}</p>
+          <p className="text-sm font-medium text-ink">{team.name}</p>
+          <p className="text-xs text-ink-muted">{formatLabel[team.format]}</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={startEdit}
-            className="text-sm text-slate-500 underline underline-offset-2"
+            className="text-sm text-ink-muted underline underline-offset-2"
           >
             Edit
           </button>
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="text-sm text-red-600 underline underline-offset-2"
+            className="text-sm text-bad underline underline-offset-2"
           >
             Delete
           </button>
@@ -203,22 +203,22 @@ function TeamRow({
   }
 
   return (
-    <li className="rounded-md border border-slate-300 px-3 py-2">
+    <li className="rounded-md border border-line-strong px-3 py-2">
       <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
         <div className="flex-1">
-          <label className="block text-xs font-medium text-slate-500">Team name</label>
+          <label className="block text-xs font-medium text-ink-muted">Team name</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500">Format</label>
+          <label className="block text-xs font-medium text-ink-muted">Format</label>
           <select
             value={format}
             onChange={(e) => setFormat(e.target.value as PitchFormat)}
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           >
             {formatOptions.map((f) => (
               <option key={f} value={f}>
@@ -230,14 +230,14 @@ function TeamRow({
         <button
           type="submit"
           disabled={saving || !name.trim()}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           type="button"
           onClick={() => setEditing(false)}
-          className="px-2 py-1.5 text-sm text-slate-500"
+          className="px-2 py-1.5 text-sm text-ink-muted"
         >
           Cancel
         </button>

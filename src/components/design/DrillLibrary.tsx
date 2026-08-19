@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { LibraryBig } from 'lucide-react'
 import { useStore } from '../../store'
+import { EmptyState } from '../ui/EmptyState'
 
 const formatLabel: Record<string, string> = {
   '11v11': '11-a-side',
@@ -46,13 +48,17 @@ export function DrillLibrary() {
 
   return (
     <div className="space-y-4">
-      {!selectedTeamId && <p className="text-sm text-slate-400">Select a team to browse its drills.</p>}
+      {!selectedTeamId && <p className="text-sm text-ink-muted">Select a team to browse its drills.</p>}
       {selectedTeamId && drillsLoading && drills.length === 0 && (
-        <p className="text-sm text-slate-400">Loading drills…</p>
+        <p className="text-sm text-ink-muted">Loading drills…</p>
       )}
-      {drillsError && <p className="text-sm text-red-600">{drillsError}</p>}
+      {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
       {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
-        <p className="text-sm text-slate-400">No drills yet. Build one in Design to see it here.</p>
+        <EmptyState
+          icon={LibraryBig}
+          message="No drills yet."
+          action={{ to: '/design', label: 'Build one in Design →' }}
+        />
       )}
 
       {selectedTeamId && drills.length > 0 && (
@@ -67,21 +73,21 @@ export function DrillLibrary() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or pitch format…"
-              className="w-full max-w-sm rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+              className="w-full max-w-sm rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
             />
           </div>
 
           {filteredDrills.length === 0 ? (
-            <p className="text-sm text-slate-400">No drills match "{query}".</p>
+            <p className="text-sm text-ink-muted">No drills match "{query}".</p>
           ) : (
             <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredDrills.map((drill) => (
                 <li
                   key={drill.id}
-                  className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
+                  className="flex items-center justify-between rounded-lg border border-line px-4 py-3 transition-colors hover:border-accent/40 hover:bg-accent/5"
                 >
-                  <p className="text-sm font-medium text-slate-900">{drill.name}</p>
-                  <span className="shrink-0 rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-500">
+                  <p className="text-sm font-medium text-ink">{drill.name}</p>
+                  <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-muted">
                     {formatLabel[drill.pitch_format] ?? drill.pitch_format}
                   </span>
                 </li>

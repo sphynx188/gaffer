@@ -34,17 +34,17 @@ export function Login() {
 
   if (status === 'sent') {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-white px-4">
+      <div className="flex min-h-svh items-center justify-center bg-surface px-4">
         <div className="w-full max-w-sm text-center">
-          <h1 className="text-xl font-semibold text-slate-900">Check your email</h1>
-          <p className="mt-2 text-sm text-slate-500">
-            We sent a sign-in link to <span className="font-medium text-slate-700">{email}</span>.
+          <h1 className="text-xl font-semibold text-ink">Check your email</h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            We sent a sign-in link to <span className="font-medium text-ink">{email}</span>.
             Open it on this device to finish signing in.
           </p>
           <button
             type="button"
             onClick={() => setStatus('idle')}
-            className="mt-6 text-sm text-slate-500 underline underline-offset-2"
+            className="mt-6 text-sm text-ink-muted underline underline-offset-2"
           >
             Use a different email
           </button>
@@ -54,12 +54,12 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-white px-4">
+    <div className="flex min-h-svh items-center justify-center bg-surface px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <h1 className="text-xl font-semibold text-slate-900">Gaffer</h1>
-        <p className="mt-1 text-sm text-slate-500">Sign in with a magic link — no password needed.</p>
+        <h1 className="text-xl font-semibold text-ink">Gaffer</h1>
+        <p className="mt-1 text-sm text-ink-muted">Sign in with a magic link — no password needed.</p>
 
-        <label htmlFor="email" className="mt-6 block text-sm font-medium text-slate-700">
+        <label htmlFor="email" className="mt-6 block text-sm font-medium text-ink-muted">
           Email
         </label>
         <input
@@ -70,15 +70,15 @@ export function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2 text-ink outline-none focus:border-accent"
         />
 
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-2 text-sm text-bad">{error}</p>}
 
         <button
           type="submit"
           disabled={status === 'sending'}
-          className="mt-4 w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="mt-4 w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {status === 'sending' ? 'Sending…' : 'Send magic link'}
         </button>

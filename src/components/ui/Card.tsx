@@ -6,6 +6,6 @@ import type { ReactNode } from 'react'
 // picking its own ad-hoc spacing when this was a single scrolling column.
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}>{children}</div>
+    <div className={`rounded-xl border border-line bg-panel p-6 shadow-sm ${className}`}>{children}</div>
   )
 }

@@ -3,6 +3,19 @@ import { useStore } from '../store'
 import type { SessionWithRelations } from '../store'
 import { AvailabilityPanel } from './AvailabilityPanel'
 import { SessionDrillsPanel } from './SessionDrillsPanel'
+import { Badge } from './ui/Badge'
+import { loadTone } from './ui/badgeTones'
+
+// Tailwind's border-l-* color utility needs a static class name per tone
+// (arbitrary interpolation like `border-${tone}` isn't picked up by its
+// content scanner), so the load-tone-to-border mapping is spelled out here
+// once rather than built dynamically.
+const LOAD_BORDER_CLASS: Record<'ok' | 'warn' | 'bad' | 'neutral', string> = {
+  ok: 'border-l-ok',
+  warn: 'border-l-warn',
+  bad: 'border-l-bad',
+  neutral: 'border-l-line',
+}
 
 const PHYSICAL_LOAD_OPTIONS = [1, 2, 3, 4, 5] as const
 
@@ -173,7 +186,7 @@ export function SessionPlanner() {
   if (!selectedTeamId) {
     return (
       <section className="space-y-4 text-left">
-        <p className="text-sm text-slate-400">Create a team first to start planning sessions.</p>
+        <p className="text-sm text-ink-muted">Create a team first to start planning sessions.</p>
       </section>
     )
   }
@@ -181,36 +194,36 @@ export function SessionPlanner() {
   return (
     <section className="space-y-4 text-left">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-700">
+        <h2 className="text-sm font-semibold text-ink">
           Week of {formatWeekLabel(weekStart, weekEnd)}
         </h2>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setWeekStart((w) => addDays(w, -7))}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600"
+            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
           >
             ← Prev
           </button>
           <button
             type="button"
             onClick={() => setWeekStart(startOfWeek(new Date()))}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600"
+            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
           >
             Today
           </button>
           <button
             type="button"
             onClick={() => setWeekStart((w) => addDays(w, 7))}
-            className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600"
+            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
           >
             Next →
           </button>
         </div>
       </div>
 
-      {sessionsError && <p className="text-sm text-red-600">{sessionsError}</p>}
-      {sessionsLoading && sessions.length === 0 && <p className="text-sm text-slate-400">Loading…</p>}
+      {sessionsError && <p className="text-sm text-bad">{sessionsError}</p>}
+      {sessionsLoading && sessions.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
 
       <ul className="space-y-2">
         {days.map((day) => {
@@ -218,7 +231,7 @@ export function SessionPlanner() {
           const daySessions = sessionsByDay.get(iso) ?? EMPTY_SESSIONS
           const isCreating = creatingDate === iso
           return (
-            <li key={iso} className="rounded-md border border-slate-200 px-3 py-2">
+            <li key={iso} className="rounded-md border border-line px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 {/* Click the date to create a session on that day — opens
                     the inline form below, pre-filled with this day's date.
@@ -227,7 +240,7 @@ export function SessionPlanner() {
                   type="button"
                   onClick={() => setCreatingDate((d) => (d === iso ? null : iso))}
                   aria-expanded={isCreating}
-                  className="text-xs font-medium text-slate-500 underline decoration-dotted underline-offset-2 hover:text-slate-900"
+                  className="text-xs font-medium text-ink-muted underline decoration-dotted underline-offset-2 hover:text-ink"
                 >
                   {formatDayLabel(day)}
                 </button>
@@ -235,14 +248,14 @@ export function SessionPlanner() {
                   <button
                     type="button"
                     onClick={() => setCreatingDate(iso)}
-                    className="text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600"
+                    className="text-xs text-ink-faint underline underline-offset-2 hover:text-ink-muted"
                   >
                     + Add session
                   </button>
                 )}
               </div>
               {daySessions.length === 0 && !isCreating && (
-                <p className="mt-1 text-sm text-slate-300">No session</p>
+                <p className="mt-1 text-sm text-ink-faint">No session</p>
               )}
               {daySessions.length > 0 && (
                 <ul className="mt-1.5 space-y-1.5">
@@ -257,7 +270,7 @@ export function SessionPlanner() {
                 </ul>
               )}
               {isCreating && (
-                <div className="mt-2 border-t border-slate-200 pt-2">
+                <div className="mt-2 border-t border-line pt-2">
                   <CreateSessionForm
                     teamId={selectedTeamId}
                     onCreate={handleCreateForDate}
@@ -358,23 +371,24 @@ function SessionRow({
     // tracked by responded_at being set (availabilitySlice.updateAvailability
     // always stamps it).
     const respondedCount = session.availability.filter((a) => a.responded_at).length
+    // Colored left-border keyed to physical load, so a coach scanning the
+    // week can spot a heavy day at a glance without reading every row.
+    const borderClass = LOAD_BORDER_CLASS[loadTone(session.physical_load)]
     return (
-      <li className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+      <li className={`rounded-md border border-l-4 border-line bg-panel-raised px-3 py-2 ${borderClass}`}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-40">
-            <p className="text-sm font-medium text-slate-900">
+            <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink">
               {session.duration_minutes} min
               {session.physical_load != null && (
-                <span className="ml-1.5 font-normal text-slate-400">· load {session.physical_load}/5</span>
+                <Badge tone={loadTone(session.physical_load)}>load {session.physical_load}/5</Badge>
               )}
-              {session.season_label && (
-                <span className="ml-1.5 font-normal text-slate-400">· {session.season_label}</span>
-              )}
+              {session.season_label && <span className="font-normal text-ink-muted">· {session.season_label}</span>}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-muted">
               {[session.equipment, session.coaching_notes].filter(Boolean).join(' · ') || '—'}
             </p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-ink-muted">
               {respondedCount}/{session.availability.length} availability responded ·{' '}
               {session.session_drills.length} drill(s) attached
             </p>
@@ -383,28 +397,28 @@ function SessionRow({
             <button
               type="button"
               onClick={() => setAvailabilityOpen((open) => !open)}
-              className="text-sm text-slate-500 underline underline-offset-2"
+              className="text-sm text-ink-muted underline underline-offset-2"
             >
               {availabilityOpen ? 'Hide availability' : 'Availability'}
             </button>
             <button
               type="button"
               onClick={() => setDrillsOpen((open) => !open)}
-              className="text-sm text-slate-500 underline underline-offset-2"
+              className="text-sm text-ink-muted underline underline-offset-2"
             >
               {drillsOpen ? 'Hide drills' : 'Drills'}
             </button>
             <button
               type="button"
               onClick={toggleDuplicating}
-              className="text-sm text-slate-500 underline underline-offset-2"
+              className="text-sm text-ink-muted underline underline-offset-2"
             >
               {duplicating ? 'Cancel duplicate' : 'Duplicate'}
             </button>
             <button
               type="button"
               onClick={startEdit}
-              className="text-sm text-slate-500 underline underline-offset-2"
+              className="text-sm text-ink-muted underline underline-offset-2"
             >
               Edit
             </button>
@@ -415,33 +429,33 @@ function SessionRow({
         {duplicating && (
           <form
             onSubmit={handleDuplicateSubmit}
-            className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3"
+            className="mt-3 flex flex-wrap items-end gap-2 border-t border-line pt-3"
           >
             <div>
-              <label className="block text-xs font-medium text-slate-500">Duplicate to date</label>
+              <label className="block text-xs font-medium text-ink-muted">Duplicate to date</label>
               <input
                 type="date"
                 required
                 value={duplicateDate}
                 onChange={(e) => setDuplicateDate(e.target.value)}
-                className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+                className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
               />
             </div>
             <button
               type="submit"
               disabled={!duplicateDate || duplicateSubmitting}
-              className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
             >
               {duplicateSubmitting ? 'Duplicating…' : 'Duplicate session'}
             </button>
             <button
               type="button"
               onClick={() => setDuplicating(false)}
-              className="px-2 py-1.5 text-sm text-slate-500"
+              className="px-2 py-1.5 text-sm text-ink-muted"
             >
               Cancel
             </button>
-            <p className="w-full text-xs text-slate-400">
+            <p className="w-full text-xs text-ink-muted">
               Copies the drill line-up ({session.session_drills.length} drill(s)) to the new date. Availability is
               not copied — the new session starts with fresh, unconfirmed availability.
             </p>
@@ -452,33 +466,33 @@ function SessionRow({
   }
 
   return (
-    <li className="rounded-md border border-slate-300 px-3 py-2">
+    <li className="rounded-md border border-line-strong px-3 py-2">
       <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
         <div>
-          <label className="block text-xs font-medium text-slate-500">Date</label>
+          <label className="block text-xs font-medium text-ink-muted">Date</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div className="w-24">
-          <label className="block text-xs font-medium text-slate-500">Minutes</label>
+          <label className="block text-xs font-medium text-ink-muted">Minutes</label>
           <input
             type="number"
             min={1}
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div className="w-28">
-          <label className="block text-xs font-medium text-slate-500">Physical load</label>
+          <label className="block text-xs font-medium text-ink-muted">Physical load</label>
           <select
             value={load}
             onChange={(e) => setLoad(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           >
             <option value="">—</option>
             {PHYSICAL_LOAD_OPTIONS.map((n) => (
@@ -489,40 +503,40 @@ function SessionRow({
           </select>
         </div>
         <div className="min-w-32 flex-1">
-          <label className="block text-xs font-medium text-slate-500">Equipment</label>
+          <label className="block text-xs font-medium text-ink-muted">Equipment</label>
           <input
             value={equipment}
             onChange={(e) => setEquipment(e.target.value)}
             placeholder="e.g. cones, bibs, goals"
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div className="w-full">
-          <label className="block text-xs font-medium text-slate-500">Coaching notes</label>
+          <label className="block text-xs font-medium text-ink-muted">Coaching notes</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div className="min-w-32 flex-1">
-          <label className="block text-xs font-medium text-slate-500">Season label</label>
+          <label className="block text-xs font-medium text-ink-muted">Season label</label>
           <input
             value={seasonLabel}
             onChange={(e) => setSeasonLabel(e.target.value)}
             placeholder="e.g. Winter 2026"
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <button
           type="submit"
           disabled={saving || !date || !duration}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="px-2 py-1.5 text-sm text-slate-500">
+        <button type="button" onClick={() => setEditing(false)} className="px-2 py-1.5 text-sm text-ink-muted">
           Cancel
         </button>
       </form>
@@ -589,11 +603,11 @@ function CreateSessionForm({
     <form
       onSubmit={handleSubmit}
       className={
-        compact ? 'flex flex-wrap items-end gap-2' : 'flex flex-wrap items-end gap-2 border-t border-slate-200 pt-4'
+        compact ? 'flex flex-wrap items-end gap-2' : 'flex flex-wrap items-end gap-2 border-t border-line pt-4'
       }
     >
       <div>
-        <label htmlFor="new-session-date" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-session-date" className="block text-xs font-medium text-ink-muted">
           Date
         </label>
         <input
@@ -602,11 +616,11 @@ function CreateSessionForm({
           required
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div className="w-24">
-        <label htmlFor="new-session-duration" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-session-duration" className="block text-xs font-medium text-ink-muted">
           Minutes
         </label>
         <input
@@ -615,18 +629,18 @@ function CreateSessionForm({
           min={1}
           value={duration}
           onChange={(e) => setDuration(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div className="w-28">
-        <label htmlFor="new-session-load" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-session-load" className="block text-xs font-medium text-ink-muted">
           Physical load
         </label>
         <select
           id="new-session-load"
           value={load}
           onChange={(e) => setLoad(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         >
           <option value="">—</option>
           {PHYSICAL_LOAD_OPTIONS.map((n) => (
@@ -637,7 +651,7 @@ function CreateSessionForm({
         </select>
       </div>
       <div className="min-w-32 flex-1">
-        <label htmlFor="new-session-equipment" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-session-equipment" className="block text-xs font-medium text-ink-muted">
           Equipment
         </label>
         <input
@@ -645,11 +659,11 @@ function CreateSessionForm({
           value={equipment}
           onChange={(e) => setEquipment(e.target.value)}
           placeholder="e.g. cones, bibs, goals"
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div className="w-full">
-        <label htmlFor="new-session-notes" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-session-notes" className="block text-xs font-medium text-ink-muted">
           Coaching notes
         </label>
         <textarea
@@ -658,11 +672,11 @@ function CreateSessionForm({
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="e.g. Focus on pressing triggers in the middle third."
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div className="min-w-32 flex-1">
-        <label htmlFor="new-session-season-label" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-session-season-label" className="block text-xs font-medium text-ink-muted">
           Season label
         </label>
         <input
@@ -670,18 +684,18 @@ function CreateSessionForm({
           value={seasonLabel}
           onChange={(e) => setSeasonLabel(e.target.value)}
           placeholder="e.g. Winter 2026"
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <button
         type="submit"
         disabled={submitting || !date || !duration}
-        className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Creating…' : 'Create session'}
       </button>
       {onCancel && (
-        <button type="button" onClick={onCancel} className="px-2 py-1.5 text-sm text-slate-500">
+        <button type="button" onClick={onCancel} className="px-2 py-1.5 text-sm text-ink-muted">
           Cancel
         </button>
       )}

@@ -1,13 +1,36 @@
 @import "tailwindcss";
 
-/* Phase 3.3 — General UI polish: this app is light-mode-only by design
-   (discussion_visual_style.md). Without an explicit color-scheme, Chrome/
-   Safari render native form controls — <select>, date/number spinners,
-   checkboxes, scrollbars — in a dark system-drawn style whenever the OS is
-   in dark mode, even though every Tailwind class in this app is a light
-   palette. Declaring `light` here is what keeps those native widgets
-   consistent with the rest of the UI instead of a dark control slipping in
-   on a coach's phone that happens to be in dark mode. */
+/* Redesign — Gaffer moved to a dark-mode-only palette (inspired by First
+   Phase Studio), reversing the earlier "light-mode-only by design" decision
+   in discussion_visual_style.md. This is the ONE place UI-chrome colors
+   live, the same way pitchTheme.ts is the one place canvas colors live —
+   every component should reach for these tokens (bg-panel, text-ink-muted,
+   border-line, bg-accent, text-ok, etc.) rather than a raw Tailwind slate/
+   indigo class or an arbitrary hex value. */
+@theme {
+  --color-surface: #0a0a0d; /* app shell / page background */
+  --color-panel: #14151c; /* card/panel background */
+  --color-panel-raised: #1b1d26; /* nested surface: pills, table headers, hover rows */
+  --color-line: #262832; /* default border */
+  --color-line-strong: #383b48; /* dividers, stronger borders */
+  --color-ink: #f2f3f5; /* primary text */
+  --color-ink-muted: #9598a3; /* secondary text */
+  --color-ink-faint: #5c5f6b; /* placeholder/tertiary text */
+  --color-accent: #3b5bfb; /* electric blue — primary actions, active nav, chips */
+  --color-accent-hover: #5372ff;
+  --color-ok: #22c55e; /* available / light load */
+  --color-warn: #f5a524; /* unconfirmed / medium load */
+  --color-bad: #ef4444; /* unavailable / heavy load / destructive */
+}
+
+/* Declaring `dark` (rather than leaving it unset) keeps native form
+   controls — <select>, checkboxes, scrollbars — drawn in the OS's dark
+   style instead of clashing with the app's own dark palette. */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
 }

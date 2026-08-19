@@ -39,11 +39,11 @@ export function PlayerNotes({ playerId }: { playerId: string }) {
   }, [playerId, fetchPlayerNotes])
 
   return (
-    <div className="mt-3 space-y-3 border-t border-slate-200 pt-3">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      {loading && notes.length === 0 && <p className="text-sm text-slate-400">Loading notes…</p>}
+    <div className="mt-3 space-y-3 border-t border-line pt-3">
+      {error && <p className="text-sm text-bad">{error}</p>}
+      {loading && notes.length === 0 && <p className="text-sm text-ink-muted">Loading notes…</p>}
       {!loading && !error && notes.length === 0 && (
-        <p className="text-sm text-slate-400">No notes yet — add the first one below.</p>
+        <p className="text-sm text-ink-muted">No notes yet — add the first one below.</p>
       )}
 
       {notes.length > 0 && (
@@ -67,9 +67,9 @@ function NoteItem({ note, currentUserId }: { note: PlayerNote; currentUserId?: s
   const author = note.author_id === currentUserId ? 'You' : `Coach ${note.author_id.slice(0, 8)}`
   const timestamp = new Date(note.created_at).toLocaleString()
   return (
-    <li className="rounded-md border border-slate-200 px-3 py-2">
-      <p className="whitespace-pre-wrap text-sm text-slate-900">{note.body}</p>
-      <p className="mt-1 text-xs text-slate-400">
+    <li className="rounded-md border border-line px-3 py-2">
+      <p className="whitespace-pre-wrap text-sm text-ink">{note.body}</p>
+      <p className="mt-1 text-xs text-ink-muted">
         {author} · {timestamp}
       </p>
     </li>
@@ -100,7 +100,7 @@ function AddNoteForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2">
-      <label htmlFor={`new-note-${playerId}`} className="block text-xs font-medium text-slate-500">
+      <label htmlFor={`new-note-${playerId}`} className="block text-xs font-medium text-ink-muted">
         Add a note
       </label>
       <textarea
@@ -109,12 +109,12 @@ function AddNoteForm({
         onChange={(e) => setBody(e.target.value)}
         rows={2}
         placeholder="e.g. Worked on first touch under pressure — improving."
-        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+        className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
       />
       <button
         type="submit"
         disabled={submitting || !body.trim()}
-        className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Adding…' : 'Add note'}
       </button>

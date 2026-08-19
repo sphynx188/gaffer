@@ -60,8 +60,8 @@ function PositionTagPicker({
             className={
               'rounded-full border px-2 py-1 text-xs font-medium transition-colors ' +
               (selected
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-300 bg-white text-slate-500 hover:border-slate-400')
+                ? 'border-accent bg-accent text-white'
+                : 'border-line bg-panel-raised text-ink-muted hover:border-line-strong')
             }
           >
             {POSITION_CHIP_LABELS[position]}
@@ -95,17 +95,17 @@ export function PlayerRoster() {
   if (!selectedTeamId) {
     return (
       <section className="space-y-4 text-left">
-        <p className="text-sm text-slate-400">Create a team first to start a roster.</p>
+        <p className="text-sm text-ink-muted">Create a team first to start a roster.</p>
       </section>
     )
   }
 
   return (
     <section className="space-y-4 text-left">
-      {playersError && <p className="text-sm text-red-600">{playersError}</p>}
-      {playersLoading && players.length === 0 && <p className="text-sm text-slate-400">Loading…</p>}
+      {playersError && <p className="text-sm text-bad">{playersError}</p>}
+      {playersLoading && players.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
       {!playersLoading && !playersError && players.length === 0 && (
-        <p className="text-sm text-slate-400">No players yet — add the first one below.</p>
+        <p className="text-sm text-ink-muted">No players yet — add the first one below.</p>
       )}
 
       {players.length > 0 && (
@@ -163,9 +163,9 @@ function CreatePlayerForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-4">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 border-t border-line pt-4">
       <div className="min-w-32 flex-1">
-        <label htmlFor="new-player-name" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-player-name" className="block text-xs font-medium text-ink-muted">
           Name
         </label>
         <input
@@ -173,17 +173,17 @@ function CreatePlayerForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Alex Smith"
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div>
-        <span className="block text-xs font-medium text-slate-500">Position</span>
+        <span className="block text-xs font-medium text-ink-muted">Position</span>
         <div className="mt-1">
           <PositionTagPicker value={positions} onChange={setPositions} idPrefix="new-player-position" />
         </div>
       </div>
       <div>
-        <label htmlFor="new-player-dob" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-player-dob" className="block text-xs font-medium text-ink-muted">
           DOB
         </label>
         <input
@@ -191,11 +191,11 @@ function CreatePlayerForm({
           type="date"
           value={dob}
           onChange={(e) => setDob(e.target.value)}
-          className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <div className="w-20">
-        <label htmlFor="new-player-squad-number" className="block text-xs font-medium text-slate-500">
+        <label htmlFor="new-player-squad-number" className="block text-xs font-medium text-ink-muted">
           Squad #
         </label>
         <input
@@ -204,13 +204,13 @@ function CreatePlayerForm({
           min={0}
           value={squadNumber}
           onChange={(e) => setSquadNumber(e.target.value)}
-          className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
       <button
         type="submit"
         disabled={submitting || !name.trim()}
-        className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Adding…' : 'Add player'}
       </button>
@@ -260,16 +260,16 @@ function PlayerRow({
   if (!editing) {
     const positionSummary = (player.positions ?? []).map((p) => PLAYER_POSITION_LABELS[p]).join(', ')
     return (
-      <li className="rounded-md border border-slate-200 px-3 py-2">
+      <li className="rounded-md border border-line px-3 py-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-40">
-            <p className="text-sm font-medium text-slate-900">
+            <p className="text-sm font-medium text-ink">
               {player.squad_number != null && (
-                <span className="mr-1.5 text-slate-400">#{player.squad_number}</span>
+                <span className="mr-1.5 text-ink-muted">#{player.squad_number}</span>
               )}
               {player.name}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-muted">
               {[positionSummary, player.dob].filter(Boolean).join(' · ') || '—'}
             </p>
           </div>
@@ -277,14 +277,14 @@ function PlayerRow({
             <button
               type="button"
               onClick={() => setNotesOpen((open) => !open)}
-              className="text-sm text-slate-500 underline underline-offset-2"
+              className="text-sm text-ink-muted underline underline-offset-2"
             >
               {notesOpen ? 'Hide notes' : 'Notes'}
             </button>
             <button
               type="button"
               onClick={startEdit}
-              className="text-sm text-slate-500 underline underline-offset-2"
+              className="text-sm text-ink-muted underline underline-offset-2"
             >
               Edit
             </button>
@@ -296,52 +296,52 @@ function PlayerRow({
   }
 
   return (
-    <li className="rounded-md border border-slate-300 px-3 py-2">
+    <li className="rounded-md border border-line-strong px-3 py-2">
       <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
         <div className="min-w-32 flex-1">
-          <label className="block text-xs font-medium text-slate-500">Name</label>
+          <label className="block text-xs font-medium text-ink-muted">Name</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div>
-          <span className="block text-xs font-medium text-slate-500">Position</span>
+          <span className="block text-xs font-medium text-ink-muted">Position</span>
           <div className="mt-1">
             <PositionTagPicker value={positions} onChange={setPositions} idPrefix={`edit-player-${player.id}-position`} />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500">DOB</label>
+          <label className="block text-xs font-medium text-ink-muted">DOB</label>
           <input
             type="date"
             value={dob}
             onChange={(e) => setDob(e.target.value)}
-            className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <div className="w-20">
-          <label className="block text-xs font-medium text-slate-500">Squad #</label>
+          <label className="block text-xs font-medium text-ink-muted">Squad #</label>
           <input
             type="number"
             min={0}
             value={squadNumber}
             onChange={(e) => setSquadNumber(e.target.value)}
-            className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
         <button
           type="submit"
           disabled={saving || !name.trim()}
-          className="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
         <button
           type="button"
           onClick={() => setEditing(false)}
-          className="px-2 py-1.5 text-sm text-slate-500"
+          className="px-2 py-1.5 text-sm text-ink-muted"
         >
           Cancel
         </button>

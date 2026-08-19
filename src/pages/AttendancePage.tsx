@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
+import { Badge } from '../components/ui/Badge'
 import { AvailabilityPanel } from '../components/AvailabilityPanel'
 
 function toISODate(d: Date): string {
@@ -60,7 +61,7 @@ export function AttendancePage() {
     return (
       <div>
         <PageHeader title="Attendance" />
-        <p className="text-sm text-slate-400">Create a team first to track attendance.</p>
+        <p className="text-sm text-ink-muted">Create a team first to track attendance.</p>
       </div>
     )
   }
@@ -69,24 +70,24 @@ export function AttendancePage() {
     <div>
       <PageHeader title="Attendance" description="See who's confirmed for a session, and chase the rest." />
 
-      {sessionsLoading && sortedSessions.length === 0 && <p className="text-sm text-slate-400">Loading sessions…</p>}
+      {sessionsLoading && sortedSessions.length === 0 && <p className="text-sm text-ink-muted">Loading sessions…</p>}
       {!sessionsLoading && sortedSessions.length === 0 && (
         <Card className="border-dashed text-center">
-          <p className="text-sm text-slate-400">No sessions yet — plan one first.</p>
+          <p className="text-sm text-ink-muted">No sessions yet — plan one first.</p>
         </Card>
       )}
 
       {sortedSessions.length > 0 && (
         <Card>
           <div className="mb-2 flex flex-wrap items-center gap-3">
-            <label htmlFor="attendance-session" className="text-xs font-medium text-slate-500">
+            <label htmlFor="attendance-session" className="text-xs font-medium text-ink-muted">
               Session
             </label>
             <select
               id="attendance-session"
               value={sessionId ?? ''}
               onChange={(e) => setSessionId(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+              className="rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
             >
               {sortedSessions.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -95,10 +96,16 @@ export function AttendancePage() {
               ))}
             </select>
             {session && (
-              <span className="text-xs text-slate-400">
-                {session.availability.filter((a) => a.status === 'available').length} available ·{' '}
-                {session.availability.filter((a) => a.status === 'unavailable').length} unavailable ·{' '}
-                {session.availability.filter((a) => a.status === 'unconfirmed').length} unconfirmed
+              <span className="flex flex-wrap items-center gap-1.5">
+                <Badge tone="ok">
+                  {session.availability.filter((a) => a.status === 'available').length} available
+                </Badge>
+                <Badge tone="bad">
+                  {session.availability.filter((a) => a.status === 'unavailable').length} unavailable
+                </Badge>
+                <Badge tone="warn">
+                  {session.availability.filter((a) => a.status === 'unconfirmed').length} unconfirmed
+                </Badge>
               </span>
             )}
           </div>

@@ -23,4 +23,4 @@ export type {
 } from './types'
 export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS } from './types'
 export type { SessionWithRelations } from './slices/sessionSlice'
-export type { DrillElementType, NewPhaseMode } from './slices/drillSlice'
+export type { DrillElementType, NewPhaseMode, NewDrillInput } from './slices/drillSlice'

@@ -18,30 +18,30 @@ export function TeamSwitcher() {
   const selectTeam = useStore((s) => s.selectTeam)
 
   if (teams.length === 0) {
-    return <p className="text-xs text-slate-400">No teams yet</p>
+    return <p className="text-xs text-ink-faint">No teams yet</p>
   }
 
   if (teams.length === 1) {
     const team = teams[0]
     return (
       <div>
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Team</p>
-        <p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{team.name}</p>
-        <p className="text-xs text-slate-500">{formatLabel[team.format] ?? team.format}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-faint">Team</p>
+        <p className="mt-0.5 truncate text-sm font-semibold text-ink">{team.name}</p>
+        <p className="text-xs text-ink-muted">{formatLabel[team.format] ?? team.format}</p>
       </div>
     )
   }
 
   return (
     <div>
-      <label htmlFor="team-switcher" className="text-xs font-medium uppercase tracking-wide text-slate-400">
+      <label htmlFor="team-switcher" className="text-xs font-medium uppercase tracking-wide text-ink-faint">
         Team
       </label>
       <select
         id="team-switcher"
         value={selectedTeamId ?? ''}
         onChange={(e) => selectTeam(e.target.value)}
-        className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+        className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
       >
         {teams.map((team) => (
           <option key={team.id} value={team.id}>

@@ -34,7 +34,7 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="w-full bg-amber-50 px-4 py-2 text-center text-sm text-amber-800"
+      className="w-full bg-warn/15 px-4 py-2 text-center text-sm text-warn"
     >
       You&rsquo;re offline — showing the last-synced plan. Changes won&rsquo;t save until
       you&rsquo;re back online.
