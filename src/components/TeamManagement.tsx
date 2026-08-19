@@ -30,9 +30,7 @@ export function TeamManagement() {
   }, [fetchTeams])
 
   return (
-    <section className="w-full max-w-lg space-y-4 text-left">
-      <h2 className="text-sm font-semibold text-slate-700">Teams</h2>
-
+    <section className="space-y-4 text-left">
       {teamsError && <p className="text-sm text-red-600">{teamsError}</p>}
       {teamsLoading && teams.length === 0 && <p className="text-sm text-slate-400">Loading…</p>}
 

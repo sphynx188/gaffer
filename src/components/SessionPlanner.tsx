@@ -172,18 +172,17 @@ export function SessionPlanner() {
 
   if (!selectedTeamId) {
     return (
-      <section className="w-full max-w-lg space-y-4 text-left">
-        <h2 className="text-sm font-semibold text-slate-700">Sessions</h2>
-        <p className="text-sm text-slate-400">Create a team above to start planning sessions.</p>
+      <section className="space-y-4 text-left">
+        <p className="text-sm text-slate-400">Create a team first to start planning sessions.</p>
       </section>
     )
   }
 
   return (
-    <section className="w-full max-w-lg space-y-4 text-left">
+    <section className="space-y-4 text-left">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-700">
-          Sessions — week of {formatWeekLabel(weekStart, weekEnd)}
+          Week of {formatWeekLabel(weekStart, weekEnd)}
         </h2>
         <div className="flex items-center gap-1.5">
           <button

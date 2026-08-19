@@ -148,21 +148,14 @@ export function DrillPreview() {
   }
 
   return (
-    <div className="w-full max-w-lg space-y-3 border-t border-slate-200 pt-6">
-      <p className="text-xs uppercase tracking-wide text-slate-400">
-        Pitch designer — step through phases, tap to annotate
-      </p>
-      <h2 className="text-sm font-semibold text-slate-700">Design</h2>
-
-      {!selectedTeamId && <p className="text-sm text-slate-400">Select a team above to preview its drills.</p>}
+    <div className="space-y-3">
+      {!selectedTeamId && <p className="text-sm text-slate-400">Select a team to preview its drills.</p>}
       {selectedTeamId && drillsLoading && drills.length === 0 && (
         <p className="text-sm text-slate-400">Loading drills…</p>
       )}
       {drillsError && <p className="text-sm text-red-600">{drillsError}</p>}
       {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
-        <p className="text-sm text-slate-400">
-          No drills yet for this team. Create one (see the spike form below) to preview it here.
-        </p>
+        <p className="text-sm text-slate-400">No drills yet for this team.</p>
       )}
 
       {drills.length > 0 && (
@@ -263,6 +256,7 @@ export function DrillPreview() {
           <PitchCanvas
             pitchFormat={drill.pitch_format}
             phase={phase}
+            maxWidth={640}
             editable
             onElementDragMove={handleDragMove}
             onElementDragEnd={handleDragEnd}

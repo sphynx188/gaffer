@@ -94,17 +94,14 @@ export function PlayerRoster() {
 
   if (!selectedTeamId) {
     return (
-      <section className="w-full max-w-lg space-y-4 text-left">
-        <h2 className="text-sm font-semibold text-slate-700">Roster</h2>
-        <p className="text-sm text-slate-400">Create a team above to start a roster.</p>
+      <section className="space-y-4 text-left">
+        <p className="text-sm text-slate-400">Create a team first to start a roster.</p>
       </section>
     )
   }
 
   return (
-    <section className="w-full max-w-lg space-y-4 text-left">
-      <h2 className="text-sm font-semibold text-slate-700">Roster</h2>
-
+    <section className="space-y-4 text-left">
       {playersError && <p className="text-sm text-red-600">{playersError}</p>}
       {playersLoading && players.length === 0 && <p className="text-sm text-slate-400">Loading…</p>}
       {!playersLoading && !playersError && players.length === 0 && (

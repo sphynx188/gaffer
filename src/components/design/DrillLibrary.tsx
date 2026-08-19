@@ -45,17 +45,14 @@ export function DrillLibrary() {
   }, [drills, query])
 
   return (
-    <div className="w-full max-w-lg space-y-3 border-t border-slate-200 pt-6">
-      <p className="text-xs uppercase tracking-wide text-slate-400">Browse &amp; search</p>
-      <h2 className="text-sm font-semibold text-slate-700">Drill library</h2>
-
-      {!selectedTeamId && <p className="text-sm text-slate-400">Select a team above to browse its drills.</p>}
+    <div className="space-y-4">
+      {!selectedTeamId && <p className="text-sm text-slate-400">Select a team to browse its drills.</p>}
       {selectedTeamId && drillsLoading && drills.length === 0 && (
         <p className="text-sm text-slate-400">Loading drills…</p>
       )}
       {drillsError && <p className="text-sm text-red-600">{drillsError}</p>}
       {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
-        <p className="text-sm text-slate-400">No drills yet. Build one above (Design) to see it here.</p>
+        <p className="text-sm text-slate-400">No drills yet. Build one in Design to see it here.</p>
       )}
 
       {selectedTeamId && drills.length > 0 && (
@@ -70,18 +67,18 @@ export function DrillLibrary() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or pitch format…"
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
+              className="w-full max-w-sm rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 outline-none focus:border-slate-500"
             />
           </div>
 
           {filteredDrills.length === 0 ? (
             <p className="text-sm text-slate-400">No drills match "{query}".</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredDrills.map((drill) => (
                 <li
                   key={drill.id}
-                  className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2"
+                  className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/30"
                 >
                   <p className="text-sm font-medium text-slate-900">{drill.name}</p>
                   <span className="shrink-0 rounded-full border border-slate-300 px-2 py-0.5 text-xs text-slate-500">
