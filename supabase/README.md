@@ -50,6 +50,26 @@ Definition of Done for 0.3 (per the build guide): RLS is on for all 8
 tables; `rls_test.sql` confirms a second user's team/player rows are
 invisible when impersonating the first user.
 
+## Phase 0.5.2 — Re-enable RLS (DONE, 2026-08-19)
+
+RLS was disabled table-by-table on 2026-08-18 as a temporary unblock after
+every authenticated write (direct insert and RPC-wrapped) failed with
+`42501`, even though the schema/policies checked out correct under manual SQL
+simulation — see `gaffer_mvp_build_steps.md` Phase 0.5.2. The policies were
+never dropped, so re-enabling was a flip, not a rebuild.
+
+Re-enabling surfaced two real, separate bugs (both fixed, see migrations
+005/006 below) — most importantly, `team_select_members` couldn't see a
+team you'd just created (the auto-seed trigger that grants membership fires
+*after* PostgREST's `RETURNING` is computed), so team creation silently
+came back empty. Confirmed fixed with a real write from the app.
+
+If this ever needs to be undone: `disable_rls.sql` (repo root) flips
+straight back to the disabled state without touching policies or grants, so
+re-running `004_reenable_rls.sql` → `005_...` → `006_...` (or just
+`rls_policies.sql`, which reflects the same end state) afterward is a clean
+re-apply.
+
 ## Migrations (post-launch schema changes)
 
 `schema.sql` is only correct as-is for a *fresh* project. Once a project is
@@ -72,3 +92,22 @@ in the SQL editor:
   authorized entirely by the existing `session_all_members` /
   `session_drills_all_members` RLS policies — a coach can only duplicate a
   session on a team they belong to.
+- `004_reenable_rls.sql` — Phase 0.5.2: re-enables RLS on all 8 tables
+  (disabled 2026-08-18 as a temporary unblock) and tightens the `anon`
+  grant on the `security definer` helper functions. Paired rollback:
+  `disable_rls.sql` at the repo root.
+- `005_fix_team_select_bootstrap_race.sql` — Phase 0.5.2 follow-up:
+  `team_select_members` couldn't see a team immediately after you created
+  it (membership isn't seeded until the `on_team_created` trigger fires,
+  which happens after PostgREST's `RETURNING` is computed). Adds
+  `or owner_id = auth.uid()` to the select policy, mirroring the same
+  exception the insert policy already needed.
+- `006_optimize_team_policy_auth_calls.sql` — Phase 0.5.2 follow-up:
+  performance-only change, wraps `auth.uid()` as `(select auth.uid())` in
+  the two `team` policies per the Supabase performance advisor
+  (`auth_rls_initplan`).
+
+Note: `rls_test.sql` and `sanity_check.sql` were updated alongside
+`004_reenable_rls.sql` to insert into `positions` (array) instead of the
+now-renamed `position` column — they were still using the pre-migration-002
+column name and would have errored as written.

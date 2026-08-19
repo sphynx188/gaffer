@@ -2,6 +2,17 @@
 -- Confirms build guide 0.3's Definition of Done: "a manual test ... confirms
 -- cross-team rows are invisible."
 --
+-- Updated post-migration 002: `player.position` (freeform text) was renamed
+-- to `position_legacy` and replaced by `positions` (player_position[] tag
+-- array) — the seed inserts below use `positions` accordingly.
+--
+-- NOTE: this simulates auth.uid() inside a plain SQL editor session via
+-- set_config/set local role — it does NOT go through PostgREST's real JWT
+-- verification path. That gap is exactly what bit us last time (this test
+-- passed while real REST writes 42501'd), so treat a clean pass here as
+-- necessary but not sufficient — always confirm with a real write from the
+-- app (or a real REST call with a genuine GoTrue-issued token) too.
+--
 -- Prerequisite: at least two users exist in auth.users — Authentication ->
 -- Users -> Add user, twice (any email/password, throwaway, since the real
 -- app uses magic-link but the SQL editor doesn't care how a user got there).
@@ -41,8 +52,8 @@ begin
   insert into team (name, format, owner_id)
     values ('RLS Test — Team B', 'small_sided', v_user_b) returning id into v_team_b;
 
-  insert into player (team_id, name, position) values (v_team_a, 'Player A1', 'CB');
-  insert into player (team_id, name, position) values (v_team_b, 'Player B1', 'ST');
+  insert into player (team_id, name, positions) values (v_team_a, 'Player A1', '{defender}'::player_position[]);
+  insert into player (team_id, name, positions) values (v_team_b, 'Player B1', '{striker}'::player_position[]);
 
   raise notice 'user_a=%  team_a=%  |  user_b=%  team_b=%', v_user_a, v_team_a, v_user_b, v_team_b;
 end $$;
@@ -99,6 +110,23 @@ rollback;
 
 -- If that insert succeeds instead of erroring, stop and debug before
 -- building on top of this.
+
+-- ── Step 3b: confirm anon degrades gracefully, not with a permission error
+-- ──────────────────────────────────────────────────────────────────────────
+-- Regression check added alongside migration 004: is_team_member/
+-- is_team_owner need EXECUTE granted to BOTH anon and authenticated, not
+-- just authenticated — Postgres checks EXECUTE for whichever role a policy
+-- runs under, not just direct RPC callers. If anon's grant is ever revoked
+-- (e.g. "fixing" the security advisor's WARN on these two functions), this
+-- query stops returning an empty set and instead throws "permission denied
+-- for function is_team_member" — which would surface in the app as a hard
+-- error on any anon-role read (e.g. before a magic-link session resolves)
+-- instead of a harmless empty result.
+
+begin;
+set local role anon;
+select name from team;  -- expect: empty result, NOT a permission error
+rollback;
 
 -- ── Step 4: cleanup ─────────────────────────────────────────────────────
 -- Uncomment and run once you've confirmed both tests above passed. Cascades

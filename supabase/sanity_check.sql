@@ -2,6 +2,9 @@
 -- postgres, so RLS being on doesn't block this).
 -- Prerequisite: create at least one user first — Authentication -> Users ->
 -- Add user (any email/password is fine, this is throwaway).
+--
+-- Updated post-migration 002: `player.position` was renamed to
+-- `position_legacy` and replaced by `positions` (player_position[]).
 
 do $$
 declare
@@ -22,8 +25,8 @@ begin
   returning id into v_team_id;
 
   -- player
-  insert into player (team_id, name, position, dob, squad_number)
-  values (v_team_id, 'Test Player', 'CM', '2010-01-01', 8)
+  insert into player (team_id, name, positions, dob, squad_number)
+  values (v_team_id, 'Test Player', '{midfielder}'::player_position[], '2010-01-01', 8)
   returning id into v_player_id;
 
   -- player_notes

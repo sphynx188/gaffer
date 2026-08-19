@@ -49,17 +49,32 @@ as $$
 $$;
 
 -- ── team ────────────────────────────────────────────────────────────────
--- Insert is the one exception to "membership, never owner_id": at insert
--- time no team_coaches row exists yet (the on_team_created trigger adds it
--- AFTER insert), so there's nothing for is_team_member() to find. The
--- insert check has to be owner_id = auth.uid() out of necessity, not
--- preference — everything downstream of that first insert is membership.
+-- Insert (and, it turns out, the select right after it) is the one
+-- exception to "membership, never owner_id": at insert time no
+-- team_coaches row exists yet (the on_team_created trigger adds it AFTER
+-- insert), so there's nothing for is_team_member() to find. The insert
+-- check has to be owner_id = auth.uid() out of necessity, not preference —
+-- everything downstream of that first insert is membership.
+--
+-- select needs the same escape hatch: PostgREST's RETURNING clause on the
+-- INSERT is evaluated before the AFTER INSERT trigger fires, so a
+-- membership-only select policy can't see the row you just created (see
+-- migration fix_team_select_bootstrap_race) — the insert genuinely
+-- succeeds but comes back empty. `or owner_id = auth.uid()` fixes that
+-- without weakening anything: it only ever grants a row back to the exact
+-- user who owns it.
+--
+-- `(select auth.uid())` instead of a bare `auth.uid()` in both policies
+-- below is the Supabase-recommended wrapping (migration
+-- optimize_team_policy_auth_calls) — it lets Postgres evaluate it once per
+-- statement as an initplan instead of once per row. Purely a performance
+-- change, same access semantics.
 
 create policy "team_select_members" on team
-  for select using (is_team_member(id));
+  for select using (is_team_member(id) or owner_id = (select auth.uid()));
 
 create policy "team_insert_self_owner" on team
-  for insert with check (owner_id = auth.uid());
+  for insert with check (owner_id = (select auth.uid()));
 
 create policy "team_update_members" on team
   for update using (is_team_member(id)) with check (is_team_member(id));
