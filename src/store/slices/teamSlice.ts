@@ -77,6 +77,13 @@ export interface TeamSlice {
   createTeam: (input: NewTeamInput) => Promise<Team | null>
   updateTeam: (id: string, patch: TeamUpdateInput) => Promise<Team | null>
   selectTeam: (id: string) => void
+  // Deletes the team row itself. `on delete cascade` on every FK back to
+  // `team` (players, sessions, drills scoped to it, etc. — see
+  // supabase/schema.sql) means Postgres removes everything under it in the
+  // same statement; RLS only allows this for the team's owner
+  // (team_delete_owner policy, supabase/rls_policies.sql), so a plain member
+  // coach never sees a delete option succeed here.
+  deleteTeam: (id: string) => Promise<boolean>
 }
 
 export const createTeamSlice: StateCreator<StoreState, [], [], TeamSlice> = (set, get) => ({
@@ -165,5 +172,34 @@ export const createTeamSlice: StateCreator<StoreState, [], [], TeamSlice> = (set
       ...(team ? { teams: get().teams.map((t) => (t.id === id ? team : t)) } : {}),
     })
     return team
+  },
+
+  deleteTeam: async (id) => {
+    set({ teamsLoading: true, teamsError: null })
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.from('team').delete().eq('id', id),
+      "Couldn't delete team, try again."
+    )
+    if (error) {
+      set({ teamsLoading: false, teamsError: error })
+      return false
+    }
+    set((state) => {
+      const teams = state.teams.filter((t) => t.id !== id)
+      const wasSelected = state.selectedTeamId === id
+      // Same fallback as fetchTeams: never leave selectedTeamId pointing at
+      // a team that no longer exists — fall back to whatever's first, or
+      // null if that was the last team.
+      const selectedTeamId = wasSelected ? (teams[0]?.id ?? null) : state.selectedTeamId
+      if (wasSelected) writeStoredTeamId(selectedTeamId)
+      return {
+        teamsLoading: false,
+        teamsError: null,
+        teams,
+        selectedTeamId,
+        ...(wasSelected ? clearTeamScopedState() : {}),
+      }
+    })
+    return true
   },
 })

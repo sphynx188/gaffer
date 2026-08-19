@@ -46,7 +46,7 @@ export function DrillLibrary() {
 
   return (
     <div className="w-full max-w-lg space-y-3 border-t border-slate-200 pt-6">
-      <p className="text-xs uppercase tracking-wide text-slate-400">3.1 — drill library (browse &amp; search)</p>
+      <p className="text-xs uppercase tracking-wide text-slate-400">Browse &amp; search</p>
       <h2 className="text-sm font-semibold text-slate-700">Drill library</h2>
 
       {!selectedTeamId && <p className="text-sm text-slate-400">Select a team above to browse its drills.</p>}

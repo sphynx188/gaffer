@@ -150,7 +150,7 @@ export function DrillPreview() {
   return (
     <div className="w-full max-w-lg space-y-3 border-t border-slate-200 pt-6">
       <p className="text-xs uppercase tracking-wide text-slate-400">
-        2c — pitch designer (multi-phase step-through, tap to annotate)
+        Pitch designer — step through phases, tap to annotate
       </p>
       <h2 className="text-sm font-semibold text-slate-700">Design</h2>
 

@@ -7,40 +7,40 @@ import { PlayerRoster } from './components/PlayerRoster'
 import { SessionPlanner } from './components/SessionPlanner'
 import { DrillPreview } from './components/design/DrillPreview'
 import { DrillLibrary } from './components/design/DrillLibrary'
-import { VerticalSliceSpike } from './components/VerticalSliceSpike'
 import { OfflineBanner } from './components/OfflineBanner'
 
 // Phase 0.5 Definition of Done: an authenticated empty shell. Phase 1.1
 // (team management, gaffer_mvp_build_steps.md) is the first real Phase 1
-// screen and lands directly below it. The 0.5.1 vertical slice spike stays
-// mounted underneath for now — but no longer builds its own team or session,
-// since TeamManagement and SessionPlanner are the real things now. Phase 1.2
-// (multi-team switching) adds TeamSwitcher directly below the signed-in
-// header: every team-scoped view below it reads the store's `selectedTeamId`
-// rather than defaulting to teams[0]. Phase 1.3 (player roster CRUD) adds
-// PlayerRoster below TeamManagement — it's the first real per-team roster
-// view, also scoped by `selectedTeamId`. Phase 1.5 (weekly session planner)
-// adds SessionPlanner below PlayerRoster — the real create/edit +
-// week-at-a-glance view for sessions, also scoped by `selectedTeamId`. Phase
-// 2a (static pitch renderer) adds DrillPreview below SessionPlanner — the
-// first Design-side screen: it renders whichever drill is selected via
-// Konva, using the same `selectedTeamId` scope. Phase 2b (drag-and-drop
-// persistence) makes that canvas editable — dragging a player/cone/ball
-// updates local state live and persists to Supabase on drop. It's the first
-// thing to consume the drill data the 0.5.1 spike below still creates. Phase
-// 2d (save as reusable / attach to session) replaces the spike's old
-// "attach drill to session" step with the real thing: SessionDrillsPanel,
-// reached via a "Drills" toggle on each session row inside SessionPlanner
-// itself, so nothing new is mounted here — the spike below is trimmed down
-// to just team/session/drill creation, since drill *attachment* now has a
-// real home. Phase 3.1 (drill library / browse & search) adds DrillLibrary
-// below DrillPreview — a simple browse-and-search list over the same
-// `drills` state DrillPreview already fetches, so a coach can find a past
-// drill by name/pitch format without stepping through the picker dropdown.
-// Phase 3.4 (PWA install + app-shell caching) adds OfflineBanner above every
-// branch below — it's the UI half of that phase's "no misleading 'saved'
-// state while offline" requirement; the service worker itself is configured
-// in vite.config.ts.
+// screen and lands directly below it. Phase 1.2 (multi-team switching) adds
+// TeamSwitcher directly below the signed-in header: every team-scoped view
+// below it reads the store's `selectedTeamId` rather than defaulting to
+// teams[0]. Phase 1.3 (player roster CRUD) adds PlayerRoster below
+// TeamManagement — it's the first real per-team roster view, also scoped by
+// `selectedTeamId`. Phase 1.5 (weekly session planner) adds SessionPlanner
+// below PlayerRoster — the real create/edit + week-at-a-glance view for
+// sessions, also scoped by `selectedTeamId`. Phase 2a (static pitch
+// renderer) adds DrillPreview below SessionPlanner — the first Design-side
+// screen: it renders whichever drill is selected via Konva, using the same
+// `selectedTeamId` scope. Phase 2b (drag-and-drop persistence) makes that
+// canvas editable — dragging a player/cone/ball updates local state live and
+// persists to Supabase on drop. Phase 2d (save as reusable / attach to
+// session) adds SessionDrillsPanel, reached via a "Drills" toggle on each
+// session row inside SessionPlanner itself, so nothing new is mounted here.
+// Phase 3.1 (drill library / browse & search) adds DrillLibrary below
+// DrillPreview — a simple browse-and-search list over the same `drills`
+// state DrillPreview already fetches, so a coach can find a past drill by
+// name/pitch format without stepping through the picker dropdown. Phase 3.4
+// (PWA install + app-shell caching) adds OfflineBanner above every branch
+// below — it's the UI half of that phase's "no misleading 'saved' state
+// while offline" requirement; the service worker itself is configured in
+// vite.config.ts.
+//
+// The 0.5.1 vertical slice spike that used to be mounted at the bottom of
+// this tree has been removed now that team/session creation both have real
+// screens above. It was also the only place that could create a *drill* —
+// until a real "create drill" screen exists, new drills can't be added from
+// the UI (existing ones can still be viewed/edited/attached to sessions as
+// before).
 function App() {
   const { session, loading } = useSession()
 
@@ -98,7 +98,6 @@ function App() {
         <div className="mt-8 w-full max-w-lg">
           <DrillLibrary />
         </div>
-        <VerticalSliceSpike />
       </div>
     </>
   )
