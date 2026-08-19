@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
-import type { Session } from '../types'
+import type { Session, Availability, SessionDrill } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewSessionInput {
@@ -23,66 +23,241 @@ export interface SessionUpdateInput {
   season_label?: string | null
 }
 
+// Phase 1.5 — Weekly session planner (US-7, gaffer_mvp_build_steps.md) reads
+// the week view via one embedded PostgREST select
+// (`select=*, availability(*), session_drills(*)`) per the build guide's
+// step 3, rather than a bare `select('*')` — even though availability
+// (1.6) and session_drills (2d) had no real UI at the time, so that shape
+// never has to be retrofitted later and the week view never grows an N+1
+// request pattern per session row.
+export interface SessionWithRelations extends Session {
+  availability: Availability[]
+  session_drills: SessionDrill[]
+}
+
+const SESSION_SELECT = '*, availability(*), session_drills(*)'
+
 export interface SessionSlice {
-  sessions: Session[]
+  sessions: SessionWithRelations[]
   sessionsLoading: boolean
   sessionsError: string | null
 
   fetchSessions: (teamId: string) => Promise<void>
-  createSession: (input: NewSessionInput) => Promise<Session | null>
-  updateSession: (id: string, patch: SessionUpdateInput) => Promise<Session | null>
+  createSession: (input: NewSessionInput) => Promise<SessionWithRelations | null>
+  updateSession: (id: string, patch: SessionUpdateInput) => Promise<SessionWithRelations | null>
+  // Phase 3.2 — Duplicate a past session (US-16, gaffer_mvp_build_steps.md).
+  // Copies the source session's `session_drills` line-up into a brand-new
+  // session on `newDate`, atomically, via the `duplicate_session` Postgres
+  // RPC — never a client-side loop of inserts, since a partial copy (new
+  // session committed but drills only half-copied) would be worse than the
+  // whole thing failing outright. Returns the new session (with its copied
+  // drills and freshly-seeded availability already embedded), or null if
+  // the RPC itself failed (e.g. the source session isn't one this coach has
+  // access to).
+  duplicateSession: (sourceSessionId: string, newDate: string) => Promise<SessionWithRelations | null>
 }
 
-export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> = (set, get) => ({
-  sessions: [],
-  sessionsLoading: false,
-  sessionsError: null,
+export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> = (set, get) => {
+  // Phase 1.2 — Multi-team switching (US-4): tracks which team the
+  // in-flight fetch was for, so a fast team-switch can't let a slower,
+  // now-stale response for the *previous* team overwrite the list after the
+  // newer request already resolved. Plain closure state, not store state —
+  // it's bookkeeping for this slice's own async calls, not UI-visible.
+  let latestFetchTeamId: string | null = null
 
-  fetchSessions: async (teamId) => {
-    set({ sessionsLoading: true, sessionsError: null })
-    const { data, error } = await runSupabaseAction<Session[]>(
+  // Phase 1.6 — Availability per session (US-8, gaffer_mvp_build_steps.md
+  // step 2): "default every player to unconfirmed when a session is
+  // created (a trigger or a client-side insert loop on session creation
+  // both work at this scale)". This is the client-side-insert-loop half of
+  // that choice — the counterpart of schema.sql's on_team_created trigger,
+  // just one layer up. `status` is left unset on each inserted row so
+  // schema.sql's `default 'unconfirmed'` stays the single source of truth
+  // for the default rather than duplicating 'unconfirmed' here.
+  //
+  // Shared by createSession (a brand-new session) and, as of Phase 3.2,
+  // duplicateSession — the build guide's "fresh availability for the new
+  // date" for a duplicated session is exactly this same seeding, not a copy
+  // of the source session's player responses, so both paths funnel through
+  // the one seeding routine rather than growing a second copy of it.
+  const seedUnconfirmedAvailability = async (
+    sessionId: string,
+    teamId: string,
+    failureMessage: string
+  ): Promise<Availability[]> => {
+    const teamPlayers = get().players.filter((p) => p.team_id === teamId)
+    if (teamPlayers.length === 0) return []
+    const { data: availabilityRows, error: availabilityError } = await runSupabaseAction<Availability[]>(
       () =>
         supabase
-          .from('session')
-          .select('*')
-          .eq('team_id', teamId)
-          .order('date', { ascending: true }),
-      "Couldn't load sessions, try again."
+          .from('availability')
+          .insert(teamPlayers.map((p) => ({ session_id: sessionId, player_id: p.id })))
+          .select(),
+      failureMessage
     )
-    set({
-      sessionsLoading: false,
-      sessionsError: error,
-      ...(data ? { sessions: data } : {}),
-    })
-  },
+    if (availabilityError) {
+      // Don't fail session creation/duplication over this — the session row
+      // is already committed. Log it rather than losing it silently; a
+      // missing availability row just falls back to "no availability
+      // record" in AvailabilityPanel instead of blocking the coach.
+      console.error('[sessionSlice] availability seed failed', availabilityError)
+    }
+    return availabilityRows ?? []
+  }
 
-  createSession: async (input) => {
-    set({ sessionsLoading: true, sessionsError: null })
-    const { data, error } = await runSupabaseAction<Session[]>(
-      () => supabase.from('session').insert(input).select(),
-      "Couldn't create session, try again."
-    )
-    const session = data?.[0] ?? null
-    set({
-      sessionsLoading: false,
-      sessionsError: error,
-      ...(session ? { sessions: [...get().sessions, session] } : {}),
-    })
-    return session
-  },
+  return {
+    sessions: [],
+    sessionsLoading: false,
+    sessionsError: null,
 
-  updateSession: async (id, patch) => {
-    set({ sessionsLoading: true, sessionsError: null })
-    const { data, error } = await runSupabaseAction<Session[]>(
-      () => supabase.from('session').update(patch).eq('id', id).select(),
-      "Couldn't save session, try again."
-    )
-    const session = data?.[0] ?? null
-    set({
-      sessionsLoading: false,
-      sessionsError: error,
-      ...(session ? { sessions: get().sessions.map((s) => (s.id === id ? session : s)) } : {}),
-    })
-    return session
-  },
-})
+    fetchSessions: async (teamId) => {
+      latestFetchTeamId = teamId
+      set({ sessionsLoading: true, sessionsError: null })
+      const { data, error } = await runSupabaseAction<SessionWithRelations[]>(
+        () =>
+          supabase
+            .from('session')
+            .select(SESSION_SELECT)
+            .eq('team_id', teamId)
+            .order('date', { ascending: true })
+            // Phase 2d: order the embedded session_drills by order_index too
+            // (foreignTable targets the nested resource, not the top-level
+            // `session` rows) — SessionDrillsPanel renders this array
+            // straight through as "the current running order," so it must
+            // come back pre-sorted from the very first fetch, not only after
+            // a later attach/reorder patches it client-side.
+            .order('order_index', { ascending: true, referencedTable: 'session_drills' }),
+        "Couldn't load sessions, try again."
+      )
+      if (latestFetchTeamId !== teamId) return // superseded by a newer team switch
+      set({
+        sessionsLoading: false,
+        sessionsError: error,
+        ...(data ? { sessions: data } : {}),
+      })
+    },
+
+    createSession: async (input) => {
+      set({ sessionsLoading: true, sessionsError: null })
+      // A plain insert().select() only returns session columns, never the
+      // embedded relations the week view's fetch uses — a brand-new session
+      // has no session_drills yet regardless, so that one is seeded empty
+      // rather than re-fetched. availability is different: it's not empty by
+      // definition (see below).
+      const { data, error } = await runSupabaseAction<Session[]>(
+        () => supabase.from('session').insert(input).select(),
+        "Couldn't create session, try again."
+      )
+      const inserted = data?.[0] ?? null
+
+      const availability = inserted
+        ? await seedUnconfirmedAvailability(
+            inserted.id,
+            inserted.team_id,
+            "Session created, but couldn't set up player availability."
+          )
+        : []
+
+      const session: SessionWithRelations | null = inserted
+        ? { ...inserted, availability, session_drills: [] }
+        : null
+      set({
+        sessionsLoading: false,
+        sessionsError: error,
+        ...(session ? { sessions: [...get().sessions, session] } : {}),
+      })
+      return session
+    },
+
+    updateSession: async (id, patch) => {
+      set({ sessionsLoading: true, sessionsError: null })
+      // Same as createSession: the update response carries no embedded
+      // relations, so the existing row's availability/session_drills are
+      // preserved rather than clobbered with an empty array on every edit.
+      const { data, error } = await runSupabaseAction<Session[]>(
+        () => supabase.from('session').update(patch).eq('id', id).select(),
+        "Couldn't save session, try again."
+      )
+      const updated = data?.[0] ?? null
+      let session: SessionWithRelations | null = null
+      set((state) => {
+        if (!updated) {
+          return { sessionsLoading: false, sessionsError: error }
+        }
+        const existing = state.sessions.find((s) => s.id === id)
+        session = {
+          ...updated,
+          availability: existing?.availability ?? [],
+          session_drills: existing?.session_drills ?? [],
+        }
+        return {
+          sessionsLoading: false,
+          sessionsError: error,
+          sessions: state.sessions.map((s) => (s.id === id ? session! : s)),
+        }
+      })
+      return session
+    },
+
+    duplicateSession: async (sourceSessionId, newDate) => {
+      set({ sessionsLoading: true, sessionsError: null })
+      // `duplicate_session` returns a single `session` row (not `setof
+      // session`), so PostgREST hands back one object, not an array —
+      // unlike every other call in this slice, there's no `data?.[0]` here.
+      // Copying `session_drills` happens inside the RPC itself, in the same
+      // Postgres transaction as the new session row (see
+      // supabase/migrations/003_duplicate_session_rpc.sql) — this is the
+      // "multi-row/atomic operation" gaffer_project_plan_final.md §4
+      // flagged from the start as the one case that can't be a plain
+      // supabase-js insert/loop.
+      const { data: newSession, error: rpcError } = await runSupabaseAction<Session>(
+        () =>
+          supabase.rpc('duplicate_session', {
+            source_session_id: sourceSessionId,
+            new_date: newDate,
+          }),
+        "Couldn't duplicate session, try again."
+      )
+
+      if (!newSession) {
+        set({ sessionsLoading: false, sessionsError: rpcError })
+        return null
+      }
+
+      // Per build guide 3.2's Definition of Done — "availability data is
+      // not copied (fresh availability for the new date)" — this is
+      // deliberately the same seeding a brand-new session gets from
+      // createSession, not a copy of the source session's player
+      // responses; the RPC above never touches `availability` at all.
+      const availability = await seedUnconfirmedAvailability(
+        newSession.id,
+        newSession.team_id,
+        'Session duplicated, but availability could not be set up.'
+      )
+
+      // The RPC's return value carries plain session columns only, same as
+      // createSession/updateSession's insert().select()/update().select()
+      // responses — but unlike those, this new session's session_drills is
+      // NOT empty (the RPC just copied them server-side), so re-fetching
+      // this one row with the same embedded select every other session in
+      // the store already uses is simpler and less error-prone than
+      // hand-assembling an equivalent array of SessionDrill objects here.
+      const { data: full, error: fullError } = await runSupabaseAction<SessionWithRelations[]>(
+        () =>
+          supabase
+            .from('session')
+            .select(SESSION_SELECT)
+            .eq('id', newSession.id)
+            .order('order_index', { ascending: true, referencedTable: 'session_drills' }),
+        "Session duplicated, but couldn't load it — refresh to see it."
+      )
+      const session = full?.[0] ?? { ...newSession, availability, session_drills: [] }
+
+      set({
+        sessionsLoading: false,
+        sessionsError: fullError,
+        sessions: [...get().sessions, session],
+      })
+      return session
+    },
+  }
+}

@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+/* Phase 3.3 — General UI polish: this app is light-mode-only by design
+   (discussion_visual_style.md). Without an explicit color-scheme, Chrome/
+   Safari render native form controls — <select>, date/number spinners,
+   checkboxes, scrollbars — in a dark system-drawn style whenever the OS is
+   in dark mode, even though every Tailwind class in this app is a light
+   palette. Declaring `light` here is what keeps those native widgets
+   consistent with the rest of the UI instead of a dark control slipping in
+   on a coach's phone that happens to be in dark mode. */
+:root {
+  color-scheme: light;
+}

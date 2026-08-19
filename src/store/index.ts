@@ -5,10 +5,12 @@ export type {
   TeamCoach,
   Player,
   PlayerNote,
+  PlayerPosition,
   Session,
   Availability,
   Drill,
   DrillPhase,
+  PhasePoint,
   PhasePlayer,
   PhaseCone,
   PhaseBall,
@@ -19,3 +21,6 @@ export type {
   CoachRole,
   AvailabilityStatus,
 } from './types'
+export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS } from './types'
+export type { SessionWithRelations } from './slices/sessionSlice'
+export type { DrillElementType, NewPhaseMode } from './slices/drillSlice'

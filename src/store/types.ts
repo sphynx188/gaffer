@@ -6,6 +6,21 @@ export type PitchFormat = '11v11' | 'small_sided'
 export type CoachRole = 'owner' | 'coach'
 export type AvailabilityStatus = 'available' | 'unavailable' | 'unconfirmed'
 
+// Phase 1 revision: position is a multi-select tag set, not freeform text —
+// a player can hold more than one (e.g. winger + striker). Fixed list,
+// mirrors the `player_position` Postgres enum (supabase/schema.sql) —
+// keep the two in sync if this ever changes.
+export const PLAYER_POSITIONS = ['goalkeeper', 'defender', 'midfielder', 'winger', 'striker'] as const
+export type PlayerPosition = (typeof PLAYER_POSITIONS)[number]
+
+export const PLAYER_POSITION_LABELS: Record<PlayerPosition, string> = {
+  goalkeeper: 'Goalkeeper',
+  defender: 'Defender',
+  midfielder: 'Midfielder',
+  winger: 'Winger',
+  striker: 'Striker',
+}
+
 export interface Team {
   id: string
   name: string
@@ -26,7 +41,7 @@ export interface Player {
   id: string
   team_id: string
   name: string
-  position: string | null
+  positions: PlayerPosition[]
   dob: string | null
   squad_number: number | null
   created_at: string

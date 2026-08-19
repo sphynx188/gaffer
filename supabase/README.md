@@ -49,3 +49,26 @@ keys get nothing) until this step is done.
 Definition of Done for 0.3 (per the build guide): RLS is on for all 8
 tables; `rls_test.sql` confirms a second user's team/player rows are
 invisible when impersonating the first user.
+
+## Migrations (post-launch schema changes)
+
+`schema.sql` is only correct as-is for a *fresh* project. Once a project is
+live, apply incremental changes from `migrations/`, in order, each run once
+in the SQL editor:
+
+- `002_player_position_tags.sql` — Phase 1 revision: `player.position`
+  (single freeform text) → `player.positions` (multi-select tag array:
+  goalkeeper/defender/midfielder/winger/striker). The old text is preserved
+  in `player.position_legacy` rather than deleted, since old values like
+  "CF" don't map cleanly onto the five fixed tags — re-tag each player once,
+  then drop `position_legacy` whenever you're ready.
+- `003_duplicate_session_rpc.sql` — Phase 3.2 (US-16): adds the
+  `duplicate_session(source_session_id, new_date)` Postgres function, called
+  via `supabase.rpc()` from `sessionSlice.duplicateSession`. Copies a
+  session's `session_drills` line-up into a brand-new session row as one
+  transaction (all-or-nothing); does not copy `availability` (the client
+  seeds fresh `unconfirmed` rows for the new date instead) and creates no
+  new "template" entity. Runs as the caller (no `security definer`), so it's
+  authorized entirely by the existing `session_all_members` /
+  `session_drills_all_members` RLS policies — a coach can only duplicate a
+  session on a team they belong to.

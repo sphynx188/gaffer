@@ -14,6 +14,11 @@
 create type pitch_format as enum ('11v11', 'small_sided');
 create type coach_role as enum ('owner', 'coach');
 create type availability_status as enum ('available', 'unavailable', 'unconfirmed');
+-- Phase 1 revision: position moved from a freeform text field on `player` to
+-- a multi-select tag set (a player can be e.g. both `winger` and `striker`).
+-- See migrations/002_player_position_tags.sql for the script that applies
+-- this to an already-deployed project instead of a fresh one.
+create type player_position as enum ('goalkeeper', 'defender', 'midfielder', 'winger', 'striker');
 
 -- ── Tables (created in FK-dependency order) ────────────────────────────────
 
@@ -38,7 +43,7 @@ create table player (
   id           uuid primary key default gen_random_uuid(),
   team_id      uuid not null references team (id) on delete cascade,
   name         text not null,
-  position     text,
+  positions    player_position[] not null default '{}'::player_position[],
   dob          date,
   squad_number smallint,
   created_at   timestamptz not null default now()
