@@ -120,9 +120,75 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
   same stale-HMR-churn pattern as Phase 2A's transient errors, confirmed
   false-positive via a fresh tab).
 
+- **Phase 3 (Tactic Creator, new feature)** — the largest single chunk of
+  the plan, done in full. Migration `supabase/migrations/012_tactic_table.sql`:
+  new `tactic` table (`team_id` **not null** — unlike `drill`, no
+  coach-owned/unscoped case), RLS policy in the migration itself (not
+  appended to `rls_policies.sql` — that file is the historical Phase 0.3
+  record, same as `schema.sql`; policy changes since then all live in
+  numbered migrations, e.g. `005`/`006`).
+  New: `src/store/slices/tacticSlice.ts` (mirrors `drillSlice.ts`'s
+  fetch/create/update + local-mutate-then-one-write pattern; no
+  multi-phase concept — v1 tactics are a single static board), wired into
+  `useStore.ts`; `teamSlice.ts`'s `clearTeamScopedState` now also clears
+  `tactics` on team switch (tactics are always team-scoped like
+  sessions/drills). `src/components/tactics/TacticBoard.tsx` (new,
+  largest new file) + `src/pages/TacticsPage.tsx`, routed at `/tactics`,
+  nav entry added to `AppShell.tsx`'s `TEAM_SCOPED_PATHS`/`NAV_ITEMS_TEAM`.
+  Key design points carried over from the plan, both taken as written (not
+  re-litigated):
+  - **Adapter, not a PitchCanvas rewrite** — `TacticBoard` maps
+    `TacticPlayer[] + roster Player[] → PhasePlayer[]` inline before
+    handing data to the unmodified `PitchCanvas` (empty `cones`/`balls`
+    arrays alongside). Zero changes to `PitchCanvas` itself were needed for
+    this.
+  - **Tap-to-place roster panel, not drag-and-drop** — tapping a roster
+    button stages `pendingPlacePlayerId`, tapping the pitch commits via
+    `addTacticPlayer` (reuses the same `annotationMode`/`onCanvasClick`
+    plumbing every other placement mode already uses). Roster grouped into
+    4 display buckets (Goalkeepers/Defenders/Midfielders/Attackers,
+    winger+striker both bucket into Attackers) — display-only, no schema
+    change. **If the user wants true drag-and-drop instead, that's a
+    follow-up, not a bug** — this was an explicit, flagged plan decision.
+  - Arrows reuse Phase 2C's exact two-click pattern (`addTacticArrow`/
+    `removeTacticArrow`, same `pendingArrowStart` staging).
+  **Verified live** (test account, "4-3-3 - Build Up" tactic on Test U12
+  Reds): created a tactic; placed all 3 roster players (GK/DEF/ST, correct
+  bucket grouping, correct number/name via the adapter, correctly
+  disappear from the "unplaced" list); drew one player-arrow and one
+  ball-arrow, visually distinct; **all of the above survived a hard
+  reload**; removed one arrow and one placed player (returned to the
+  roster panel) — both removals also confirmed to survive a reload.
+  Build/lint clean; zero console errors on a fresh tab.
+  **Tooling note for future sessions, not a product bug**: clicking
+  precisely on a small Konva canvas shape (an arrow's thin line, a
+  player's circle) via the Browser pane's `computer` tool's `left_click`
+  was unreliable — sometimes took several attempts, occasionally didn't
+  register at all even after 5+ tries, despite `removeMode`/`onArrowClick`
+  wiring being verified correct via direct Konva inspection
+  (`window.Konva.stages[0].find('Arrow')`, checked `listening: true`).
+  Clicking *empty* canvas (any placement mode) was always reliable — only
+  small-target *removal* clicks were flaky. When `computer` clicks on a
+  canvas shape don't seem to register, don't conclude the feature is
+  broken — verify via `javascript_tool`: query `window.Konva.stages[0]` for
+  the target node's real position, compute page coordinates from
+  `stage.container().getBoundingClientRect()`, and dispatch a synthetic
+  `pointerdown`/`mousedown`/`pointerup`/`mouseup`/`click` sequence directly
+  on `stage.content.querySelector('canvas')` at that position — this
+  worked reliably every time it was tried. Also note: `read_network_requests`
+  never captured any Supabase REST calls in this session (cross-origin,
+  possibly not intercepted by this tool) — use a full page reload +
+  re-check the UI/DOM state as the reliable way to confirm a write
+  persisted, not network-request inspection.
+- Two new (harmless) `set-state-in-effect` oxlint warnings in
+  `TacticBoard.tsx` (lines 84, 93) — structurally identical to unflagged
+  effects in `DrillPreview.tsx`, so this is oxlint's React-Compiler
+  heuristic reacting to something else in the file's overall shape, not a
+  real bug. Same "known, safe to ignore" status as the two pre-existing
+  `AttendancePage.tsx`/`SessionPlanner.tsx` warnings.
+
 ### Not started yet
 
-- Phase 3 (Tactic Creator — new feature, depends on 2C)
 - Phase 4 (mobile-first audit)
 - Phase 5 (final verification + docs)
 
@@ -140,47 +206,36 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
 
 ### Exact next step
 
-Phase 2 (Drill Creator upgrade) is now fully done — start Phase 3 (Tactic
-Creator, new feature) per UPGRADE_IMPLEMENTATION_PLAN.md steps 3.1–3.6.
-This is the largest remaining chunk of the plan. In order:
+Phase 3 (Tactic Creator) is now fully done — start Phase 4 (mobile-first
+audit) per UPGRADE_IMPLEMENTATION_PLAN.md's Phase 4 section. This phase is
+mostly verification + targeted CSS fixes, not new feature work — and it's
+the first phase where *every* screen being audited (including the two
+brand-new ones from Phases 1–3) can actually be checked live, since Phase 1
+unlocked real login.
 
-1. **3.1 Schema + RLS** — new migration `012_tactic_table.sql`: `tactic`
-   table (`team_id` **not null**, unlike `drill` — no coach-owned/unscoped
-   case for tactics), `board` jsonb column. RLS policy follows `session`'s
-   simple always-team-scoped `is_team_member(team_id)` pattern (reuse the
-   existing helper function in `rls_policies.sql`, don't redefine it) —
-   simpler than `drill`'s policy, which has to handle a nullable `team_id`
-   that doesn't apply here. Apply via Supabase MCP `apply_migration` +
-   write the matching file, same convention as `011_*.sql`.
-2. **3.2 Types + store slice** — `Tactic`/`TacticPlayer` types
-   (`TacticPlayer` carries a real `player_id` FK to the roster, not a
-   freeform `team` label like drill's `PhasePlayer`), new
-   `src/store/slices/tacticSlice.ts` mirroring `drillSlice.ts`'s
-   fetch/create/update + local add/remove/move pattern (no cones/balls
-   methods needed — tactics are players + arrows + annotations only, per
-   the roadmap). Wire into `useStore.ts`/`store/index.ts`.
-3. **3.3 Adapter, not a PitchCanvas rewrite** — map
-   `TacticPlayer[] + roster Player[] → PhasePlayer[]` right before handing
-   data to `PitchCanvas`, passing `cones: []`/`balls: []` alongside. Keeps
-   `PitchCanvas` itself unchanged — it doesn't need to know tactics exist.
-4. **3.4 Roster panel** — new `src/components/tactics/TacticBoard.tsx`.
-   Reuses the same tap-a-tool → tap-the-pitch placement pattern from
-   `DrillPreview.tsx` (not true HTML5 drag-and-drop from the panel — that
-   was a deliberate call in the plan, flag it to the user if they want true
-   drag-and-drop instead). Roster grouped into 4 display buckets
-   (Goalkeepers/Defenders/Midfielders/Attackers — winger+striker both
-   bucket into Attackers, display-only, no schema change).
-5. **3.5 Arrows + save** — reuse the exact two-click arrow pattern from
-   Phase 2C (same `kind` concept covers "runs"/"passing patterns"/
-   "pressing movements" from the roadmap — no third arrow type needed).
-   Add a name field + create/update flow.
-6. **3.6 Routing** — new `/tactics` route in `App.tsx`, new nav entry in
-   `AppShell.tsx`'s `TEAM_SCOPED_PATHS`/`NAV_ITEMS_TEAM`, new
-   `TacticsPage.tsx` (thin wrapper, same shape as `DesignPage.tsx`).
+1. `resize_window` to the `mobile` preset (375×812) in the Browser pane.
+2. Walk every screen: Login/Sign-up/Forgot-password (new, Phase 1),
+   Dashboard, Calendar, Team Overview, Roster, Sessions, **Attendance**
+   (the roadmap's one explicitly-named critical mobile workflow — check it
+   can be completed in a small number of taps, and record the actual
+   count), Design (drill creator — canvas + right-panel toolbar stacking
+   at narrow width, now with the wider equipment/arrow toolbar from Phase
+   2B/2C), Drill library, Tactics (new, Phase 3 — same canvas+panel layout
+   concern as Design).
+3. For each: screenshot, check no horizontal page scroll, tap targets
+   reasonably sized, hamburger nav reachable and usable.
+4. Any issue found: fix using the repo's established pattern — shared
+   `grid-template-columns` constants for header+row UI (per this file's own
+   prior "Watch Out For" precedent below), not `flex`/`flex-1`.
+5. **Tooling note carried over from Phase 3**: if verifying a canvas-based
+   interaction (Design/Tactics pages) at mobile width and `computer` clicks
+   on small shapes seem unreliable, don't conclude something's broken —
+   use the `javascript_tool` + `window.Konva.stages[0]` technique described
+   in the Phase 3 entry above before assuming a real bug.
 
-Verify live using the test account above: place 3+ roster players from
-different position buckets, draw 2+ arrows, save, reload, confirm it loads
-back identically.
+No test account changes needed — reuse `gaffertest2026v2@gmail.com` above,
+which already has a team, roster, drills (all 4 sizes), and one tactic to
+audit against.
 
 ---
 

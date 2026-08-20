@@ -176,3 +176,28 @@ export interface SessionDrill {
   planned_duration_minutes: number | null
   notes: string | null
 }
+
+// Upgrade Phase 3 (UPGRADE_IMPLEMENTATION_PLAN.md): the Tactic Creator.
+// Unlike a drill's PhasePlayer (a freeform team label — "attack"/"A"/"B"),
+// a tactic player is always a real roster player, referenced by id — a
+// tactic shows this team's own actual squad, not a generic two-team drill
+// setup. No cones/balls: v1 tactics are players + arrows + annotations
+// only, per the roadmap's "static tactical diagram" scope.
+export interface TacticPlayer extends PhasePoint {
+  id: string
+  player_id: string
+}
+
+export interface TacticBoard {
+  players: TacticPlayer[]
+  arrows: PhaseArrow[]
+  annotations: PhaseAnnotation[]
+}
+
+export interface Tactic {
+  id: string
+  team_id: string // always team-scoped, unlike Drill.team_id — see migrations/012_tactic_table.sql
+  name: string
+  board: TacticBoard
+  created_at: string
+}

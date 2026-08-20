@@ -11,6 +11,7 @@ import {
   Menu,
   PenTool,
   Settings,
+  Shield,
   Users,
   X,
 } from 'lucide-react'
@@ -32,7 +33,7 @@ interface NavItem {
 // route, not `selectedTeamId` (which persists across visits to `/`), so
 // landing on the coach-level Dashboard always shows coach-level tabs even
 // if a team was already selected from a previous session.
-const TEAM_SCOPED_PATHS = ['/overview', '/roster', '/sessions', '/attendance', '/design', '/drills']
+const TEAM_SCOPED_PATHS = ['/overview', '/roster', '/sessions', '/attendance', '/design', '/drills', '/tactics']
 
 const NAV_ITEMS_COACH: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -47,6 +48,7 @@ const NAV_ITEMS_TEAM: NavItem[] = [
   { to: '/attendance', label: 'Attendance', icon: ClipboardCheck },
   { to: '/design', label: 'Design', icon: PenTool },
   { to: '/drills', label: 'Drill library', icon: LibraryBig },
+  { to: '/tactics', label: 'Tactics', icon: Shield },
 ]
 
 const navLinkClass = (direction: 'row' | 'col') => ({ isActive }: { isActive: boolean }) =>

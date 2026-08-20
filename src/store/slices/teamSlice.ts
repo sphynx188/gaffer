@@ -53,12 +53,18 @@ function writeStoredTeamId(id: string | null): void {
 // session/session_drill id, so a stale entry for a team no longer selected
 // is inert, same as playerNoteSlice's and availabilitySlice's keyed state,
 // neither of which this function clears either).
+//
+// Upgrade Phase 3: `tactics` is always team-scoped (no coach-owned/unscoped
+// case like `drills` has), so it gets the exact same treatment as
+// `sessions`/`drills` here — never left to bleed across a team switch.
 function clearTeamScopedState() {
   return {
     sessions: [],
     sessionsError: null,
     drills: [],
     drillsError: null,
+    tactics: [],
+    tacticsError: null,
   }
 }
 
