@@ -156,41 +156,52 @@ export function AttendancePage() {
                     {s.start_time && <p className="font-normal text-ink-faint">{formatTimeLabel(s.start_time)}</p>}
                   </th>
                 ))}
+                <th className="min-w-16 border-b border-l border-line px-2 py-2 text-center text-xs font-medium text-ink-muted">
+                  Attended
+                </th>
               </tr>
             </thead>
             <tbody>
-              {players.map((player) => (
-                <tr key={player.id}>
-                  <td className="sticky left-0 z-10 border-b border-r border-line bg-panel px-3 py-2 text-left">
-                    <span className="text-sm text-ink">
-                      {player.squad_number != null && (
-                        <span className="mr-1 text-ink-muted">#{player.squad_number}</span>
-                      )}
-                      {player.name}
-                    </span>
-                  </td>
-                  {weekSessions.map((s) => {
-                    const availability = s.availability.find((a) => a.player_id === player.id)
-                    return (
-                      <td key={s.id} className="border-b border-line px-2 py-2 text-center">
-                        {availability ? (
-                          <button
-                            type="button"
-                            onClick={() => handleCycle(availability)}
-                            disabled={pendingId === availability.id}
-                            title={STATUS_LABEL[availability.status]}
-                            className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors disabled:opacity-50 ${STATUS_CELL_CLASS[availability.status]}`}
-                          >
-                            {STATUS_CELL_LABEL[availability.status]}
-                          </button>
-                        ) : (
-                          <span className="text-xs text-ink-faint">—</span>
+              {players.map((player) => {
+                const attendedCount = weekSessions.filter(
+                  (s) => s.availability.find((a) => a.player_id === player.id)?.status === 'present'
+                ).length
+                return (
+                  <tr key={player.id}>
+                    <td className="sticky left-0 z-10 border-b border-r border-line bg-panel px-3 py-2 text-left">
+                      <span className="text-sm text-ink">
+                        {player.squad_number != null && (
+                          <span className="mr-1 text-ink-muted">#{player.squad_number}</span>
                         )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
+                        {player.name}
+                      </span>
+                    </td>
+                    {weekSessions.map((s) => {
+                      const availability = s.availability.find((a) => a.player_id === player.id)
+                      return (
+                        <td key={s.id} className="border-b border-line px-2 py-2 text-center">
+                          {availability ? (
+                            <button
+                              type="button"
+                              onClick={() => handleCycle(availability)}
+                              disabled={pendingId === availability.id}
+                              title={STATUS_LABEL[availability.status]}
+                              className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-xs font-semibold transition-colors disabled:opacity-50 ${STATUS_CELL_CLASS[availability.status]}`}
+                            >
+                              {STATUS_CELL_LABEL[availability.status]}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-ink-faint">—</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="border-b border-l border-line px-2 py-2 text-center text-xs font-medium text-ink-muted">
+                      {attendedCount}/{weekSessions.length}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
