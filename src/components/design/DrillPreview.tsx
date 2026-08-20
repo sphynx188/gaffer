@@ -5,7 +5,6 @@ import type { Drill, DrillElementType, NewDrillInput, NewPhaseMode, PitchOrienta
 import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { PitchCanvas } from './PitchCanvas'
 import { EmptyState } from '../ui/EmptyState'
-import { NumberChip } from '../ui/NumberChip'
 
 const pitchSizeOptions: PitchSize[] = ['full', 'three_quarter', 'half', 'quarter']
 const pitchOrientationOptions: PitchOrientation[] = ['portrait', 'landscape']
@@ -304,12 +303,10 @@ export function DrillPreview() {
 
   return (
     <div className="space-y-4">
-      {/* Top settings bar — drill selection/creation, pitch size, and phase
-          navigation/management: everything that's a *setting* about the
-          current drill or phase, rather than a thing you place on the
-          pitch. Wraps onto multiple lines on narrow screens, but reads as
-          one horizontal options bar on desktop — the element/tool palette
-          lives in the right-side rail instead (see below). */}
+      {/* Top settings bar — drill selection/creation and pitch size, laid
+          out left to right. Phase navigation/management moved below the
+          canvas (a filmstrip, not a setting up here — see below); the
+          element/tool palette lives in the right-side rail (see below). */}
       {selectedTeamId && (
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border border-line bg-panel p-3">
           {drills.length > 0 && (
@@ -340,107 +337,6 @@ export function DrillPreview() {
               here immediately selects it (handleDrillCreated), landing the
               coach straight on its one starter phase, ready to place elements. */}
           <CreateDrillForm teamId={selectedTeamId} onCreate={createDrill} onCreated={handleDrillCreated} />
-
-          {drill && phase && (
-            <>
-              {/* Phase stepper (2c, US-12) + editable label/duration — step
-                  forward/back swaps which phase index is current; PitchCanvas
-                  fully re-renders from the new phase's own element arrays, so
-                  there's never a leftover element from the previous phase. */}
-              <div className="flex flex-wrap items-end gap-3 border-l border-line pl-6">
-                <div className="space-y-1">
-                  <span className="block text-xs font-medium text-ink-muted">Phase</span>
-                  <div className="flex items-center gap-1">
-                    <NumberChip index={phaseIndex + 1} />
-                    <span className="text-xs text-ink-muted">of {drill.phases.length}</span>
-                    <button
-                      type="button"
-                      onClick={() => setPhaseIndex((i) => Math.max(0, i - 1))}
-                      disabled={phaseIndex === 0}
-                      className="ml-1 rounded-md border border-line px-2 py-1 text-xs text-ink-muted disabled:opacity-40"
-                    >
-                      ← Prev
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPhaseIndex((i) => Math.min(drill.phases.length - 1, i + 1))}
-                      disabled={phaseIndex >= drill.phases.length - 1}
-                      className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted disabled:opacity-40"
-                    >
-                      Next →
-                    </button>
-                  </div>
-                </div>
-                <form onSubmit={handleSavePhaseMeta} className="flex flex-wrap items-end gap-2">
-                  <div>
-                    <label htmlFor="phase-label" className="block text-xs font-medium text-ink-muted">
-                      Block title
-                    </label>
-                    <input
-                      id="phase-label"
-                      value={phaseLabel}
-                      onChange={(e) => {
-                        setPhaseLabel(e.target.value)
-                        setPhaseMetaDirty(true)
-                      }}
-                      placeholder="e.g. Directional possession"
-                      className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="phase-duration" className="block text-xs font-medium text-ink-muted">
-                      Duration (s)
-                    </label>
-                    <input
-                      id="phase-duration"
-                      type="number"
-                      min={0}
-                      value={phaseDuration}
-                      onChange={(e) => {
-                        setPhaseDuration(e.target.value)
-                        setPhaseMetaDirty(true)
-                      }}
-                      className="mt-1 w-20 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={!phaseMetaDirty}
-                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                </form>
-              </div>
-
-              {/* Phase controls (2c, step 2) */}
-              <div className="flex flex-wrap items-end gap-2 border-l border-line pl-6">
-                <button
-                  type="button"
-                  onClick={() => handleAddPhase('duplicate')}
-                  className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
-                >
-                  Duplicate phase
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddPhase('blank')}
-                  className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
-                >
-                  Add blank phase
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeletePhase}
-                  disabled={drill.phases.length <= 1}
-                  title={drill.phases.length <= 1 ? 'A drill needs at least one phase' : undefined}
-                  className="rounded-md border border-bad/30 px-2 py-1 text-xs text-bad hover:border-bad/60 disabled:opacity-40"
-                >
-                  Delete phase
-                </button>
-              </div>
-            </>
-          )}
         </div>
       )}
 
@@ -508,16 +404,113 @@ export function DrillPreview() {
                   </button>
                 </form>
               )}
+
+              {/* Phase filmstrip — every phase laid out left to right under
+                  the pitch, like frames on a timeline, instead of a "01 of
+                  N" stepper. Click a numbered tab to jump straight to that
+                  phase; PitchCanvas fully re-renders from the new phase's
+                  own element arrays, so there's never a leftover element
+                  from the previous one. */}
+              <div className="space-y-3 rounded-xl border border-line bg-panel p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-ink-muted">Phases</span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {drill.phases.map((p, i) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setPhaseIndex(i)}
+                        aria-pressed={i === phaseIndex}
+                        title={p.label || `Phase ${i + 1}`}
+                        className={
+                          'flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors ' +
+                          (i === phaseIndex
+                            ? 'border-accent bg-accent text-white'
+                            : 'border-line text-ink-muted hover:border-line-strong')
+                        }
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddPhase('blank')}
+                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
+                  >
+                    + Add phase
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAddPhase('duplicate')}
+                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
+                  >
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeletePhase}
+                    disabled={drill.phases.length <= 1}
+                    title={drill.phases.length <= 1 ? 'A drill needs at least one phase' : undefined}
+                    className="rounded-md border border-bad/30 px-2 py-1 text-xs text-bad hover:border-bad/60 disabled:opacity-40"
+                  >
+                    Delete
+                  </button>
+                </div>
+
+                <form
+                  onSubmit={handleSavePhaseMeta}
+                  className="flex flex-wrap items-end gap-2 border-t border-line pt-3"
+                >
+                  <div>
+                    <label htmlFor="phase-label" className="block text-xs font-medium text-ink-muted">
+                      Block title
+                    </label>
+                    <input
+                      id="phase-label"
+                      value={phaseLabel}
+                      onChange={(e) => {
+                        setPhaseLabel(e.target.value)
+                        setPhaseMetaDirty(true)
+                      }}
+                      placeholder="e.g. Directional possession"
+                      className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="phase-duration" className="block text-xs font-medium text-ink-muted">
+                      Duration (s)
+                    </label>
+                    <input
+                      id="phase-duration"
+                      type="number"
+                      min={0}
+                      value={phaseDuration}
+                      onChange={(e) => {
+                        setPhaseDuration(e.target.value)
+                        setPhaseMetaDirty(true)
+                      }}
+                      className="mt-1 w-20 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!phaseMetaDirty}
+                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </form>
+              </div>
             </>
           )}
         </div>
 
         {/* Right tool rail — Photoshop-style: every element/tool you can add
-            to (or remove from) the pitch, and nothing else. Two columns so
-            it reads as a compact palette rather than a long single list. */}
+            to (or remove from) the pitch, and nothing else, one per row. */}
         {drill && phase && (
-          <div className="grid grid-cols-2 content-start gap-2 rounded-xl border border-line bg-panel p-3 lg:w-44 lg:shrink-0">
-            <p className="col-span-2 text-xs font-medium text-ink-muted">Tools</p>
+          <div className="flex flex-col gap-2 rounded-xl border border-line bg-panel p-3 lg:w-40 lg:shrink-0">
+            <p className="text-xs font-medium text-ink-muted">Tools</p>
             <PlacementToggle mode="player-a" active={placementMode} onToggle={togglePlacement} label="Player A" />
             <PlacementToggle mode="player-b" active={placementMode} onToggle={togglePlacement} label="Player B" />
             <PlacementToggle mode="cone" active={placementMode} onToggle={togglePlacement} label="Cone" />
