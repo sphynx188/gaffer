@@ -16,6 +16,7 @@ export type {
   EquipmentKind,
   PhaseBall,
   PhaseArrow,
+  ArrowKind,
   PhaseAnnotation,
   SessionDrill,
   PitchSize,

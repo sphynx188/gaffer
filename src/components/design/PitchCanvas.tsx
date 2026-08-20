@@ -46,6 +46,24 @@ interface PitchCanvasProps {
   removeMode?: boolean
   onElementClick?: (elementType: DrillElementType, elementId: string) => void
   onAnnotationClick?: (annotationId: string) => void
+  // Arrows aren't part of DrillElementType (they have their own
+  // addArrow/removeArrow store actions, not addElement/removeElement — see
+  // drillSlice.ts), so removal gets its own callback, same shape as
+  // `onAnnotationClick`.
+  onArrowClick?: (arrowId: string) => void
+  // Upgrade Phase 2C: arrow placement is a two-click gesture (tap a start
+  // point, tap again for the end point) — the caller owns that staging
+  // state (see DrillPreview.tsx's `pendingArrowStart`) and passes the
+  // staged point back here purely so it's never invisible mid-gesture. Only
+  // ever rendered, never interactive.
+  pendingArrowStart?: NormalizedPoint | null
+  // Shown below the canvas whenever there's a phase to show it against —
+  // the caller decides the copy since it knows which specific placement
+  // mode is active (this component only knows the booleans/callbacks that
+  // mode maps to, not the mode itself). Previously hardcoded to a
+  // note-specific string here regardless of which mode was actually
+  // active — every other placement mode showed the same wrong hint.
+  hintText?: string | null
 }
 
 const DEFAULT_MAX_WIDTH = 420
@@ -106,6 +124,9 @@ export function PitchCanvas({
   removeMode = false,
   onElementClick,
   onAnnotationClick,
+  onArrowClick,
+  pendingArrowStart,
+  hintText,
 }: PitchCanvasProps) {
   const { containerRef, width } = useMeasuredWidth(maxWidth)
   const aspectRatio = getPitchAspectRatio(pitchSize, orientation) // width / length
@@ -195,9 +216,12 @@ export function PitchCanvas({
           {/* Non-interactive when fully read-only; listening turns on for
               editable (2b, draggable players/cones/balls), annotationMode
               (2c, click-to-place notes), and/or removeMode (click-to-remove
-              an existing element/annotation) — markings and arrows stay
+              an existing element/annotation/arrow) — markings stay
               non-listening in every mode so they can never intercept a drag,
-              placement tap, or removal click meant for something else. */}
+              placement tap, or removal click meant for something else.
+              Arrows (Upgrade Phase 2C) are the one element type that's only
+              ever listening in removeMode — they aren't draggable, so
+              `editable`/`annotationMode` alone leave them non-interactive. */}
           <Layer listening={editable || annotationMode || removeMode}>
             {/* Turf background */}
             <Rect x={0} y={0} width={width} height={height} fill={TURF.fill} listening={false} />
@@ -253,16 +277,21 @@ export function PitchCanvas({
             {phase?.arrows.map((a) => {
               const from = toPx(a.from)
               const to = toPx(a.to)
+              const style = ARROW[a.kind ?? 'player']
               return (
                 <Arrow
                   key={a.id}
                   points={[from.x, from.y, to.x, to.y]}
-                  stroke={ARROW.stroke}
-                  fill={ARROW.stroke}
+                  stroke={style.stroke}
+                  fill={style.stroke}
+                  dash={style.dash}
                   strokeWidth={arrowStrokeWidth}
                   pointerLength={baseUnit * 2.2}
                   pointerWidth={baseUnit * 2.2}
-                  listening={false}
+                  hitStrokeWidth={Math.max(arrowStrokeWidth, baseUnit * 4)}
+                  listening={removeMode}
+                  onClick={removeMode ? () => onArrowClick?.(a.id) : undefined}
+                  onTap={removeMode ? () => onArrowClick?.(a.id) : undefined}
                 />
               )
             })}
@@ -458,12 +487,25 @@ export function PitchCanvas({
                 </Label>
               )
             })}
+
+            {/* Staged first point of an in-progress arrow (Upgrade Phase
+                2C) — purely visual, never interactive, so a half-drawn
+                arrow is never invisible between the two taps. */}
+            {pendingArrowStart && (
+              <Circle
+                x={pendingArrowStart.x * width}
+                y={pendingArrowStart.y * height}
+                radius={baseUnit * 2.5}
+                stroke={ANNOTATION.background}
+                strokeWidth={1.5}
+                dash={[3, 3]}
+                listening={false}
+              />
+            )}
           </Layer>
         </Stage>
       )}
-      {annotationMode && phase && (
-        <p className="mt-1 text-center text-xs text-amber-600">Tap the pitch to place a note</p>
-      )}
+      {hintText && phase && <p className="mt-1 text-center text-xs text-amber-600">{hintText}</p>}
       {phase && phase.players.length + phase.cones.length + phase.balls.length === 0 && (
         <p className="mt-1 text-center text-xs text-slate-400">This phase has no elements yet.</p>
       )}

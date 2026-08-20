@@ -129,10 +129,16 @@ export interface PhaseBall extends PhasePoint {
   id: string
 }
 
+// 'kind' distinguishes ball/pass movement from player movement (Upgrade
+// Phase 2C, UPGRADE_IMPLEMENTATION_PLAN.md) — absent/undefined means
+// 'player', matching every arrow that existed before this field did.
+export type ArrowKind = 'ball' | 'player'
+
 export interface PhaseArrow {
   id: string
   from: PhasePoint
   to: PhasePoint
+  kind?: ArrowKind
   style?: string
 }
 

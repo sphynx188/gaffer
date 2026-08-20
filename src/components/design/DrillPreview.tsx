@@ -19,6 +19,8 @@ function pitchLabel(size: PitchSize, orientation: PitchOrientation): string {
 // note-only toggle this replaces, just widened to cover every element type
 // the canvas can now create. 'witches-hat'/'mannequin' (Upgrade Phase 2B)
 // both place a 'cones' element, just with a different EquipmentKind.
+// 'arrow-ball'/'arrow-player' (Upgrade Phase 2C) are the one two-click mode
+// — see handleCanvasClick/pendingArrowStart.
 type PlacementMode =
   | 'player-a'
   | 'player-b'
@@ -26,6 +28,8 @@ type PlacementMode =
   | 'witches-hat'
   | 'mannequin'
   | 'ball'
+  | 'arrow-ball'
+  | 'arrow-player'
   | 'note'
   | 'remove'
   | null
@@ -66,6 +70,8 @@ export function DrillPreview() {
   const removeAnnotation = useStore((s) => s.removeAnnotation)
   const addElement = useStore((s) => s.addElement)
   const removeElement = useStore((s) => s.removeElement)
+  const addArrow = useStore((s) => s.addArrow)
+  const removeArrow = useStore((s) => s.removeArrow)
   const updatePhaseMeta = useStore((s) => s.updatePhaseMeta)
   const updateDrill = useStore((s) => s.updateDrill)
 
@@ -75,6 +81,11 @@ export function DrillPreview() {
   const [placementMode, setPlacementMode] = useState<PlacementMode>(null)
   const [pendingNote, setPendingNote] = useState<{ x: number; y: number } | null>(null)
   const [noteText, setNoteText] = useState('')
+  // Upgrade Phase 2C: the staged first point of a two-click arrow — set on
+  // the first canvas click while an 'arrow-*' mode is active, consumed
+  // (and cleared) on the second, same "stage then commit" shape as
+  // pendingNote above, just with a position instead of a form.
+  const [pendingArrowStart, setPendingArrowStart] = useState<{ x: number; y: number } | null>(null)
 
   // Phase label/duration form fields — local, dirty-tracked (same pattern
   // AvailabilityRow uses), synced from the store whenever the phase/drill
@@ -116,6 +127,12 @@ export function DrillPreview() {
   useEffect(() => {
     setPendingNote(null)
     setNoteText('')
+  }, [phaseIndex, selectedDrillId])
+
+  // Same reasoning as the pendingNote effect above — a half-drawn arrow
+  // belongs to the phase it was started on.
+  useEffect(() => {
+    setPendingArrowStart(null)
   }, [phaseIndex, selectedDrillId])
 
   const phase = drill?.phases[phaseIndex] ?? null
@@ -187,14 +204,27 @@ export function DrillPreview() {
 
   // Canvas click while a placement mode is active: 'note' stages the
   // position and hands off to the inline text form below the canvas (2c,
-  // step 4, unchanged); every element mode instead places the new
-  // player/cone/ball immediately at the clicked position and persists it —
-  // no intermediate form, same as a drag commits immediately on dragend.
+  // step 4, unchanged); 'arrow-*' stages the first point on the first
+  // click and commits an arrow on the second (Upgrade Phase 2C — the one
+  // two-click placement mode here, everything else is a single click);
+  // every other element mode places the new player/cone/ball immediately
+  // at the clicked position and persists it — no intermediate form, same
+  // as a drag commits immediately on dragend.
   const handleCanvasClick = (position: { x: number; y: number }) => {
     if (!drill || !placementMode || placementMode === 'remove') return
     if (placementMode === 'note') {
       setPendingNote(position)
       setNoteText('')
+      return
+    }
+    if (placementMode === 'arrow-ball' || placementMode === 'arrow-player') {
+      if (!pendingArrowStart) {
+        setPendingArrowStart(position)
+        return
+      }
+      addArrow(drill.id, phaseIndex, pendingArrowStart, position, placementMode === 'arrow-ball' ? 'ball' : 'player')
+      setPendingArrowStart(null)
+      void persistPhases(drill.id)
       return
     }
     if (placementMode === 'ball') {
@@ -208,16 +238,40 @@ export function DrillPreview() {
     void persistPhases(drill.id)
   }
 
+  // What to show below the canvas for the currently active placement mode
+  // — PitchCanvas itself doesn't know which specific mode is active, only
+  // the booleans/callbacks it maps to, so the copy lives here.
+  const placementHint = pendingArrowStart
+    ? 'Arrow started — tap the end point'
+    : placementMode === 'note'
+      ? 'Tap the pitch to place a note'
+      : placementMode === 'arrow-player' || placementMode === 'arrow-ball'
+        ? "Tap the pitch for the arrow's start point"
+        : placementMode && placementMode !== 'remove'
+          ? 'Tap the pitch to place it'
+          : null
+
   // Toggle one placement mode on/off — clicking the already-active button
-  // turns placement off rather than switching to itself.
+  // turns placement off rather than switching to itself. Always discards
+  // any in-progress (unclicked-through) arrow start: switching tools
+  // mid-gesture abandons that half-drawn arrow rather than leaving it to
+  // be silently consumed by whatever mode comes next.
   const togglePlacement = (mode: Exclude<PlacementMode, null>) => {
     setPlacementMode((m) => (m === mode ? null : mode))
+    setPendingArrowStart(null)
   }
 
   // Click on an existing player/cone/ball while in "remove" mode.
   const handleElementRemove = (elementType: DrillElementType, elementId: string) => {
     if (!drill) return
     removeElement(drill.id, phaseIndex, elementType, elementId)
+    void persistPhases(drill.id)
+  }
+
+  // Click on an existing arrow while in "remove" mode.
+  const handleArrowRemove = (arrowId: string) => {
+    if (!drill) return
+    removeArrow(drill.id, phaseIndex, arrowId)
     void persistPhases(drill.id)
   }
 
@@ -276,6 +330,9 @@ export function DrillPreview() {
               removeMode={placementMode === 'remove'}
               onElementClick={handleElementRemove}
               onAnnotationClick={handleAnnotationRemove}
+              onArrowClick={handleArrowRemove}
+              pendingArrowStart={pendingArrowStart}
+              hintText={placementHint}
             />
 
             {pendingNote && (
@@ -460,6 +517,13 @@ export function DrillPreview() {
                 />
                 <PlacementToggle mode="mannequin" active={placementMode} onToggle={togglePlacement} label="Mannequin" />
                 <PlacementToggle mode="ball" active={placementMode} onToggle={togglePlacement} label="Ball" />
+                <PlacementToggle
+                  mode="arrow-player"
+                  active={placementMode}
+                  onToggle={togglePlacement}
+                  label="Player arrow"
+                />
+                <PlacementToggle mode="arrow-ball" active={placementMode} onToggle={togglePlacement} label="Ball arrow" />
                 <PlacementToggle mode="note" active={placementMode} onToggle={togglePlacement} label="Note" />
                 <PlacementToggle
                   mode="remove"

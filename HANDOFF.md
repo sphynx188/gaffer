@@ -80,11 +80,48 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
   Portrait Test" drill — both render as distinct shapes, both persisted
   across a hard reload, remove-mode successfully deleted the mannequin
   leaving the witches' hat untouched, no console errors, build/lint clean.
+- **Phase 2C (arrow types + arrow-drawing UI)** — the bigger of the two
+  Phase 2 unknowns confirmed: there really was no arrow-drawing UI before
+  this (only pre-seeded/DB-written arrows rendered). No migration
+  (`PhaseArrow.kind?: ArrowKind`, jsonb, backward compatible — absent means
+  'player', so every pre-existing arrow renders unchanged). Note: found
+  (and left alone, per "don't touch unrelated dead code") a pre-existing
+  unused `PhaseArrow.style?: string` field — never read/written anywhere,
+  predates this work.
+  Updated: `src/store/types.ts` (+`ArrowKind`), `src/store/index.ts`,
+  `src/components/design/pitchTheme.ts` (`ARROW` restructured into
+  `.player`/`.ball` variants — solid red / dashed blue), `src/components/design/PitchCanvas.tsx`
+  (arrow render branches on `kind`; arrows now `listening={removeMode}`
+  with a wider `hitStrokeWidth` so a thin line is actually clickable to
+  remove — previously always `listening={false}`; new `pendingArrowStart`
+  prop renders a dashed staging marker so a half-drawn arrow is never
+  invisible), `src/store/slices/drillSlice.ts` (new `addArrow`/`removeArrow`
+  actions, same local-mutate-then-one-write pattern as everything else
+  here), `src/components/design/DrillPreview.tsx` (new `arrow-ball`/
+  `arrow-player` placement modes — the one *two-click* mode among all the
+  single-click ones: first canvas click stages `pendingArrowStart`, second
+  commits via `addArrow`; toggling to a different tool mid-gesture discards
+  the pending start rather than leaving it to be consumed later).
+  **Bonus fix, found while touching this code**: `PitchCanvas`'s
+  below-canvas hint text was hardcoded to "Tap the pitch to place a note"
+  and rendered for *every* placement mode, not just `note` — a pre-existing
+  bug from Phase 2 (build guide era), not something this session
+  introduced, but directly in the code being extended here so fixed now.
+  Replaced with a caller-supplied `hintText` prop; `DrillPreview.tsx`
+  computes the right copy per mode.
+  **Verified live**: drew one player-arrow (solid red) and one ball-arrow
+  (dashed blue) on the "Full Portrait Test" drill, confirmed visually
+  distinct, confirmed both persisted across a hard reload, confirmed
+  remove-mode deleted the player-arrow leaving the ball-arrow untouched,
+  confirmed the corrected hint text ("Tap the pitch to place it") shows for
+  a non-note mode. Build/lint clean; zero console errors on a fresh tab
+  (a set of `hintText is not defined` errors appeared mid-session in an
+  old, long-since-superseded tab from live-editing while it stayed open —
+  same stale-HMR-churn pattern as Phase 2A's transient errors, confirmed
+  false-positive via a fresh tab).
 
 ### Not started yet
 
-- Phase 2C (arrow types + the arrow-drawing UI, which doesn't exist yet at
-  all — see the plan's "ground truth" table)
 - Phase 3 (Tactic Creator — new feature, depends on 2C)
 - Phase 4 (mobile-first audit)
 - Phase 5 (final verification + docs)
@@ -103,20 +140,47 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
 
 ### Exact next step
 
-Start Phase 2C (arrow types + arrow-drawing UI) per
-UPGRADE_IMPLEMENTATION_PLAN.md steps 2.9–2.11. This is the biggest
-sub-step in Phase 2: `PhaseArrow` needs a `kind?: 'ball' | 'player'` field
-(types.ts, no migration — jsonb), two visually distinct `ARROW` variants in
-`pitchTheme.ts`, a branch in `PitchCanvas.tsx`'s arrow render — **and**,
-since there is currently no way to create an arrow through the UI at all
-(only pre-seeded/DB-written arrows render), a new two-click "stage start
-point, click again to commit" placement mode in `DrillPreview.tsx` (mirror
-the existing `note` mode's stage-then-commit pattern, extended to two
-points) plus `addArrow`/`removeArrow` actions in `drillSlice.ts` following
-the same local-mutate-then-one-`updateDrill`-write pattern every other
-phases mutation there uses. Verify live using the test account above:
-draw one ball-arrow and one player-arrow, confirm visually distinct,
-confirm they persist across reload, confirm remove-mode deletes an arrow.
+Phase 2 (Drill Creator upgrade) is now fully done — start Phase 3 (Tactic
+Creator, new feature) per UPGRADE_IMPLEMENTATION_PLAN.md steps 3.1–3.6.
+This is the largest remaining chunk of the plan. In order:
+
+1. **3.1 Schema + RLS** — new migration `012_tactic_table.sql`: `tactic`
+   table (`team_id` **not null**, unlike `drill` — no coach-owned/unscoped
+   case for tactics), `board` jsonb column. RLS policy follows `session`'s
+   simple always-team-scoped `is_team_member(team_id)` pattern (reuse the
+   existing helper function in `rls_policies.sql`, don't redefine it) —
+   simpler than `drill`'s policy, which has to handle a nullable `team_id`
+   that doesn't apply here. Apply via Supabase MCP `apply_migration` +
+   write the matching file, same convention as `011_*.sql`.
+2. **3.2 Types + store slice** — `Tactic`/`TacticPlayer` types
+   (`TacticPlayer` carries a real `player_id` FK to the roster, not a
+   freeform `team` label like drill's `PhasePlayer`), new
+   `src/store/slices/tacticSlice.ts` mirroring `drillSlice.ts`'s
+   fetch/create/update + local add/remove/move pattern (no cones/balls
+   methods needed — tactics are players + arrows + annotations only, per
+   the roadmap). Wire into `useStore.ts`/`store/index.ts`.
+3. **3.3 Adapter, not a PitchCanvas rewrite** — map
+   `TacticPlayer[] + roster Player[] → PhasePlayer[]` right before handing
+   data to `PitchCanvas`, passing `cones: []`/`balls: []` alongside. Keeps
+   `PitchCanvas` itself unchanged — it doesn't need to know tactics exist.
+4. **3.4 Roster panel** — new `src/components/tactics/TacticBoard.tsx`.
+   Reuses the same tap-a-tool → tap-the-pitch placement pattern from
+   `DrillPreview.tsx` (not true HTML5 drag-and-drop from the panel — that
+   was a deliberate call in the plan, flag it to the user if they want true
+   drag-and-drop instead). Roster grouped into 4 display buckets
+   (Goalkeepers/Defenders/Midfielders/Attackers — winger+striker both
+   bucket into Attackers, display-only, no schema change).
+5. **3.5 Arrows + save** — reuse the exact two-click arrow pattern from
+   Phase 2C (same `kind` concept covers "runs"/"passing patterns"/
+   "pressing movements" from the roadmap — no third arrow type needed).
+   Add a name field + create/update flow.
+6. **3.6 Routing** — new `/tactics` route in `App.tsx`, new nav entry in
+   `AppShell.tsx`'s `TEAM_SCOPED_PATHS`/`NAV_ITEMS_TEAM`, new
+   `TacticsPage.tsx` (thin wrapper, same shape as `DesignPage.tsx`).
+
+Verify live using the test account above: place 3+ roster players from
+different position buckets, draw 2+ arrows, save, reload, confirm it loads
+back identically.
 
 ---
 

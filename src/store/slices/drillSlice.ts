@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
-import type { Drill, DrillPhase, EquipmentKind, PhasePoint, PitchOrientation, PitchSize } from '../types'
+import type { ArrowKind, Drill, DrillPhase, EquipmentKind, PhasePoint, PitchOrientation, PitchSize } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewDrillInput {
@@ -20,9 +20,10 @@ export interface DrillUpdateInput {
 }
 
 // The three phase-element arrays a canvas element can belong to — arrows
-// aren't draggable yet either (not required by any Phase 0-3 user story).
-// Annotations are placed (2c, US-13) rather than dragged, so they're handled
-// by `addAnnotation` below instead of this drag machinery.
+// aren't draggable (each has two points, not one, so "drag to reposition"
+// doesn't map cleanly onto this single-point machinery; placed via
+// addArrow/removeArrow instead, Upgrade Phase 2C). Annotations are placed
+// (2c, US-13) rather than dragged either, handled by `addAnnotation` below.
 export type DrillElementType = 'players' | 'cones' | 'balls'
 
 // 'duplicate' deep-copies the currently-viewed phase as a starting point
@@ -126,6 +127,16 @@ export interface DrillSlice {
 
   // Local-only removal of one annotation from the phase at `phaseIndex`.
   removeAnnotation: (drillId: string, phaseIndex: number, annotationId: string) => void
+
+  // Upgrade Phase 2C: local-only append of one arrow (from -> to, both
+  // already normalized 0-1) onto the phase at `phaseIndex` — same
+  // local-mutate-then-one-write split as every other phases mutation here.
+  // Arrows aren't part of DrillElementType/addElement since they need two
+  // points, not one, so they get their own pair of actions.
+  addArrow: (drillId: string, phaseIndex: number, from: PhasePoint, to: PhasePoint, kind: ArrowKind) => void
+
+  // Local-only removal of one arrow from the phase at `phaseIndex`.
+  removeArrow: (drillId: string, phaseIndex: number, arrowId: string) => void
 
   // Local-only patch of a phase's own metadata (label, duration) — same
   // local-mutate-then-one-write split as every other phases mutation here.
@@ -319,6 +330,34 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
             ...d,
             phases: d.phases.map((ph, i) =>
               i === phaseIndex ? { ...ph, annotations: ph.annotations.filter((a) => a.id !== annotationId) } : ph
+            ),
+          }
+        }),
+      })
+    },
+
+    addArrow: (drillId, phaseIndex, from, to, kind) => {
+      set({
+        drills: get().drills.map((d) => {
+          if (d.id !== drillId) return d
+          return {
+            ...d,
+            phases: d.phases.map((ph, i) =>
+              i === phaseIndex ? { ...ph, arrows: [...ph.arrows, { id: generateId('arrow'), from, to, kind }] } : ph
+            ),
+          }
+        }),
+      })
+    },
+
+    removeArrow: (drillId, phaseIndex, arrowId) => {
+      set({
+        drills: get().drills.map((d) => {
+          if (d.id !== drillId) return d
+          return {
+            ...d,
+            phases: d.phases.map((ph, i) =>
+              i === phaseIndex ? { ...ph, arrows: ph.arrows.filter((a) => a.id !== arrowId) } : ph
             ),
           }
         }),

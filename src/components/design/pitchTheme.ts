@@ -64,8 +64,15 @@ export const BALL = {
   stroke: '#1e293b',
 } as const
 
+// Upgrade Phase 2C (UPGRADE_IMPLEMENTATION_PLAN.md): two visually distinct
+// arrow kinds — solid red for player movement (unchanged from before this
+// distinction existed, so every pre-existing arrow with no `kind` still
+// looks the same), dashed blue for ball/pass movement (blue matches CONE's
+// existing "blue" named cone color, giving ball-related markings a
+// consistent hue across the canvas).
 export const ARROW = {
-  stroke: '#dc2626', // red — strong contrast, reads at a glance mid-session
+  player: { stroke: '#dc2626', dash: undefined as number[] | undefined },
+  ball: { stroke: '#3b82f6', dash: [10, 6] as number[] | undefined },
 } as const
 
 export const ANNOTATION = {
