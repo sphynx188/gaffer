@@ -6,6 +6,11 @@ export type PitchFormat = '11v11' | 'small_sided'
 export type CoachRole = 'owner' | 'coach'
 export type AvailabilityStatus = 'available' | 'unavailable' | 'unconfirmed'
 
+export const PITCH_FORMAT_LABELS: Record<PitchFormat, string> = {
+  '11v11': '11-a-side',
+  small_sided: 'Small-sided',
+}
+
 // Phase 1 revision: position is a multi-select tag set, not freeform text —
 // a player can hold more than one (e.g. winger + striker). Fixed list,
 // mirrors the `player_position` Postgres enum (supabase/schema.sql) —
@@ -24,7 +29,6 @@ export const PLAYER_POSITION_LABELS: Record<PlayerPosition, string> = {
 export interface Team {
   id: string
   name: string
-  format: PitchFormat
   owner_id: string
   created_at: string
 }
@@ -60,6 +64,9 @@ export interface Session {
   team_id: string
   date: string
   duration_minutes: number
+  // Nullable only for rows created before the Calendar feature added this
+  // column — every session created or edited since always sets it.
+  start_time: string | null
   physical_load: number | null
   equipment: string | null
   coaching_notes: string | null

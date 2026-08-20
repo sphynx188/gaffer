@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LibraryBig } from 'lucide-react'
 import { useStore } from '../../store'
+import { PITCH_FORMAT_LABELS } from '../../store'
 import { EmptyState } from '../ui/EmptyState'
-
-const formatLabel: Record<string, string> = {
-  '11v11': '11-a-side',
-  small_sided: 'Small-sided',
-}
 
 // Phase 3.1 — Drill library / browse & search (US-17, gaffer_mvp_build_steps.md).
 // Reuses the exact same `drills` state DrillPreview already fetches via
@@ -41,7 +37,7 @@ export function DrillLibrary() {
     const q = query.trim().toLowerCase()
     if (!q) return drills
     return drills.filter((d) => {
-      const format = formatLabel[d.pitch_format] ?? d.pitch_format
+      const format = PITCH_FORMAT_LABELS[d.pitch_format] ?? d.pitch_format
       return d.name.toLowerCase().includes(q) || format.toLowerCase().includes(q)
     })
   }, [drills, query])
@@ -88,7 +84,7 @@ export function DrillLibrary() {
                 >
                   <p className="text-sm font-medium text-ink">{drill.name}</p>
                   <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-muted">
-                    {formatLabel[drill.pitch_format] ?? drill.pitch_format}
+                    {PITCH_FORMAT_LABELS[drill.pitch_format] ?? drill.pitch_format}
                   </span>
                 </li>
               ))}

@@ -1,7 +1,9 @@
 import { useEffect, useState, type ComponentType } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
+  CalendarClock,
   CalendarDays,
+  ChevronLeft,
   ClipboardCheck,
   LayoutDashboard,
   LibraryBig,
@@ -24,30 +26,76 @@ interface NavItem {
   end?: boolean
 }
 
-const NAV_ITEMS: NavItem[] = [
+// Routes that operate on the currently selected team — visiting any of
+// these shows the team-level tab set (Overview/Roster/.../Drills) instead
+// of the coach-level one (Dashboard/Teams/Calendar). Driven purely by the
+// route, not `selectedTeamId` (which persists across visits to `/`), so
+// landing on the coach-level Dashboard always shows coach-level tabs even
+// if a team was already selected from a previous session.
+const TEAM_SCOPED_PATHS = ['/overview', '/roster', '/sessions', '/attendance', '/design', '/drills']
+
+const NAV_ITEMS_COACH: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/teams', label: 'Teams', icon: Settings },
+  { to: '/calendar', label: 'Calendar', icon: CalendarClock },
+]
+
+const NAV_ITEMS_TEAM: NavItem[] = [
+  { to: '/overview', label: 'Overview', icon: LayoutDashboard },
   { to: '/roster', label: 'Roster', icon: Users },
   { to: '/sessions', label: 'Sessions', icon: CalendarDays },
   { to: '/attendance', label: 'Attendance', icon: ClipboardCheck },
   { to: '/design', label: 'Design', icon: PenTool },
   { to: '/drills', label: 'Drill library', icon: LibraryBig },
-  { to: '/teams', label: 'Teams', icon: Settings },
 ]
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ' +
+const navLinkClass = (direction: 'row' | 'col') => ({ isActive }: { isActive: boolean }) =>
+  (direction === 'row'
+    ? 'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors '
+    : 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ') +
   (isActive ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+// direction="row" is the desktop/tablet top-bar tab strip; direction="col"
+// is the mobile drawer's vertical list — same items, same active styling,
+// just laid out differently.
+function NavList({
+  items,
+  direction = 'col',
+  onNavigate,
+}: {
+  items: NavItem[]
+  direction?: 'row' | 'col'
+  onNavigate?: () => void
+}) {
   return (
-    <nav className="flex-1 space-y-1 px-3 py-4">
-      {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
-        <NavLink key={to} to={to} end={end} className={navLinkClass} onClick={onNavigate}>
+    <nav className={direction === 'row' ? 'flex items-center gap-1' : 'flex-1 space-y-1 px-3 py-4'}>
+      {items.map(({ to, label, icon: Icon, end }) => (
+        <NavLink key={to} to={to} end={end} className={navLinkClass(direction)} onClick={onNavigate} title={label}>
           <Icon className="h-4 w-4 shrink-0" />
-          {label}
+          {direction === 'col' ? label : <span className="hidden xl:inline">{label}</span>}
         </NavLink>
       ))}
     </nav>
+  )
+}
+
+// Coach-level routes show the "Gaffer" wordmark; team-level routes show the
+// selected team's name with a back chevron to the coach-level Dashboard —
+// the one persistent "where am I" indicator now that there's no permanent
+// sidebar labelling the app.
+function BrandBlock({ inTeamContext, teamName }: { inTeamContext: boolean; teamName?: string }) {
+  if (inTeamContext) {
+    return (
+      <Link to="/" className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-ink hover:text-accent">
+        <ChevronLeft className="h-4 w-4 shrink-0" />
+        <span className="max-w-[10rem] truncate">{teamName ?? 'Team'}</span>
+      </Link>
+    )
+  }
+  return (
+    <Link to="/" className="shrink-0 text-lg font-bold tracking-tight text-ink">
+      Gaffer
+    </Link>
   )
 }
 
@@ -67,85 +115,108 @@ function SignOutFooter({ email }: { email?: string }) {
   )
 }
 
-// Phase "Redesign" — replaces the old single-scroll App.tsx layout (every
-// screen stacked vertically in one max-w-lg column) with real navigation:
-// a persistent sidebar on desktop (chosen as the primary target — session/
-// roster planning is a sit-down task) that collapses to a top bar + slide-in
-// drawer below the `lg` breakpoint for the pitch-side phone case. Every
-// routed page (src/pages/*) renders inside the padded <Outlet /> column
-// below, so page components never need to manage their own max-width/centering.
+// FM-style two-tier nav: a coach-level context (Dashboard/Teams/Calendar)
+// and a team-level context (Overview/Roster/Sessions/Attendance/Design/
+// Drills) for whichever team is selected, swapped based on the current
+// route (see TEAM_SCOPED_PATHS above). Desktop/tablet renders both the
+// brand block and the active tab set in one slim sticky top bar — no
+// permanent sidebar reserving screen width. Below `lg`, the tab strip and
+// team switcher collapse behind a hamburger-triggered slide-in drawer,
+// since a row of up to six tabs doesn't fit a phone-width top bar.
 export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const teams = useStore((s) => s.teams)
+  const selectedTeamId = useStore((s) => s.selectedTeamId)
+  const location = useLocation()
+  const [navOpen, setNavOpen] = useState(false)
 
-  // Sidebar (and TeamSwitcher inside it) needs the team list the moment the
-  // shell mounts, regardless of which route the coach lands on first — this
-  // used to be guaranteed by TeamManagement always being mounted in the old
-  // single-column App.tsx; now that it's its own route, the shell itself
-  // owns this one fetch.
+  // Top bar (and TeamSwitcher inside it) needs the team list the moment the
+  // shell mounts, regardless of which route the coach lands on first.
   useEffect(() => {
     fetchTeams()
   }, [fetchTeams])
 
+  useEffect(() => {
+    if (!navOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navOpen])
+
+  const inTeamContext = TEAM_SCOPED_PATHS.some((p) => location.pathname.startsWith(p))
+  const activeItems = inTeamContext ? NAV_ITEMS_TEAM : NAV_ITEMS_COACH
+  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? null
+
   return (
     <div className="min-h-svh bg-surface">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-64 lg:flex-col lg:border-r lg:border-line lg:bg-panel">
-        <div className="flex h-16 shrink-0 items-center gap-2 border-b border-line px-5">
-          <span className="text-lg font-bold tracking-tight text-ink">Gaffer</span>
-        </div>
-        <div className="border-b border-line px-5 py-4">
-          <TeamSwitcher />
-        </div>
-        <NavList />
-        <SignOutFooter email={session?.user.email} />
-      </aside>
+      <div className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line bg-panel px-4">
+        <BrandBlock inTeamContext={inTeamContext} teamName={selectedTeam?.name} />
 
-      {/* Mobile top bar */}
-      <div className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-panel px-4 lg:hidden">
-        <span className="text-lg font-bold tracking-tight text-ink">Gaffer</span>
+        {/* Desktop/tablet: full tab strip + switcher + sign-out, in the bar itself */}
+        <div className="hidden flex-1 items-center gap-4 lg:flex">
+          <NavList items={activeItems} direction="row" />
+          <div className="ml-auto flex items-center gap-3">
+            <div className="max-w-[10rem]">
+              <TeamSwitcher compact />
+            </div>
+            <button
+              type="button"
+              onClick={() => supabase.auth.signOut()}
+              aria-label="Sign out"
+              title={session?.user.email ? `Sign out (${session.user.email})` : 'Sign out'}
+              className="rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile: everything above collapses behind this hamburger */}
         <button
           type="button"
-          onClick={() => setMobileNavOpen(true)}
+          onClick={() => setNavOpen(true)}
           aria-label="Open menu"
-          className="rounded-md p-2 text-ink-muted hover:bg-panel-raised"
+          className="ml-auto rounded-md p-2 text-ink-muted hover:bg-panel-raised lg:hidden"
         >
           <Menu className="h-5 w-5" />
         </button>
       </div>
 
-      {/* Mobile drawer */}
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Close menu"
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileNavOpen(false)}
-          />
-          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-xl">
-            <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
-              <span className="text-lg font-bold tracking-tight text-ink">Gaffer</span>
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(false)}
-                aria-label="Close menu"
-                className="rounded-md p-2 text-ink-muted hover:bg-panel-raised"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="border-b border-line px-4 py-3">
-              <TeamSwitcher />
-            </div>
-            <NavList onNavigate={() => setMobileNavOpen(false)} />
-            <SignOutFooter email={session?.user.email} />
+      {/* Mobile drawer — always mounted (not conditionally rendered) so the
+          transform/opacity transitions below can animate open and closed. */}
+      <div className={`fixed inset-0 z-50 lg:hidden ${navOpen ? '' : 'pointer-events-none'}`} aria-hidden={!navOpen}>
+        <button
+          type="button"
+          aria-label="Close menu"
+          onClick={() => setNavOpen(false)}
+          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${navOpen ? 'opacity-100' : 'opacity-0'}`}
+        />
+        <div
+          className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-xl transition-transform duration-200 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        >
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
+            <BrandBlock inTeamContext={inTeamContext} teamName={selectedTeam?.name} />
+            <button
+              type="button"
+              onClick={() => setNavOpen(false)}
+              aria-label="Close menu"
+              className="rounded-md p-2 text-ink-muted hover:bg-panel-raised"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
+          <div className="border-b border-line px-4 py-3">
+            <TeamSwitcher />
+          </div>
+          <NavList items={activeItems} direction="col" onNavigate={() => setNavOpen(false)} />
+          <SignOutFooter email={session?.user.email} />
         </div>
-      )}
+      </div>
 
-      <main className="lg:pl-64">
+      <main>
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
         </div>

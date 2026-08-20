@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useStore } from '../store'
 import type { SessionWithRelations } from '../store'
 import { AvailabilityPanel } from './AvailabilityPanel'
 import { SessionDrillsPanel } from './SessionDrillsPanel'
 import { Badge } from './ui/Badge'
 import { loadTone } from './ui/badgeTones'
+import {
+  addDays,
+  formatDayLabel,
+  formatTimeLabel,
+  formatWeekLabel,
+  parseLocalDate,
+  startOfWeek,
+  toISODate,
+  toTimeInputValue,
+} from '../lib/date'
 
 // Tailwind's border-l-* color utility needs a static class name per tone
 // (arbitrary interpolation like `border-${tone}` isn't picked up by its
@@ -19,54 +30,10 @@ const LOAD_BORDER_CLASS: Record<'ok' | 'warn' | 'bad' | 'neutral', string> = {
 
 const PHYSICAL_LOAD_OPTIONS = [1, 2, 3, 4, 5] as const
 
-// Sessions are plain Postgres `date` columns (no time component) and are
-// always handled as 'YYYY-MM-DD' strings — comparing/sorting them
-// lexicographically is safe and avoids the timezone footguns of `new
-// Date(iso)` (which parses as UTC midnight and can land on the wrong local
-// day). `parseLocalDate` is the one place an ISO date string becomes a
-// `Date`, and it always does so in local time.
-function parseLocalDate(iso: string): Date {
-  const [year, month, day] = iso.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
-
-function toISODate(d: Date): string {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function addDays(d: Date, days: number): Date {
-  const date = new Date(d)
-  date.setDate(date.getDate() + days)
-  return date
-}
-
-// Monday-start week — matches how a coach thinks about a training week
-// (Mon–Sun), not the calendar-week default.
-function startOfWeek(d: Date): Date {
-  const date = new Date(d)
-  const day = date.getDay() // 0 = Sun, 1 = Mon, ... 6 = Sat
-  const diff = (day === 0 ? -6 : 1) - day
-  date.setDate(date.getDate() + diff)
-  date.setHours(0, 0, 0, 0)
-  return date
-}
-
-function formatWeekLabel(start: Date, end: Date): string {
-  const startLabel = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  const endLabel = end.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-  return `${startLabel} – ${endLabel}`
-}
-
-function formatDayLabel(d: Date): string {
-  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
-}
-
 interface SessionFormValues {
   date: string
   duration_minutes: number
+  start_time: string
   physical_load: number | null
   equipment: string | null
   coaching_notes: string | null
@@ -122,7 +89,14 @@ export function SessionPlanner() {
   const updateSession = useStore((s) => s.updateSession)
   const duplicateSession = useStore((s) => s.duplicateSession)
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+  // Dashboard's "upcoming this week" list links here with the clicked
+  // session's date in navigation state, so clicking a session lands on the
+  // week it's actually in rather than always the current week.
+  const location = useLocation()
+  const focusDate = (location.state as { focusDate?: string } | null)?.focusDate
+  const [weekStart, setWeekStart] = useState(() =>
+    startOfWeek(focusDate ? parseLocalDate(focusDate) : new Date())
+  )
 
   useEffect(() => {
     if (selectedTeamId) fetchSessions(selectedTeamId)
@@ -307,6 +281,7 @@ function SessionRow({
   const [drillsOpen, setDrillsOpen] = useState(false)
   const [date, setDate] = useState(session.date)
   const [duration, setDuration] = useState(String(session.duration_minutes))
+  const [startTime, setStartTime] = useState(session.start_time ? toTimeInputValue(session.start_time) : '')
   const [load, setLoad] = useState(session.physical_load != null ? String(session.physical_load) : '')
   const [equipment, setEquipment] = useState(session.equipment ?? '')
   const [notes, setNotes] = useState(session.coaching_notes ?? '')
@@ -326,6 +301,7 @@ function SessionRow({
   const startEdit = () => {
     setDate(session.date)
     setDuration(String(session.duration_minutes))
+    setStartTime(session.start_time ? toTimeInputValue(session.start_time) : '')
     setLoad(session.physical_load != null ? String(session.physical_load) : '')
     setEquipment(session.equipment ?? '')
     setNotes(session.coaching_notes ?? '')
@@ -335,11 +311,12 @@ function SessionRow({
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault()
-    if (!date || !duration || saving) return
+    if (!date || !duration || !startTime || saving) return
     setSaving(true)
     const saved = await onSave(session.id, {
       date,
       duration_minutes: Number(duration),
+      start_time: startTime,
       physical_load: load ? Number(load) : null,
       equipment: equipment.trim() || null,
       coaching_notes: notes.trim() || null,
@@ -379,6 +356,7 @@ function SessionRow({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-40">
             <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink">
+              {session.start_time && `${formatTimeLabel(session.start_time)} · `}
               {session.duration_minutes} min
               {session.physical_load != null && (
                 <Badge tone={loadTone(session.physical_load)}>load {session.physical_load}/5</Badge>
@@ -477,6 +455,16 @@ function SessionRow({
             className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-muted">Start time</label>
+          <input
+            type="time"
+            required
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
         <div className="w-24">
           <label className="block text-xs font-medium text-ink-muted">Minutes</label>
           <input
@@ -531,7 +519,7 @@ function SessionRow({
         </div>
         <button
           type="submit"
-          disabled={saving || !date || !duration}
+          disabled={saving || !date || !duration || !startTime}
           className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save'}
@@ -569,6 +557,7 @@ function CreateSessionForm({
 }) {
   const [date, setDate] = useState(initialDate ?? '')
   const [duration, setDuration] = useState('60')
+  const [startTime, setStartTime] = useState('')
   const [load, setLoad] = useState('')
   const [equipment, setEquipment] = useState('')
   const [notes, setNotes] = useState('')
@@ -577,12 +566,13 @@ function CreateSessionForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!date || !duration || submitting) return
+    if (!date || !duration || !startTime || submitting) return
     setSubmitting(true)
     const created = await onCreate({
       team_id: teamId,
       date,
       duration_minutes: Number(duration),
+      start_time: startTime,
       physical_load: load ? Number(load) : null,
       equipment: equipment.trim() || null,
       coaching_notes: notes.trim() || null,
@@ -592,6 +582,7 @@ function CreateSessionForm({
     if (created) {
       setDate(initialDate ?? '')
       setDuration('60')
+      setStartTime('')
       setLoad('')
       setEquipment('')
       setNotes('')
@@ -616,6 +607,19 @@ function CreateSessionForm({
           required
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+        />
+      </div>
+      <div>
+        <label htmlFor="new-session-start-time" className="block text-xs font-medium text-ink-muted">
+          Start time
+        </label>
+        <input
+          id="new-session-start-time"
+          type="time"
+          required
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
           className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
@@ -689,7 +693,7 @@ function CreateSessionForm({
       </div>
       <button
         type="submit"
-        disabled={submitting || !date || !duration}
+        disabled={submitting || !date || !duration || !startTime}
         className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Creating…' : 'Create session'}

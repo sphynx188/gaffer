@@ -2,14 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { PenTool } from 'lucide-react'
 import { useStore } from '../../store'
 import type { Drill, DrillElementType, NewDrillInput, NewPhaseMode, PitchFormat } from '../../store'
+import { PITCH_FORMAT_LABELS } from '../../store'
 import { PitchCanvas } from './PitchCanvas'
 import { EmptyState } from '../ui/EmptyState'
 import { NumberChip } from '../ui/NumberChip'
-
-const formatLabel: Record<string, string> = {
-  '11v11': '11-a-side',
-  small_sided: 'Small-sided',
-}
 
 const formatOptions: PitchFormat[] = ['11v11', 'small_sided']
 
@@ -320,7 +316,7 @@ export function DrillPreview() {
               >
                 {drills.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} ({formatLabel[d.pitch_format] ?? d.pitch_format})
+                    {d.name} ({PITCH_FORMAT_LABELS[d.pitch_format] ?? d.pitch_format})
                   </option>
                 ))}
               </select>
@@ -546,7 +542,7 @@ function CreateDrillForm({
         >
           {formatOptions.map((f) => (
             <option key={f} value={f}>
-              {formatLabel[f] ?? f}
+              {PITCH_FORMAT_LABELS[f] ?? f}
             </option>
           ))}
         </select>

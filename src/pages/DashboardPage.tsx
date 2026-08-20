@@ -1,126 +1,117 @@
-import { useEffect, useMemo, type ComponentType } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowRight, CalendarDays, LibraryBig, Users } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { CalendarDays, Users } from 'lucide-react'
 import { useStore } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Badge } from '../components/ui/Badge'
 import { loadTone } from '../components/ui/badgeTones'
+import { teamAccentDotClass } from '../lib/teamColor'
+import { addDays, formatDayLabel, formatTimeLabel, parseLocalDate, toISODate } from '../lib/date'
 
-const formatLabel: Record<string, string> = {
-  '11v11': '11-a-side',
-  small_sided: 'Small-sided',
-}
-
-function toISODate(d: Date): string {
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function formatDayLabel(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
-}
-
-// New — the landing page a coach now sees instead of the top of the old
-// single scrolling column. Pulls together the same team-scoped data every
-// other page already fetches (players/sessions/drills) into a quick-glance
-// summary — roster size, what's coming up this week/next, and the library
-// size — plus shortcuts into the workflow a coach is most likely doing next.
+// Coach-level landing page — "what's coming up, and which team am I working
+// on?" Deliberately not scoped to any one team (that's TeamOverviewPage.tsx,
+// at /overview, reached by picking a team card below): the upcoming-sessions
+// list is cross-team, reusing the same fetchSessionsForWeek/calendarSessions
+// data CalendarGrid.tsx uses, just for a rolling 7-day window from today
+// instead of a Monday-aligned calendar week — "what's on soon" reads better
+// here than "what's on this calendar week" when today is, say, a Saturday.
 export function DashboardPage() {
   const teams = useStore((s) => s.teams)
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
-  const players = useStore((s) => s.players)
-  const sessions = useStore((s) => s.sessions)
-  const drills = useStore((s) => s.drills)
-  const fetchPlayers = useStore((s) => s.fetchPlayers)
-  const fetchSessions = useStore((s) => s.fetchSessions)
-  const fetchDrills = useStore((s) => s.fetchDrills)
+  const selectTeam = useStore((s) => s.selectTeam)
+  const calendarSessions = useStore((s) => s.calendarSessions)
+  const calendarSessionsLoading = useStore((s) => s.calendarSessionsLoading)
+  const calendarSessionsError = useStore((s) => s.calendarSessionsError)
+  const fetchSessionsForWeek = useStore((s) => s.fetchSessionsForWeek)
+  const navigate = useNavigate()
 
-  const team = teams.find((t) => t.id === selectedTeamId) ?? null
+  const teamIds = useMemo(() => teams.map((t) => t.id), [teams])
+  const teamIdsKey = teamIds.join(',')
+  const todayISO = toISODate(new Date())
+  const weekEndISO = toISODate(addDays(new Date(), 6))
 
   useEffect(() => {
-    if (!selectedTeamId) return
-    fetchPlayers(selectedTeamId)
-    fetchSessions(selectedTeamId)
-    fetchDrills(selectedTeamId)
-  }, [selectedTeamId, fetchPlayers, fetchSessions, fetchDrills])
+    if (teamIds.length > 0) fetchSessionsForWeek(teamIds, todayISO, weekEndISO)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teamIds re-derived from teamIdsKey each render
+  }, [teamIdsKey, todayISO, weekEndISO, fetchSessionsForWeek])
 
-  const todayISO = toISODate(new Date())
-  const upcomingSessions = useMemo(
+  const upcoming = useMemo(
     () =>
-      sessions
+      calendarSessions
         .filter((s) => s.date >= todayISO)
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(0, 5),
-    [sessions, todayISO]
+        .sort((a, b) => a.date.localeCompare(b.date) || (a.start_time ?? '').localeCompare(b.start_time ?? '')),
+    [calendarSessions, todayISO]
   )
 
-  if (!selectedTeamId) {
+  const handlePickTeam = (id: string) => {
+    selectTeam(id)
+    navigate('/overview')
+  }
+
+  // Jumps straight into SessionPlanner on the week the clicked session is
+  // actually in (see SessionPlanner.tsx's focusDate handling), not just to
+  // /sessions and whatever week happens to be current.
+  const handleOpenSession = (teamId: string, date: string) => {
+    selectTeam(teamId)
+    navigate('/sessions', { state: { focusDate: date } })
+  }
+
+  if (teams.length === 0) {
     return (
       <div>
         <PageHeader title="Dashboard" />
-        <Card className="border-dashed text-center">
-          <p className="text-sm text-ink-muted">Create your first team to get started.</p>
-          <Link
-            to="/teams"
-            className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-hover"
-          >
-            Go to Teams <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </Card>
+        <EmptyState
+          icon={Users}
+          message="Create your first team to get started."
+          action={{ to: '/teams', label: 'Create your first team →' }}
+        />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={team ? team.name : 'Dashboard'}
-        description={team ? `${formatLabel[team.format] ?? team.format} · squad overview` : undefined}
-      />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard icon={Users} label="Players on roster" value={players.length} to="/roster" />
-        <StatCard icon={CalendarDays} label="Upcoming sessions" value={upcomingSessions.length} to="/sessions" />
-        <StatCard icon={LibraryBig} label="Drills in library" value={drills.length} to="/drills" />
-      </div>
+      <PageHeader title="Dashboard" description="What's coming up, across every team." />
 
       <Card>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-ink">Upcoming sessions</h2>
-          <Link to="/sessions" className="text-sm font-medium text-accent hover:text-accent-hover">
-            View all
-          </Link>
-        </div>
-        {upcomingSessions.length === 0 ? (
+        <h2 className="mb-4 text-sm font-semibold text-ink">Upcoming this week</h2>
+        {calendarSessionsError && <p className="text-sm text-bad">{calendarSessionsError}</p>}
+        {calendarSessionsLoading && upcoming.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
+        {!calendarSessionsLoading && upcoming.length === 0 ? (
           <EmptyState
             icon={CalendarDays}
-            message="No upcoming sessions."
-            action={{ to: '/sessions', label: 'Plan one to get started →' }}
+            message="No sessions planned in the next 7 days."
+            action={{ to: '/sessions', label: 'Plan one →' }}
           />
         ) : (
           <ul className="divide-y divide-line">
-            {upcomingSessions.map((s) => {
-              const responded = s.availability.filter((a) => a.responded_at).length
+            {upcoming.map((s) => {
+              const team = teams.find((t) => t.id === s.team_id)
               return (
-                <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{formatDayLabel(s.date)}</p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-                      {s.duration_minutes} min · {s.session_drills.length} drill(s)
-                      {s.physical_load != null && <Badge tone={loadTone(s.physical_load)}>load {s.physical_load}/5</Badge>}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-panel-raised px-2.5 py-1 text-xs font-medium text-ink-muted">
-                    {responded}/{s.availability.length} responded
-                  </span>
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenSession(s.team_id, s.date)}
+                    className="flex w-full flex-wrap items-center justify-between gap-2 rounded-md px-2 py-3 text-left transition-colors hover:bg-panel-raised"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${teamAccentDotClass(s.team_id)}`} />
+                      <div>
+                        <p className="text-sm font-medium text-ink">
+                          {formatDayLabel(parseLocalDate(s.date))}
+                          {s.start_time && ` · ${formatTimeLabel(s.start_time)}`}
+                        </p>
+                        <p className="text-xs text-ink-muted">{team?.name ?? 'Unknown team'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-ink-muted">{s.duration_minutes} min</span>
+                      {s.physical_load != null && (
+                        <Badge tone={loadTone(s.physical_load)}>load {s.physical_load}/5</Badge>
+                      )}
+                    </div>
+                  </button>
                 </li>
               )
             })}
@@ -128,52 +119,18 @@ export function DashboardPage() {
         )}
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <QuickAction to="/sessions" label="Plan a session" />
-        <QuickAction to="/roster" label="Add a player" />
-        <QuickAction to="/design" label="Build a drill" />
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-ink">Your teams</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {teams.map((team) => (
+            <button key={team.id} type="button" onClick={() => handlePickTeam(team.id)} className="text-left">
+              <Card className="transition-colors hover:border-accent/40 hover:bg-accent/5">
+                <p className="text-base font-semibold text-ink">{team.name}</p>
+              </Card>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
-  )
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  to,
-}: {
-  icon: ComponentType<{ className?: string }>
-  label: string
-  value: number
-  to: string
-}) {
-  return (
-    <Link
-      to={to}
-      className="rounded-xl border border-line bg-panel p-5 shadow-sm transition-colors hover:border-accent/40 hover:bg-accent/5"
-    >
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-accent/15 p-2 text-accent">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-ink">{value}</p>
-          <p className="text-xs text-ink-muted">{label}</p>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function QuickAction({ to, label }: { to: string; label: string }) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center justify-between rounded-xl border border-line bg-panel px-4 py-3 text-sm font-medium text-ink shadow-sm transition-colors hover:border-accent/40 hover:text-accent"
-    >
-      {label}
-      <ArrowRight className="h-4 w-4" />
-    </Link>
   )
 }

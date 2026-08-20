@@ -21,6 +21,6 @@ export type {
   CoachRole,
   AvailabilityStatus,
 } from './types'
-export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS } from './types'
-export type { SessionWithRelations } from './slices/sessionSlice'
+export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS, PITCH_FORMAT_LABELS } from './types'
+export type { SessionWithRelations, CalendarSession } from './slices/sessionSlice'
 export type { DrillElementType, NewPhaseMode, NewDrillInput } from './slices/drillSlice'

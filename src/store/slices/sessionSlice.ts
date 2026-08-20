@@ -8,6 +8,7 @@ export interface NewSessionInput {
   team_id: string
   date: string
   duration_minutes: number
+  start_time?: string | null
   physical_load?: number | null
   equipment?: string | null
   coaching_notes?: string | null
@@ -17,6 +18,7 @@ export interface NewSessionInput {
 export interface SessionUpdateInput {
   date?: string
   duration_minutes?: number
+  start_time?: string | null
   physical_load?: number | null
   equipment?: string | null
   coaching_notes?: string | null
@@ -37,12 +39,30 @@ export interface SessionWithRelations extends Session {
 
 const SESSION_SELECT = '*, availability(*), session_drills(*)'
 
+// Calendar (cross-team weekly view) only needs the columns it actually
+// renders — a lighter select than SESSION_SELECT, and deliberately a
+// separate state field (calendarSessions, below) rather than reusing
+// `sessions`, which must stay exactly "the currently selected team's
+// sessions" for SessionPlanner and survive `selectTeam` calls unlike this
+// cross-team data.
+const CALENDAR_SESSION_SELECT = 'id, team_id, date, start_time, duration_minutes, physical_load, season_label'
+
+export type CalendarSession = Pick<
+  Session,
+  'id' | 'team_id' | 'date' | 'start_time' | 'duration_minutes' | 'physical_load' | 'season_label'
+>
+
 export interface SessionSlice {
   sessions: SessionWithRelations[]
   sessionsLoading: boolean
   sessionsError: string | null
 
+  calendarSessions: CalendarSession[]
+  calendarSessionsLoading: boolean
+  calendarSessionsError: string | null
+
   fetchSessions: (teamId: string) => Promise<void>
+  fetchSessionsForWeek: (teamIds: string[], weekStartISO: string, weekEndISO: string) => Promise<void>
   createSession: (input: NewSessionInput) => Promise<SessionWithRelations | null>
   updateSession: (id: string, patch: SessionUpdateInput) => Promise<SessionWithRelations | null>
   // Phase 3.2 — Duplicate a past session (US-16, gaffer_mvp_build_steps.md).
@@ -64,6 +84,10 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
   // newer request already resolved. Plain closure state, not store state —
   // it's bookkeeping for this slice's own async calls, not UI-visible.
   let latestFetchTeamId: string | null = null
+  // Same race-guard idea as latestFetchTeamId above, but keyed on the whole
+  // query shape (team-id set + week) since fetchSessionsForWeek can be
+  // re-triggered by either a team list change or a week-nav click.
+  let latestCalendarFetchKey: string | null = null
 
   // Phase 1.6 — Availability per session (US-8, gaffer_mvp_build_steps.md
   // step 2): "default every player to unconfirmed when a session is
@@ -108,6 +132,38 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
     sessions: [],
     sessionsLoading: false,
     sessionsError: null,
+
+    calendarSessions: [],
+    calendarSessionsLoading: false,
+    calendarSessionsError: null,
+
+    fetchSessionsForWeek: async (teamIds, weekStartISO, weekEndISO) => {
+      const key = `${teamIds.slice().sort().join(',')}|${weekStartISO}`
+      latestCalendarFetchKey = key
+      if (teamIds.length === 0) {
+        set({ calendarSessions: [], calendarSessionsLoading: false, calendarSessionsError: null })
+        return
+      }
+      set({ calendarSessionsLoading: true, calendarSessionsError: null })
+      const { data, error } = await runSupabaseAction<CalendarSession[]>(
+        () =>
+          supabase
+            .from('session')
+            .select(CALENDAR_SESSION_SELECT)
+            .in('team_id', teamIds)
+            .gte('date', weekStartISO)
+            .lte('date', weekEndISO)
+            .order('date', { ascending: true })
+            .order('start_time', { ascending: true, nullsFirst: true }),
+        "Couldn't load the calendar, try again."
+      )
+      if (latestCalendarFetchKey !== key) return // superseded by a newer week/team-list change
+      set({
+        calendarSessionsLoading: false,
+        calendarSessionsError: error,
+        ...(data ? { calendarSessions: data } : {}),
+      })
+    },
 
     fetchSessions: async (teamId) => {
       latestFetchTeamId = teamId

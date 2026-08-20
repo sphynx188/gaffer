@@ -1,12 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useStore } from '../store'
 import type { Drill, SessionDrill, SessionWithRelations } from '../store'
+import { PITCH_FORMAT_LABELS } from '../store'
 import { NumberChip } from './ui/NumberChip'
-
-const formatLabel: Record<string, string> = {
-  '11v11': '11-a-side',
-  small_sided: 'Small-sided',
-}
 
 interface AttachmentFormValues {
   planned_duration_minutes: number | null
@@ -133,7 +129,7 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
             </option>
             {drills.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} ({formatLabel[d.pitch_format] ?? d.pitch_format})
+                {d.name} ({PITCH_FORMAT_LABELS[d.pitch_format] ?? d.pitch_format})
               </option>
             ))}
           </select>
@@ -222,7 +218,7 @@ function SessionDrillRow({
         <div className="flex items-center gap-2">
           <NumberChip index={position} />
           <p className="text-sm font-medium text-ink">
-            {drill ? `${drill.name} (${formatLabel[drill.pitch_format] ?? drill.pitch_format})` : 'Unknown drill'}
+            {drill ? `${drill.name} (${PITCH_FORMAT_LABELS[drill.pitch_format] ?? drill.pitch_format})` : 'Unknown drill'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

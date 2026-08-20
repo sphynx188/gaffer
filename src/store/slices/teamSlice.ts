@@ -1,17 +1,15 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
-import type { Team, PitchFormat } from '../types'
+import type { Team } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewTeamInput {
   name: string
-  format: PitchFormat
 }
 
 export interface TeamUpdateInput {
   name?: string
-  format?: PitchFormat
 }
 
 // Phase 1.2 — Multi-team switching (US-4, gaffer_mvp_build_steps.md) persists
