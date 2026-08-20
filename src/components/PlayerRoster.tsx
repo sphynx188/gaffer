@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Plus } from 'lucide-react'
 import { useStore, PLAYER_POSITIONS, PLAYER_POSITION_LABELS } from '../store'
 import type { Player, PlayerPosition } from '../store'
 import { PlayerNotes } from './PlayerNotes'
@@ -112,6 +113,8 @@ export function PlayerRoster() {
   const sessions = useStore((s) => s.sessions)
   const fetchSessions = useStore((s) => s.fetchSessions)
 
+  const [addingPlayer, setAddingPlayer] = useState(false)
+
   useEffect(() => {
     if (selectedTeamId) {
       fetchPlayers(selectedTeamId)
@@ -173,7 +176,18 @@ export function PlayerRoster() {
         </ul>
       )}
 
-      <CreatePlayerForm teamId={selectedTeamId} onCreate={createPlayer} />
+      {addingPlayer ? (
+        <CreatePlayerForm teamId={selectedTeamId} onCreate={createPlayer} onCancel={() => setAddingPlayer(false)} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAddingPlayer(true)}
+          className="flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover"
+        >
+          <Plus className="h-4 w-4" />
+          Add player
+        </button>
+      )}
     </section>
   )
 }
@@ -188,9 +202,11 @@ interface NewPlayerFormInput {
 function CreatePlayerForm({
   teamId,
   onCreate,
+  onCancel,
 }: {
   teamId: string
   onCreate: (input: NewPlayerFormInput) => Promise<Player | null>
+  onCancel: () => void
 }) {
   const [name, setName] = useState('')
   const [positions, setPositions] = useState<PlayerPosition[]>([])
@@ -254,6 +270,9 @@ function CreatePlayerForm({
         className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Adding…' : 'Add player'}
+      </button>
+      <button type="button" onClick={onCancel} className="px-2 py-1.5 text-sm text-ink-muted">
+        Cancel
       </button>
     </form>
   )
