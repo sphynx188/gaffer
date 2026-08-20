@@ -9,6 +9,17 @@ interface AttendanceStat {
   total: number
 }
 
+// Shared between the header row and every PlayerRow below so their columns
+// actually line up — a plain `flex` row doesn't work for this: flex-grow
+// distribution on the "Name" column depends on how many sibling items are
+// present (the header has 4 cells, each row has a 5th "Actions" cell), so
+// the same `flex-1` computed a different width in each and the columns
+// drifted out of alignment. Grid's track widths don't depend on sibling
+// count, so this is exact regardless of what's in each row. Only applied at
+// `sm:` and up — below that, rows fall back to a wrapping flex stack (see
+// PlayerRow) since these fixed column widths don't fit a phone screen.
+const ROW_GRID = 'sm:grid sm:grid-cols-[2.5rem_1fr_8rem_10rem_1fr] sm:items-center sm:gap-x-6'
+
 interface PlayerFormValues {
   name?: string
   positions?: PlayerPosition[]
@@ -144,11 +155,12 @@ export function PlayerRoster() {
 
       {players.length > 0 && (
         <ul className="space-y-2">
-          <li className="hidden px-3 sm:flex sm:items-center sm:gap-6">
-            <span className="w-10 shrink-0 text-xs font-medium text-ink-muted">#</span>
-            <span className="min-w-32 flex-1 text-xs font-medium text-ink-muted">Name</span>
-            <span className="w-32 shrink-0 text-xs font-medium text-ink-muted">Position</span>
-            <span className="w-40 shrink-0 text-xs font-medium text-ink-muted">Attendance</span>
+          <li className={`hidden px-3 ${ROW_GRID}`}>
+            <span className="text-xs font-medium text-ink-muted">#</span>
+            <span className="text-xs font-medium text-ink-muted">Name</span>
+            <span className="text-xs font-medium text-ink-muted">Position</span>
+            <span className="text-xs font-medium text-ink-muted">Attendance</span>
+            <span aria-hidden="true" />
           </li>
           {players.map((player) => (
             <PlayerRow
@@ -289,13 +301,13 @@ function PlayerRow({
     const positionSummary = (player.positions ?? []).map((p) => PLAYER_POSITION_LABELS[p]).join(', ')
     return (
       <li className="rounded-md border border-line px-3 py-2">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <span className="w-10 shrink-0 text-sm text-ink-muted">
+        <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 ${ROW_GRID}`}>
+          <span className="text-sm text-ink-muted">
             {player.squad_number != null ? `#${player.squad_number}` : '—'}
           </span>
-          <span className="min-w-32 flex-1 text-sm font-medium text-ink">{player.name}</span>
-          <span className="w-32 shrink-0 text-xs text-ink-muted">{positionSummary || '—'}</span>
-          <span className="w-40 shrink-0 text-xs text-ink-muted">
+          <span className="text-sm font-medium text-ink">{player.name}</span>
+          <span className="text-xs text-ink-muted">{positionSummary || '—'}</span>
+          <span className="text-xs text-ink-muted">
             {attendance && attendance.total > 0
               ? `${attendance.present}/${attendance.total} (${Math.round((attendance.present / attendance.total) * 100)}%)`
               : '—'}
