@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useSession } from './hooks/useSession'
 import { Login } from './components/Login'
+import { ResetPassword } from './components/ResetPassword'
 import { OfflineBanner } from './components/OfflineBanner'
 import { AppShell } from './layout/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
@@ -21,7 +22,7 @@ import { CalendarPage } from './pages/CalendarPage'
 // triggered drawer on mobile. Every page still reads/writes the same shared
 // Zustand store (src/store) — only the routing/layout differs.
 function App() {
-  const { session, loading } = useSession()
+  const { session, loading, isPasswordRecovery, clearPasswordRecovery } = useSession()
 
   // Mounted above every branch (loading/login/signed-in) so "you're offline,
   // nothing you do here is being saved" holds everywhere in the app, not
@@ -33,6 +34,18 @@ function App() {
         <div className="flex min-h-svh items-center justify-center bg-surface">
           <p className="text-ink-muted">Loading…</p>
         </div>
+      </>
+    )
+  }
+
+  // Checked before the signed-in branch below even though a password-recovery
+  // link already leaves `session` non-null — the coach needs to set a new
+  // password before landing in the app, not skip straight past this screen.
+  if (isPasswordRecovery) {
+    return (
+      <>
+        <OfflineBanner />
+        <ResetPassword onDone={clearPasswordRecovery} />
       </>
     )
   }

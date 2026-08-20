@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LibraryBig } from 'lucide-react'
 import { useStore } from '../../store'
-import { PITCH_FORMAT_LABELS } from '../../store'
+import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { EmptyState } from '../ui/EmptyState'
 
 // Phase 3.1 — Drill library / browse & search (US-17, gaffer_mvp_build_steps.md).
@@ -17,9 +17,9 @@ import { EmptyState } from '../ui/EmptyState'
 // that's already loaded is cheap and idempotent.
 //
 // The search box (build guide 2b: "filters client-side ... this scale
-// doesn't need server-side search") matches against both the drill name and
-// its pitch format label, so typing "small" surfaces every small-sided drill
-// even if none of their names mention it.
+// doesn't need server-side search") matches against the drill name and its
+// pitch size/orientation labels, so typing "half" surfaces every half-pitch
+// drill even if none of their names mention it.
 export function DrillLibrary() {
   const selectedTeamId = useStore((s) => s.selectedTeamId)
   const drills = useStore((s) => s.drills)
@@ -37,8 +37,13 @@ export function DrillLibrary() {
     const q = query.trim().toLowerCase()
     if (!q) return drills
     return drills.filter((d) => {
-      const format = PITCH_FORMAT_LABELS[d.pitch_format] ?? d.pitch_format
-      return d.name.toLowerCase().includes(q) || format.toLowerCase().includes(q)
+      const size = PITCH_SIZE_LABELS[d.pitch_size] ?? d.pitch_size
+      const orientation = PITCH_ORIENTATION_LABELS[d.orientation] ?? d.orientation
+      return (
+        d.name.toLowerCase().includes(q) ||
+        size.toLowerCase().includes(q) ||
+        orientation.toLowerCase().includes(q)
+      )
     })
   }, [drills, query])
 
@@ -84,7 +89,8 @@ export function DrillLibrary() {
                 >
                   <p className="text-sm font-medium text-ink">{drill.name}</p>
                   <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-muted">
-                    {PITCH_FORMAT_LABELS[drill.pitch_format] ?? drill.pitch_format}
+                    {PITCH_SIZE_LABELS[drill.pitch_size] ?? drill.pitch_size} ·{' '}
+                    {PITCH_ORIENTATION_LABELS[drill.orientation] ?? drill.orientation}
                   </span>
                 </li>
               ))}

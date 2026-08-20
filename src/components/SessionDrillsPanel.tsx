@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useStore } from '../store'
-import type { Drill, SessionDrill, SessionWithRelations } from '../store'
-import { PITCH_FORMAT_LABELS } from '../store'
+import type { Drill, PitchOrientation, PitchSize, SessionDrill, SessionWithRelations } from '../store'
+import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../store'
 import { NumberChip } from './ui/NumberChip'
 
 interface AttachmentFormValues {
   planned_duration_minutes: number | null
   notes: string | null
+}
+
+function pitchLabel(size: PitchSize, orientation: PitchOrientation): string {
+  return `${PITCH_SIZE_LABELS[size] ?? size} · ${PITCH_ORIENTATION_LABELS[orientation] ?? orientation}`
 }
 
 // Phase 2d — Save as reusable / attach to session (US-14, US-15,
@@ -129,7 +133,7 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
             </option>
             {drills.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} ({PITCH_FORMAT_LABELS[d.pitch_format] ?? d.pitch_format})
+                {d.name} ({pitchLabel(d.pitch_size, d.orientation)})
               </option>
             ))}
           </select>
@@ -218,7 +222,7 @@ function SessionDrillRow({
         <div className="flex items-center gap-2">
           <NumberChip index={position} />
           <p className="text-sm font-medium text-ink">
-            {drill ? `${drill.name} (${PITCH_FORMAT_LABELS[drill.pitch_format] ?? drill.pitch_format})` : 'Unknown drill'}
+            {drill ? `${drill.name} (${pitchLabel(drill.pitch_size, drill.orientation)})` : 'Unknown drill'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

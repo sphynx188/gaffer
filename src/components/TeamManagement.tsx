@@ -16,10 +16,10 @@ import { useTeamSummaries, type TeamSummary } from '../hooks/useTeamSummaries'
 //
 // Team used to also carry a pitch format (11-a-side / small-sided), picked
 // at creation time — dropped (see supabase/migrations/008_drop_team_format.sql)
-// once it turned out nothing downstream ever read it: Drill.pitch_format is
-// the field that actually drives anything (which pitch shape the canvas
-// renders), set independently per drill, never derived from the team's
-// format. Creating a team now only asks for a name.
+// once it turned out nothing downstream ever read it: Drill.pitch_size /
+// Drill.orientation are the fields that actually drive anything (which
+// pitch shape the canvas renders), set independently per drill, never
+// derived from the team's format. Creating a team now only asks for a name.
 export function TeamManagement() {
   const teams = useStore((s) => s.teams)
   const teamsLoading = useStore((s) => s.teamsLoading)

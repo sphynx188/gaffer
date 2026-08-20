@@ -1,13 +1,18 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { PenTool } from 'lucide-react'
 import { useStore } from '../../store'
-import type { Drill, DrillElementType, NewDrillInput, NewPhaseMode, PitchFormat } from '../../store'
-import { PITCH_FORMAT_LABELS } from '../../store'
+import type { Drill, DrillElementType, NewDrillInput, NewPhaseMode, PitchOrientation, PitchSize } from '../../store'
+import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { PitchCanvas } from './PitchCanvas'
 import { EmptyState } from '../ui/EmptyState'
 import { NumberChip } from '../ui/NumberChip'
 
-const formatOptions: PitchFormat[] = ['11v11', 'small_sided']
+const pitchSizeOptions: PitchSize[] = ['full', 'three_quarter', 'half', 'quarter']
+const pitchOrientationOptions: PitchOrientation[] = ['portrait', 'landscape']
+
+function pitchLabel(size: PitchSize, orientation: PitchOrientation): string {
+  return `${PITCH_SIZE_LABELS[size] ?? size} · ${PITCH_ORIENTATION_LABELS[orientation] ?? orientation}`
+}
 
 // The full set of mutually-exclusive "click the pitch to place/remove
 // something" modes. Only one can be active at a time — mirrors the original
@@ -246,7 +251,8 @@ export function DrillPreview() {
         {drill && phase && (
           <>
             <PitchCanvas
-              pitchFormat={drill.pitch_format}
+              pitchSize={drill.pitch_size}
+              orientation={drill.orientation}
               phase={phase}
               maxWidth={960}
               editable
@@ -316,7 +322,7 @@ export function DrillPreview() {
               >
                 {drills.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} ({PITCH_FORMAT_LABELS[d.pitch_format] ?? d.pitch_format})
+                    {d.name} ({pitchLabel(d.pitch_size, d.orientation)})
                   </option>
                 ))}
               </select>
@@ -501,14 +507,23 @@ function CreateDrillForm({
   onCreated: (drill: Drill) => void
 }) {
   const [name, setName] = useState('')
-  const [format, setFormat] = useState<PitchFormat>('11v11')
+  const [pitchSize, setPitchSize] = useState<PitchSize>('full')
+  // Portrait matches how a full pitch has always rendered here (narrower
+  // than tall) — kept as the default across every size so switching size
+  // doesn't also silently switch orientation underneath the coach.
+  const [orientation, setOrientation] = useState<PitchOrientation>('portrait')
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim() || submitting) return
     setSubmitting(true)
-    const created = await onCreate({ team_id: teamId, name: name.trim(), pitch_format: format })
+    const created = await onCreate({
+      team_id: teamId,
+      name: name.trim(),
+      pitch_size: pitchSize,
+      orientation,
+    })
     setSubmitting(false)
     if (created) {
       setName('')
@@ -530,22 +545,41 @@ function CreateDrillForm({
           className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
-      <div>
-        <label htmlFor="new-drill-format" className="block text-xs font-medium text-ink-muted">
-          Pitch format
-        </label>
-        <select
-          id="new-drill-format"
-          value={format}
-          onChange={(e) => setFormat(e.target.value as PitchFormat)}
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        >
-          {formatOptions.map((f) => (
-            <option key={f} value={f}>
-              {PITCH_FORMAT_LABELS[f] ?? f}
-            </option>
-          ))}
-        </select>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label htmlFor="new-drill-size" className="block text-xs font-medium text-ink-muted">
+            Pitch size
+          </label>
+          <select
+            id="new-drill-size"
+            value={pitchSize}
+            onChange={(e) => setPitchSize(e.target.value as PitchSize)}
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          >
+            {pitchSizeOptions.map((s) => (
+              <option key={s} value={s}>
+                {PITCH_SIZE_LABELS[s] ?? s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label htmlFor="new-drill-orientation" className="block text-xs font-medium text-ink-muted">
+            Orientation
+          </label>
+          <select
+            id="new-drill-orientation"
+            value={orientation}
+            onChange={(e) => setOrientation(e.target.value as PitchOrientation)}
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          >
+            {pitchOrientationOptions.map((o) => (
+              <option key={o} value={o}>
+                {PITCH_ORIENTATION_LABELS[o] ?? o}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <button
         type="submit"

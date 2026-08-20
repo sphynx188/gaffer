@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Arrow, Circle, Group, Label, Layer, Line, Rect, RegularPolygon, Stage, Tag, Text } from 'react-konva'
-import type { DrillElementType, DrillPhase, PitchFormat } from '../../store'
+import type { DrillElementType, DrillPhase, PitchOrientation, PitchSize } from '../../store'
 import { ANNOTATION, ARROW, BALL, CONE, PLAYER, TURF } from './pitchTheme'
 import { assignTeamColors, getPitchAspectRatio, getPitchMarkings } from './pitchGeometry'
 
@@ -9,7 +9,8 @@ type PixelPoint = { x: number; y: number }
 type NormalizedPoint = { x: number; y: number }
 
 interface PitchCanvasProps {
-  pitchFormat: PitchFormat
+  pitchSize: PitchSize
+  orientation: PitchOrientation
   // Phase 2c (multi-phase step-through): the caller (DrillPreview.tsx) owns
   // which phase index is "current" and passes that phase's data straight
   // through here — this component never owns phase-stepping state itself,
@@ -92,7 +93,8 @@ function useMeasuredWidth(maxWidth: number) {
 // caller's job (see DrillPreview.tsx), same separation the store's
 // `updateDrill` comment describes.
 export function PitchCanvas({
-  pitchFormat,
+  pitchSize,
+  orientation,
   phase,
   maxWidth = DEFAULT_MAX_WIDTH,
   className,
@@ -106,9 +108,9 @@ export function PitchCanvas({
   onAnnotationClick,
 }: PitchCanvasProps) {
   const { containerRef, width } = useMeasuredWidth(maxWidth)
-  const aspectRatio = getPitchAspectRatio(pitchFormat) // width / length
+  const aspectRatio = getPitchAspectRatio(pitchSize, orientation) // width / length
   const height = width / aspectRatio
-  const markings = getPitchMarkings(pitchFormat)
+  const markings = getPitchMarkings(pitchSize, orientation)
 
   // Meters -> pixels. Equal on both axes by construction (the Stage's
   // aspect ratio is derived from the same widthMeters/lengthMeters used

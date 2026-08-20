@@ -2,7 +2,12 @@
 // truth (see gaffer_project_plan_final.md §5); this file just types it for
 // the store and, later, every component that reads from it.
 
-export type PitchFormat = '11v11' | 'small_sided'
+// Replaces the old 2-value PitchFormat ('11v11' | 'small_sided') — see
+// supabase/migrations/011_drill_pitch_size_orientation.sql. Two independent
+// dimensions instead of one fixed shape, so the Drill Creator can offer
+// 4 sizes x 2 orientations.
+export type PitchSize = 'full' | 'three_quarter' | 'half' | 'quarter'
+export type PitchOrientation = 'portrait' | 'landscape'
 export type CoachRole = 'owner' | 'coach'
 // One status per (session, player) row, serving double duty: a coach can
 // set it as a pre-session RSVP guess or as the actual post-session
@@ -10,9 +15,16 @@ export type CoachRole = 'owner' | 'coach'
 // supabase/migrations/010_attendance_roll_call_status.sql.
 export type AvailabilityStatus = 'unconfirmed' | 'present' | 'injured' | 'away'
 
-export const PITCH_FORMAT_LABELS: Record<PitchFormat, string> = {
-  '11v11': '11-a-side',
-  small_sided: 'Small-sided',
+export const PITCH_SIZE_LABELS: Record<PitchSize, string> = {
+  full: 'Full pitch',
+  three_quarter: '¾ pitch',
+  half: 'Half pitch',
+  quarter: 'Quarter pitch',
+}
+
+export const PITCH_ORIENTATION_LABELS: Record<PitchOrientation, string> = {
+  portrait: 'Portrait',
+  landscape: 'Landscape',
 }
 
 // Phase 1 revision: position is a multi-select tag set, not freeform text —
@@ -135,7 +147,8 @@ export interface Drill {
   id: string
   team_id: string | null // null = coach-owned, reusable across every team
   name: string
-  pitch_format: PitchFormat
+  pitch_size: PitchSize
+  orientation: PitchOrientation
   phases: DrillPhase[]
   created_at: string
 }

@@ -1,19 +1,21 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
-import type { Drill, DrillPhase, PhasePoint, PitchFormat } from '../types'
+import type { Drill, DrillPhase, PhasePoint, PitchOrientation, PitchSize } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewDrillInput {
   team_id: string | null
   name: string
-  pitch_format: PitchFormat
+  pitch_size: PitchSize
+  orientation: PitchOrientation
   phases?: DrillPhase[]
 }
 
 export interface DrillUpdateInput {
   name?: string
-  pitch_format?: PitchFormat
+  pitch_size?: PitchSize
+  orientation?: PitchOrientation
   phases?: DrillPhase[]
 }
 

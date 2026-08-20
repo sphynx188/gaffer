@@ -17,10 +17,11 @@ export type {
   PhaseArrow,
   PhaseAnnotation,
   SessionDrill,
-  PitchFormat,
+  PitchSize,
+  PitchOrientation,
   CoachRole,
   AvailabilityStatus,
 } from './types'
-export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS, PITCH_FORMAT_LABELS } from './types'
+export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS, PITCH_SIZE_LABELS, PITCH_ORIENTATION_LABELS } from './types'
 export type { SessionWithRelations, CalendarSession, RecurringSessionInput } from './slices/sessionSlice'
 export type { DrillElementType, NewPhaseMode, NewDrillInput } from './slices/drillSlice'
