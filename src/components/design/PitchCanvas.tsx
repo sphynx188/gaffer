@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Arrow, Circle, Group, Label, Layer, Line, Rect, RegularPolygon, Stage, Tag, Text } from 'react-konva'
 import type { DrillElementType, DrillPhase, PitchOrientation, PitchSize } from '../../store'
-import { ANNOTATION, ARROW, BALL, CONE, PLAYER, TURF } from './pitchTheme'
+import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, TURF, WITCHES_HAT } from './pitchTheme'
 import { assignTeamColors, getPitchAspectRatio, getPitchMarkings } from './pitchGeometry'
 
 type PixelPoint = { x: number; y: number }
@@ -269,6 +269,84 @@ export function PitchCanvas({
 
             {phase?.cones.map((cone) => {
               const p = toPx(cone)
+              const kind = cone.kind ?? 'cone'
+
+              // Equipment types (Upgrade Phase 2B) share drag/click wiring
+              // but differ in shape — "witches' hat" (AU/NZ term for a tall
+              // training cone, vs. a flat marker/disc) and "mannequin" each
+              // group a couple of primitives so they read as a distinct
+              // silhouette rather than just a recolored triangle.
+              if (kind === 'witches_hat') {
+                const hatRadius = coneRadius * 1.3
+                return (
+                  <Group
+                    key={cone.id}
+                    x={p.x}
+                    y={p.y}
+                    draggable={editable}
+                    dragBoundFunc={editable ? makeDragBound(hatRadius) : undefined}
+                    onDragMove={editable ? makeDragMoveHandler('cones', cone.id) : undefined}
+                    onDragEnd={editable ? makeDragEndHandler('cones', cone.id) : undefined}
+                    onClick={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
+                    onTap={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
+                  >
+                    <RegularPolygon
+                      sides={3}
+                      radius={hatRadius}
+                      fill={WITCHES_HAT.fill}
+                      stroke={WITCHES_HAT.stroke}
+                      strokeWidth={1}
+                    />
+                    <Rect
+                      x={-hatRadius * 0.35}
+                      y={hatRadius * 0.15}
+                      width={hatRadius * 0.7}
+                      height={hatRadius * 0.22}
+                      fill={WITCHES_HAT.stripeFill}
+                      listening={false}
+                    />
+                  </Group>
+                )
+              }
+
+              if (kind === 'mannequin') {
+                const bodyWidth = coneRadius * 1.1
+                const bodyHeight = coneRadius * 2.2
+                const headRadius = coneRadius * 0.55
+                return (
+                  <Group
+                    key={cone.id}
+                    x={p.x}
+                    y={p.y}
+                    draggable={editable}
+                    dragBoundFunc={editable ? makeDragBound(bodyHeight / 2) : undefined}
+                    onDragMove={editable ? makeDragMoveHandler('cones', cone.id) : undefined}
+                    onDragEnd={editable ? makeDragEndHandler('cones', cone.id) : undefined}
+                    onClick={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
+                    onTap={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
+                  >
+                    <Rect
+                      x={-bodyWidth / 2}
+                      y={-bodyHeight / 2 + headRadius}
+                      width={bodyWidth}
+                      height={bodyHeight - headRadius}
+                      cornerRadius={bodyWidth * 0.2}
+                      fill={MANNEQUIN.fill}
+                      stroke={MANNEQUIN.stroke}
+                      strokeWidth={1}
+                    />
+                    <Circle
+                      x={0}
+                      y={-bodyHeight / 2 + headRadius * 0.6}
+                      radius={headRadius}
+                      fill={MANNEQUIN.fill}
+                      stroke={MANNEQUIN.stroke}
+                      strokeWidth={1}
+                    />
+                  </Group>
+                )
+              }
+
               const fill = CONE.named[cone.color ?? ''] ?? CONE.fallback
               return (
                 <RegularPolygon

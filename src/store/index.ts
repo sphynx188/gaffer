@@ -13,6 +13,7 @@ export type {
   PhasePoint,
   PhasePlayer,
   PhaseCone,
+  EquipmentKind,
   PhaseBall,
   PhaseArrow,
   PhaseAnnotation,

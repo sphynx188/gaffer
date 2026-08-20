@@ -111,8 +111,17 @@ export interface PhasePlayer extends PhasePoint {
   label?: string
 }
 
+// 'kind' absent/undefined means 'cone' — kept optional rather than adding
+// separate witchesHats/mannequins arrays (Upgrade Phase 2B,
+// UPGRADE_IMPLEMENTATION_PLAN.md) so every existing persisted drill (jsonb,
+// no migration needed) stays valid without a backfill, and so a future
+// equipment type is one more union member here, not a new array + new
+// canvas-render block + new store methods everywhere.
+export type EquipmentKind = 'cone' | 'witches_hat' | 'mannequin'
+
 export interface PhaseCone extends PhasePoint {
   id: string
+  kind?: EquipmentKind
   color?: string
 }
 

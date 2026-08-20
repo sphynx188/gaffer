@@ -64,10 +64,25 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
   `"<size> · <orientation>"` format; build/lint clean; no console errors on
   a fresh tab. The 3 untested landscape combos (¾, half, quarter) share the
   same verified transpose code path as full-landscape, not separate logic.
+- **Phase 2B (equipment: witches' hats, mannequins)** — no migration (jsonb
+  field, backward compatible: `PhaseCone.kind?: EquipmentKind` absent means
+  'cone'). Updated: `src/store/types.ts` (+`EquipmentKind`), `src/store/index.ts`,
+  `src/components/design/pitchTheme.ts` (+`WITCHES_HAT`/`MANNEQUIN` visual
+  constants), `src/components/design/PitchCanvas.tsx` (branches the
+  `cones.map` render on `kind` — witches' hat = larger triangle + white
+  stripe, mannequin = body+head silhouette, both grouped so drag/click
+  wiring stays shared with the plain-cone case), `src/store/slices/drillSlice.ts`
+  (`addElement`'s `extra` gains `kind`), `src/components/design/DrillPreview.tsx`
+  (new toolbar buttons + `PlacementMode`/`handleCanvasClick` branches). Note:
+  "witches' hat" is the AU/NZ term for a tall training cone (vs. a flat
+  marker/disc) — not a Halloween reference.
+  **Verified live**: placed a witches' hat and a mannequin on the "Full
+  Portrait Test" drill — both render as distinct shapes, both persisted
+  across a hard reload, remove-mode successfully deleted the mannequin
+  leaving the witches' hat untouched, no console errors, build/lint clean.
 
 ### Not started yet
 
-- Phase 2B (equipment: witches' hats, mannequins)
 - Phase 2C (arrow types + the arrow-drawing UI, which doesn't exist yet at
   all — see the plan's "ground truth" table)
 - Phase 3 (Tactic Creator — new feature, depends on 2C)
@@ -88,15 +103,20 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
 
 ### Exact next step
 
-Start Phase 2B (equipment expansion) per UPGRADE_IMPLEMENTATION_PLAN.md
-steps 2.6–2.8: decide-and-confirm the `kind`-tagged-marker approach (already
-recommended in the plan, no migration needed — jsonb field), then implement
-in `pitchTheme.ts` (new WITCHES_HAT/MANNEQUIN visual constants),
-`PitchCanvas.tsx` (branch the `cones.map` render on `kind`),
-`drillSlice.ts` (`addElement`'s `extra` gains `kind`), and
-`DrillPreview.tsx` (new toolbar buttons). Verify live using the test
-account above against one of the existing test drills (e.g. "Full Portrait
-Test").
+Start Phase 2C (arrow types + arrow-drawing UI) per
+UPGRADE_IMPLEMENTATION_PLAN.md steps 2.9–2.11. This is the biggest
+sub-step in Phase 2: `PhaseArrow` needs a `kind?: 'ball' | 'player'` field
+(types.ts, no migration — jsonb), two visually distinct `ARROW` variants in
+`pitchTheme.ts`, a branch in `PitchCanvas.tsx`'s arrow render — **and**,
+since there is currently no way to create an arrow through the UI at all
+(only pre-seeded/DB-written arrows render), a new two-click "stage start
+point, click again to commit" placement mode in `DrillPreview.tsx` (mirror
+the existing `note` mode's stage-then-commit pattern, extended to two
+points) plus `addArrow`/`removeArrow` actions in `drillSlice.ts` following
+the same local-mutate-then-one-`updateDrill`-write pattern every other
+phases mutation there uses. Verify live using the test account above:
+draw one ball-arrow and one player-arrow, confirm visually distinct,
+confirm they persist across reload, confirm remove-mode deletes an arrow.
 
 ---
 

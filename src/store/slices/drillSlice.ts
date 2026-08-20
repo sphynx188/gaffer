@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
-import type { Drill, DrillPhase, PhasePoint, PitchOrientation, PitchSize } from '../types'
+import type { Drill, DrillPhase, EquipmentKind, PhasePoint, PitchOrientation, PitchSize } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewDrillInput {
@@ -109,14 +109,15 @@ export interface DrillSlice {
   // phases-array mutation here (local update now, caller fires one
   // `updateDrill` write). `extra` carries the one or two fields each
   // element type needs beyond position: players need a `team` label (drives
-  // color assignment — see pitchTheme.ts), cones optionally take a `color`,
-  // balls take nothing.
+  // color assignment — see pitchTheme.ts), cones optionally take a `color`
+  // and/or `kind` (cone/witches_hat/mannequin — Upgrade Phase 2B), balls
+  // take nothing.
   addElement: (
     drillId: string,
     phaseIndex: number,
     elementType: DrillElementType,
     position: PhasePoint,
-    extra?: { team?: string; color?: string }
+    extra?: { team?: string; color?: string; kind?: EquipmentKind }
   ) => void
 
   // Local-only removal of one player/cone/ball from the phase at
@@ -277,7 +278,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
                 case 'cones':
                   return {
                     ...ph,
-                    cones: [...ph.cones, { id: generateId('cone'), color: extra?.color, ...position }],
+                    cones: [...ph.cones, { id: generateId('cone'), color: extra?.color, kind: extra?.kind, ...position }],
                   }
                 case 'balls':
                   return { ...ph, balls: [...ph.balls, { id: generateId('ball'), ...position }] }

@@ -28,7 +28,8 @@ export const PLAYER = {
 
 export const CONE = {
   // Named colors from the phase JSON's optional `cones[].color` field map
-  // here; anything unrecognized falls back to orange.
+  // here; anything unrecognized falls back to orange. Flat markers/discs —
+  // see WITCHES_HAT below for the taller training-cone equipment type.
   named: {
     orange: '#f59e0b',
     yellow: '#eab308',
@@ -37,6 +38,25 @@ export const CONE = {
   } as Record<string, string>,
   fallback: '#f59e0b',
   stroke: '#7c4a03',
+} as const
+
+// Upgrade Phase 2B (UPGRADE_IMPLEMENTATION_PLAN.md) equipment types —
+// distinguished from CONE and from each other by shape, not just color,
+// same "shape distinction over palette" rule PLAYER's comment sets out.
+// "Witches' hat" is the AU/NZ term for a tall training cone (as opposed to
+// a flat marker/disc) — rendered as a larger triangle with a reflective
+// stripe near the top, distinct from the flat marker's plain triangle.
+export const WITCHES_HAT = {
+  fill: '#f97316', // brighter/more saturated than CONE's default orange
+  stroke: '#7c2d12',
+  stripeFill: '#fefdf8', // reflective band
+} as const
+
+// Training mannequin/dummy — rendered as a body+head silhouette (not a
+// plain circle) so it's never mistaken for a player dot at a glance.
+export const MANNEQUIN = {
+  fill: '#64748b', // slate — deliberately muted, distinct from both cone brights and player navy/red
+  stroke: '#334155',
 } as const
 
 export const BALL = {

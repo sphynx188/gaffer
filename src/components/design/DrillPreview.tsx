@@ -17,8 +17,18 @@ function pitchLabel(size: PitchSize, orientation: PitchOrientation): string {
 // The full set of mutually-exclusive "click the pitch to place/remove
 // something" modes. Only one can be active at a time — mirrors the original
 // note-only toggle this replaces, just widened to cover every element type
-// the canvas can now create.
-type PlacementMode = 'player-a' | 'player-b' | 'cone' | 'ball' | 'note' | 'remove' | null
+// the canvas can now create. 'witches-hat'/'mannequin' (Upgrade Phase 2B)
+// both place a 'cones' element, just with a different EquipmentKind.
+type PlacementMode =
+  | 'player-a'
+  | 'player-b'
+  | 'cone'
+  | 'witches-hat'
+  | 'mannequin'
+  | 'ball'
+  | 'note'
+  | 'remove'
+  | null
 
 // Phase 2a — Static pitch renderer (US-10, partial).
 // Phase 2b — Drag-and-drop persistence (US-11).
@@ -187,8 +197,11 @@ export function DrillPreview() {
       setNoteText('')
       return
     }
-    if (placementMode === 'cone' || placementMode === 'ball') {
-      addElement(drill.id, phaseIndex, placementMode === 'cone' ? 'cones' : 'balls', position)
+    if (placementMode === 'ball') {
+      addElement(drill.id, phaseIndex, 'balls', position)
+    } else if (placementMode === 'cone' || placementMode === 'witches-hat' || placementMode === 'mannequin') {
+      const kind = placementMode === 'witches-hat' ? 'witches_hat' : placementMode === 'mannequin' ? 'mannequin' : 'cone'
+      addElement(drill.id, phaseIndex, 'cones', position, { kind })
     } else {
       addElement(drill.id, phaseIndex, 'players', position, { team: placementMode === 'player-a' ? 'A' : 'B' })
     }
@@ -433,12 +446,19 @@ export function DrillPreview() {
                 </button>
               </div>
 
-              {/* Placement controls (adds players/cones/balls/notes, and
+              {/* Placement controls (adds players/equipment/balls/notes, and
                   removes any of them). */}
               <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
                 <PlacementToggle mode="player-a" active={placementMode} onToggle={togglePlacement} label="Player A" />
                 <PlacementToggle mode="player-b" active={placementMode} onToggle={togglePlacement} label="Player B" />
                 <PlacementToggle mode="cone" active={placementMode} onToggle={togglePlacement} label="Cone" />
+                <PlacementToggle
+                  mode="witches-hat"
+                  active={placementMode}
+                  onToggle={togglePlacement}
+                  label="Witches' hat"
+                />
+                <PlacementToggle mode="mannequin" active={placementMode} onToggle={togglePlacement} label="Mannequin" />
                 <PlacementToggle mode="ball" active={placementMode} onToggle={togglePlacement} label="Ball" />
                 <PlacementToggle mode="note" active={placementMode} onToggle={togglePlacement} label="Note" />
                 <PlacementToggle
