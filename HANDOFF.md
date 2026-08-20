@@ -9,22 +9,41 @@ already configured in this environment.
 
 ---
 
-## ⏳ UPGRADE IN PROGRESS — read this section first
+## ✅ UPGRADE COMPLETE
 
-Executing [UPGRADE_IMPLEMENTATION_PLAN.md](UPGRADE_IMPLEMENTATION_PLAN.md)
-(source: [Upgrade Roadmap Plan.md](Upgrade%20Roadmap%20Plan.md)), across
-however many sessions it takes. **UPGRADE_IMPLEMENTATION_PLAN.md is the
-source of truth for what needs to be built; this section is the source of
-truth for what has actually happened.** On resuming: read the plan, read
-this section, run `git log --oneline -10` and `git status` in `gaffer/`,
-diff against what's below, and continue from the first incomplete step —
-don't redo completed work. A phase is only "done" once its plan success
-criteria were actually verified, not just implemented.
+[UPGRADE_IMPLEMENTATION_PLAN.md](UPGRADE_IMPLEMENTATION_PLAN.md) (source:
+[Upgrade Roadmap Plan.md](Upgrade%20Roadmap%20Plan.md)) is fully executed —
+all 5 phases done, each verified live against a real test account (not
+just build/lint), each committed as its own checkpoint. Kept both plan
+docs in the repo as the historical record of what was built and why; no
+open items from the plan remain. The detailed per-phase log below is kept
+as-is (not summarized away) since it's the record of *why* things were
+built the way they were, which the plan document alone doesn't capture —
+useful context for any future work that touches this code, not just for
+resuming an in-progress upgrade.
+
+**Shipped, in order**: persistent email/password auth (replacing magic
+link) → Drill Creator pitch size/orientation (4 sizes × 2 orientations,
+replacing the old fixed 2-format system) → two new equipment types
+(witches' hat, mannequin) → distinguishable ball/player movement arrows
+(including building the arrow-drawing UI from scratch, which didn't
+previously exist) → a brand-new Tactic Creator feature (team-specific,
+roster-linked, static tactical boards) → a mobile-first audit that found
+the existing responsive patterns already held up with zero code changes
+needed.
+
+**Explicitly deferred** (per the plan's own scope boundary, not an
+oversight): drill/tactic animation-and-playback, and a native iOS/Android
+app. Both were staged as later-phase work in the roadmap's own text.
 
 Test account for live Browser-pane verification (works because Phase 1
 shipped password auth + disabled email confirmation on the Supabase
 project): `gaffertest2026v2@gmail.com` / `TestPass123!` — one team ("Test
-U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
+U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9), 5 test drills (one
+per pitch size + a landscape variant), 1 test tactic, 1 test session with
+seeded availability. Left in place as scratch/reference data — ask the
+user before deleting any of it, same as `_to_delete/` is never touched
+without being asked.
 
 ### Done
 
@@ -231,50 +250,29 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
   roster players, Alex Keeper currently marked "Injured" — harmless scratch
   data, consistent with everything else already on that test team.
 
-### Not started yet
+- **Phase 5 (final verification + docs)** — done. `npm run build`/`npm run lint`
+  clean (0 errors; the 4 known warnings — 2 pre-existing, 2 new-but-harmless
+  from Phase 3 — present exactly as documented above, nothing new). Full
+  regression smoke test: navigated every core page (Dashboard, Overview,
+  Roster, Sessions, Attendance, Design, Drills, Tactics, Calendar, Teams)
+  fresh, zero console errors. This HANDOFF.md section folded into the
+  closing summary above. `UPGRADE_IMPLEMENTATION_PLAN.md` and
+  `Upgrade Roadmap Plan.md` kept in the repo as the historical record.
+  Test data on "Test U12 Reds" left in place (see closing summary above) —
+  a judgment call, not something the user was blocked on; easy to clean up
+  later if they'd rather.
 
-- Phase 5 (final verification + docs)
+### Blockers / deviations from the plan (historical — none outstanding)
 
-### Blockers / deviations from the plan
+- Supabase's email confirmation was ON by default (Phase 1) — resolved by
+  asking the user to disable it in the dashboard, since no available tool
+  could do it directly.
+- `gaffer/CLAUDE.md` was found overwritten mid-session (Phase 0) — resolved
+  by restoring the `/init` architecture doc and merging it with the
+  generic guidelines block that had replaced it.
 
-- None currently blocking. One resolved mid-flight: Supabase's email
-  confirmation was ON by default (the plan assumed it might be, and
-  recommended disabling it) — I can't toggle it myself, so I asked the
-  user, who disabled it in the dashboard. Documented here in case a future
-  session needs to know why sign-up behaves the way it does.
-- `gaffer/CLAUDE.md` was found overwritten mid-session (the `/init`
-  architecture doc replaced by a generic guidelines block, pasted with a
-  clipped first character — "ehavioral" instead of "Behavioral"). User
-  chose to restore-and-merge; done — both sections now live in the file.
-
-### Exact next step
-
-Phase 4 (mobile-first audit) is now fully done, with no code changes
-needed — start Phase 5 (final verification + docs), the last phase of the
-plan, per UPGRADE_IMPLEMENTATION_PLAN.md's Phase 5 section:
-
-1. **5.1 Full regression pass** — `npm run build && npm run lint` clean
-   (expected: 0 errors, the 4 known warnings — 2 pre-existing in
-   `AttendancePage.tsx`/`SessionPlanner.tsx`, 2 new-but-harmless in
-   `TacticBoard.tsx`, all documented above). Re-check every pre-existing
-   feature still works via the test account — roster, sessions, attendance,
-   calendar — not just the new Phase 1–4 work in isolation.
-2. **5.2 Update HANDOFF.md** — fold this whole "UPGRADE IN PROGRESS"
-   section into a closing summary once Phase 5 itself is done (the plan
-   calls for logging what shipped/worked/didn't and any deviations — most
-   of that is already captured per-phase above; this step is mainly about
-   marking the upgrade complete rather than starting from scratch).
-3. **5.3 CLAUDE.md / plan close-out** — the CLAUDE.md merge question from
-   Phase 0 is already resolved (restored + merged). Confirm with the user
-   whether `UPGRADE_IMPLEMENTATION_PLAN.md` should stay in the repo as a
-   record or whether anything in `Upgrade Roadmap Plan.md` needs a status
-   update now that Phases 1–4 are shipped.
-4. Decide what to do with the leftover test data on "Test U12 Reds"
-   (5 test drills, 1 tactic, 1 session with availability rows) — ask the
-   user whether to keep it as a reference/demo team or clean it up now that
-   verification is done.
-
-No test account changes needed — reuse `gaffertest2026v2@gmail.com` above.
+Neither blocked completion — both resolved within the session they came up
+in.
 
 ---
 
