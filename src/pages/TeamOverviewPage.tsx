@@ -5,8 +5,6 @@ import { useStore } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
-import { Badge } from '../components/ui/Badge'
-import { loadTone } from '../components/ui/badgeTones'
 import { formatDayLabel, parseLocalDate, toISODate } from '../lib/date'
 
 // The team-level hub — landed on after picking a team from the coach-level
@@ -92,13 +90,12 @@ export function TeamOverviewPage() {
                 <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                   <div>
                     <p className="text-sm font-medium text-ink">{formatDayLabel(parseLocalDate(s.date))}</p>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+                    <p className="mt-0.5 text-xs text-ink-muted">
                       {s.duration_minutes} min · {s.session_drills.length} drill(s)
-                      {s.physical_load != null && <Badge tone={loadTone(s.physical_load)}>load {s.physical_load}/5</Badge>}
                     </p>
                   </div>
                   <span className="rounded-full bg-panel-raised px-2.5 py-1 text-xs font-medium text-ink-muted">
-                    {responded}/{s.availability.length} responded
+                    {responded}/{s.availability.length} attendance recorded
                   </span>
                 </li>
               )

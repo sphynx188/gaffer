@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useStore } from '../store'
-import type { SessionWithRelations } from '../store'
+import type { RecurringSessionInput, SessionWithRelations } from '../store'
 import { AvailabilityPanel } from './AvailabilityPanel'
 import { SessionDrillsPanel } from './SessionDrillsPanel'
-import { Badge } from './ui/Badge'
-import { loadTone } from './ui/badgeTones'
 import {
   addDays,
   formatDayLabel,
@@ -17,25 +15,20 @@ import {
   toTimeInputValue,
 } from '../lib/date'
 
-// Tailwind's border-l-* color utility needs a static class name per tone
-// (arbitrary interpolation like `border-${tone}` isn't picked up by its
-// content scanner), so the load-tone-to-border mapping is spelled out here
-// once rather than built dynamically.
-const LOAD_BORDER_CLASS: Record<'ok' | 'warn' | 'bad' | 'neutral', string> = {
-  ok: 'border-l-ok',
-  warn: 'border-l-warn',
-  bad: 'border-l-bad',
-  neutral: 'border-l-line',
-}
-
-const PHYSICAL_LOAD_OPTIONS = [1, 2, 3, 4, 5] as const
+const WEEKDAY_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 0, label: 'Sun' },
+]
 
 interface SessionFormValues {
   date: string
   duration_minutes: number
   start_time: string
-  physical_load: number | null
-  equipment: string | null
   coaching_notes: string | null
   season_label: string | null
 }
@@ -44,13 +37,20 @@ const EMPTY_SESSIONS: SessionWithRelations[] = []
 
 // Phase 1.5 — Weekly session planner (US-7, gaffer_mvp_build_steps.md).
 // Mirrors TeamManagement/PlayerRoster's create-form + inline-edit-row
-// pattern. Definition of Done: a session holds date/duration/physical
-// load/equipment/coaching notes; physical load is a queryable 1–5 selector,
-// never free text; the week view shows all of a team's sessions for that
-// week in one screen, from the single embedded fetch sessionSlice already
-// does (see SessionWithRelations) rather than a per-row request. Scoped by
-// the store's `selectedTeamId` (teamSlice), same as every other Phase 1
-// view, so switching teams never bleeds one team's sessions into another's.
+// pattern. Definition of Done: a session holds date/duration/coaching
+// notes; the week view shows all of a team's sessions for that week in one
+// screen, from the single embedded fetch sessionSlice already does (see
+// SessionWithRelations) rather than a per-row request. Scoped by the
+// store's `selectedTeamId` (teamSlice), same as every other Phase 1 view,
+// so switching teams never bleeds one team's sessions into another's.
+// (physical_load/equipment fields dropped — see
+// supabase/migrations/009_drop_player_dob_and_session_extras.sql — they
+// went unused.)
+//
+// Recurring schedules (below, RecurringScheduleForm): not their own concept
+// or table — generates one ordinary `session` row per matching weekday in
+// a date range (sessionSlice.createRecurringSessions), each independently
+// editable/deletable afterward exactly like a one-off session.
 //
 // Phase 1.7 — Season label tagging (US-9, gaffer_mvp_build_steps.md): adds
 // an optional free-text `season_label` input to both the create and edit
@@ -86,6 +86,7 @@ export function SessionPlanner() {
   const sessionsError = useStore((s) => s.sessionsError)
   const fetchSessions = useStore((s) => s.fetchSessions)
   const createSession = useStore((s) => s.createSession)
+  const createRecurringSessions = useStore((s) => s.createRecurringSessions)
   const updateSession = useStore((s) => s.updateSession)
   const duplicateSession = useStore((s) => s.duplicateSession)
 
@@ -141,6 +142,20 @@ export function SessionPlanner() {
     if (created) {
       const createdWeekStart = startOfWeek(parseLocalDate(created.date))
       if (toISODate(createdWeekStart) !== weekStartISO) setWeekStart(createdWeekStart)
+    }
+    return created
+  }
+
+  // Same "jump to wherever it landed" affordance as handleCreate — a
+  // recurring schedule starting next month would otherwise generate a
+  // batch of sessions with no visible change on the currently displayed
+  // week.
+  const [recurringOpen, setRecurringOpen] = useState(false)
+  const handleCreateRecurring = async (input: RecurringSessionInput) => {
+    const created = await createRecurringSessions(input)
+    if (created.length > 0) {
+      const firstWeekStart = startOfWeek(parseLocalDate(created[0].date))
+      if (toISODate(firstWeekStart) !== weekStartISO) setWeekStart(firstWeekStart)
     }
     return created
   }
@@ -260,6 +275,22 @@ export function SessionPlanner() {
       </ul>
 
       <CreateSessionForm teamId={selectedTeamId} onCreate={handleCreate} />
+
+      {recurringOpen ? (
+        <RecurringScheduleForm
+          teamId={selectedTeamId}
+          onCreate={handleCreateRecurring}
+          onCancel={() => setRecurringOpen(false)}
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setRecurringOpen(true)}
+          className="text-sm font-medium text-accent hover:text-accent-hover"
+        >
+          + Add a recurring schedule
+        </button>
+      )}
     </section>
   )
 }
@@ -282,8 +313,6 @@ function SessionRow({
   const [date, setDate] = useState(session.date)
   const [duration, setDuration] = useState(String(session.duration_minutes))
   const [startTime, setStartTime] = useState(session.start_time ? toTimeInputValue(session.start_time) : '')
-  const [load, setLoad] = useState(session.physical_load != null ? String(session.physical_load) : '')
-  const [equipment, setEquipment] = useState(session.equipment ?? '')
   const [notes, setNotes] = useState(session.coaching_notes ?? '')
   const [seasonLabel, setSeasonLabel] = useState(session.season_label ?? '')
   const [saving, setSaving] = useState(false)
@@ -302,8 +331,6 @@ function SessionRow({
     setDate(session.date)
     setDuration(String(session.duration_minutes))
     setStartTime(session.start_time ? toTimeInputValue(session.start_time) : '')
-    setLoad(session.physical_load != null ? String(session.physical_load) : '')
-    setEquipment(session.equipment ?? '')
     setNotes(session.coaching_notes ?? '')
     setSeasonLabel(session.season_label ?? '')
     setEditing(true)
@@ -317,8 +344,6 @@ function SessionRow({
       date,
       duration_minutes: Number(duration),
       start_time: startTime,
-      physical_load: load ? Number(load) : null,
-      equipment: equipment.trim() || null,
       coaching_notes: notes.trim() || null,
       season_label: seasonLabel.trim() || null,
     })
@@ -348,26 +373,18 @@ function SessionRow({
     // tracked by responded_at being set (availabilitySlice.updateAvailability
     // always stamps it).
     const respondedCount = session.availability.filter((a) => a.responded_at).length
-    // Colored left-border keyed to physical load, so a coach scanning the
-    // week can spot a heavy day at a glance without reading every row.
-    const borderClass = LOAD_BORDER_CLASS[loadTone(session.physical_load)]
     return (
-      <li className={`rounded-md border border-l-4 border-line bg-panel-raised px-3 py-2 ${borderClass}`}>
+      <li className="rounded-md border border-line bg-panel-raised px-3 py-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-40">
             <p className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-ink">
               {session.start_time && `${formatTimeLabel(session.start_time)} · `}
               {session.duration_minutes} min
-              {session.physical_load != null && (
-                <Badge tone={loadTone(session.physical_load)}>load {session.physical_load}/5</Badge>
-              )}
               {session.season_label && <span className="font-normal text-ink-muted">· {session.season_label}</span>}
             </p>
-            <p className="text-xs text-ink-muted">
-              {[session.equipment, session.coaching_notes].filter(Boolean).join(' · ') || '—'}
-            </p>
+            <p className="text-xs text-ink-muted">{session.coaching_notes || '—'}</p>
             <p className="mt-1 text-xs text-ink-muted">
-              {respondedCount}/{session.availability.length} availability responded ·{' '}
+              {respondedCount}/{session.availability.length} attendance recorded ·{' '}
               {session.session_drills.length} drill(s) attached
             </p>
           </div>
@@ -377,7 +394,7 @@ function SessionRow({
               onClick={() => setAvailabilityOpen((open) => !open)}
               className="text-sm text-ink-muted underline underline-offset-2"
             >
-              {availabilityOpen ? 'Hide availability' : 'Availability'}
+              {availabilityOpen ? 'Hide attendance' : 'Attendance'}
             </button>
             <button
               type="button"
@@ -434,8 +451,8 @@ function SessionRow({
               Cancel
             </button>
             <p className="w-full text-xs text-ink-muted">
-              Copies the drill line-up ({session.session_drills.length} drill(s)) to the new date. Availability is
-              not copied — the new session starts with fresh, unconfirmed availability.
+              Copies the drill line-up ({session.session_drills.length} drill(s)) to the new date. Attendance is
+              not copied — the new session starts with fresh, unconfirmed attendance.
             </p>
           </form>
         )}
@@ -472,30 +489,6 @@ function SessionRow({
             min={1}
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-          />
-        </div>
-        <div className="w-28">
-          <label className="block text-xs font-medium text-ink-muted">Physical load</label>
-          <select
-            value={load}
-            onChange={(e) => setLoad(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-          >
-            <option value="">—</option>
-            {PHYSICAL_LOAD_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n} / 5
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="min-w-32 flex-1">
-          <label className="block text-xs font-medium text-ink-muted">Equipment</label>
-          <input
-            value={equipment}
-            onChange={(e) => setEquipment(e.target.value)}
-            placeholder="e.g. cones, bibs, goals"
             className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>
@@ -558,8 +551,6 @@ function CreateSessionForm({
   const [date, setDate] = useState(initialDate ?? '')
   const [duration, setDuration] = useState('60')
   const [startTime, setStartTime] = useState('')
-  const [load, setLoad] = useState('')
-  const [equipment, setEquipment] = useState('')
   const [notes, setNotes] = useState('')
   const [seasonLabel, setSeasonLabel] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -573,8 +564,6 @@ function CreateSessionForm({
       date,
       duration_minutes: Number(duration),
       start_time: startTime,
-      physical_load: load ? Number(load) : null,
-      equipment: equipment.trim() || null,
       coaching_notes: notes.trim() || null,
       season_label: seasonLabel.trim() || null,
     })
@@ -583,8 +572,6 @@ function CreateSessionForm({
       setDate(initialDate ?? '')
       setDuration('60')
       setStartTime('')
-      setLoad('')
-      setEquipment('')
       setNotes('')
       setSeasonLabel('')
     }
@@ -636,36 +623,6 @@ function CreateSessionForm({
           className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
-      <div className="w-28">
-        <label htmlFor="new-session-load" className="block text-xs font-medium text-ink-muted">
-          Physical load
-        </label>
-        <select
-          id="new-session-load"
-          value={load}
-          onChange={(e) => setLoad(e.target.value)}
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        >
-          <option value="">—</option>
-          {PHYSICAL_LOAD_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {n} / 5
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="min-w-32 flex-1">
-        <label htmlFor="new-session-equipment" className="block text-xs font-medium text-ink-muted">
-          Equipment
-        </label>
-        <input
-          id="new-session-equipment"
-          value={equipment}
-          onChange={(e) => setEquipment(e.target.value)}
-          placeholder="e.g. cones, bibs, goals"
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        />
-      </div>
       <div className="w-full">
         <label htmlFor="new-session-notes" className="block text-xs font-medium text-ink-muted">
           Coaching notes
@@ -703,6 +660,170 @@ function CreateSessionForm({
           Cancel
         </button>
       )}
+    </form>
+  )
+}
+
+function RecurringScheduleForm({
+  teamId,
+  onCreate,
+  onCancel,
+}: {
+  teamId: string
+  onCreate: (input: RecurringSessionInput) => Promise<SessionWithRelations[]>
+  onCancel: () => void
+}) {
+  const [weekdays, setWeekdays] = useState<number[]>([])
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [startTime, setStartTime] = useState('')
+  const [duration, setDuration] = useState('60')
+  const [seasonLabel, setSeasonLabel] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+
+  const toggleWeekday = (day: number) => {
+    setResult(null)
+    setWeekdays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]))
+  }
+
+  const valid = weekdays.length > 0 && Boolean(startDate) && Boolean(endDate) && startDate <= endDate && Boolean(startTime) && Boolean(duration)
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!valid || submitting) return
+    setSubmitting(true)
+    setResult(null)
+    const created = await onCreate({
+      team_id: teamId,
+      weekdays,
+      start_date: startDate,
+      end_date: endDate,
+      start_time: startTime,
+      duration_minutes: Number(duration),
+      season_label: seasonLabel.trim() || null,
+    })
+    setSubmitting(false)
+    setResult(`Created ${created.length} session${created.length === 1 ? '' : 's'}.`)
+    if (created.length > 0) {
+      setWeekdays([])
+      setStartDate('')
+      setEndDate('')
+      setStartTime('')
+      setDuration('60')
+      setSeasonLabel('')
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 border-t border-line pt-4">
+      <div>
+        <span className="block text-xs font-medium text-ink-muted">Repeats on</span>
+        <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="Weekdays">
+          {WEEKDAY_OPTIONS.map(({ value, label }) => {
+            const selected = weekdays.includes(value)
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleWeekday(value)}
+                className={
+                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ' +
+                  (selected
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-line bg-panel-raised text-ink-muted hover:border-line-strong')
+                }
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <label htmlFor="recurring-start-date" className="block text-xs font-medium text-ink-muted">
+            From
+          </label>
+          <input
+            id="recurring-start-date"
+            type="date"
+            required
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
+        <div>
+          <label htmlFor="recurring-end-date" className="block text-xs font-medium text-ink-muted">
+            Until
+          </label>
+          <input
+            id="recurring-end-date"
+            type="date"
+            required
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
+        <div>
+          <label htmlFor="recurring-start-time" className="block text-xs font-medium text-ink-muted">
+            Start time
+          </label>
+          <input
+            id="recurring-start-time"
+            type="time"
+            required
+            value={startTime}
+            onChange={(e) => setStartTime(e.target.value)}
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
+        <div className="w-24">
+          <label htmlFor="recurring-duration" className="block text-xs font-medium text-ink-muted">
+            Minutes
+          </label>
+          <input
+            id="recurring-duration"
+            type="number"
+            min={1}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
+        <div className="min-w-32 flex-1">
+          <label htmlFor="recurring-season-label" className="block text-xs font-medium text-ink-muted">
+            Season label
+          </label>
+          <input
+            id="recurring-season-label"
+            value={seasonLabel}
+            onChange={(e) => setSeasonLabel(e.target.value)}
+            placeholder="e.g. Winter 2026"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="submit"
+          disabled={!valid || submitting}
+          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+        >
+          {submitting ? 'Creating…' : 'Create schedule'}
+        </button>
+        <button type="button" onClick={onCancel} className="px-2 py-1.5 text-sm text-ink-muted">
+          Cancel
+        </button>
+        {result && <p className="text-xs text-ink-muted">{result}</p>}
+      </div>
+      <p className="text-xs text-ink-muted">
+        Creates one independent session for every selected weekday between the two dates — each is fully editable
+        afterward (time, drills, notes) the same as a session created one at a time.
+      </p>
     </form>
   )
 }

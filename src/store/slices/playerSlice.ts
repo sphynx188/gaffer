@@ -8,14 +8,12 @@ export interface NewPlayerInput {
   team_id: string
   name: string
   positions?: PlayerPosition[]
-  dob?: string | null
   squad_number?: number | null
 }
 
 export interface PlayerUpdateInput {
   name?: string
   positions?: PlayerPosition[]
-  dob?: string | null
   squad_number?: number | null
 }
 

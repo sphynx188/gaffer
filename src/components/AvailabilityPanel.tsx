@@ -4,12 +4,13 @@ import type { Availability, AvailabilityStatus, Player, SessionWithRelations } f
 import { Badge } from './ui/Badge'
 import { availabilityTone } from './ui/badgeTones'
 
-const STATUS_OPTIONS: AvailabilityStatus[] = ['unconfirmed', 'available', 'unavailable']
+const STATUS_OPTIONS: AvailabilityStatus[] = ['unconfirmed', 'present', 'injured', 'away']
 
 const STATUS_LABEL: Record<AvailabilityStatus, string> = {
-  available: 'Available',
-  unavailable: 'Unavailable',
   unconfirmed: 'Unconfirmed',
+  present: 'Present',
+  injured: 'Injured',
+  away: 'Away',
 }
 
 interface AvailabilityFormInput {
@@ -148,7 +149,7 @@ function AvailabilityRow({
               setReason(e.target.value)
               setDirty(true)
             }}
-            placeholder="e.g. injured, on holiday"
+            placeholder="e.g. twisted ankle, family holiday"
             className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
           />
         </div>

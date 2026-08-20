@@ -10,8 +10,8 @@ const TONE_CLASSES: Record<BadgeTone, string> = {
 }
 
 // Small colored pill — tone-to-color mapping lives here; the tone-per-value
-// helpers (availabilityTone, loadTone) are in badgeTones.ts, split out so
-// this file only exports the component (Fast Refresh requirement).
+// helper (availabilityTone) is in badgeTones.ts, split out so this file
+// only exports the component (Fast Refresh requirement).
 export function Badge({ tone, children }: { tone: BadgeTone; children: ReactNode }) {
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${TONE_CLASSES[tone]}`}>

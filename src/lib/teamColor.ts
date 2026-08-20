@@ -2,8 +2,7 @@
 // cross-team Calendar. Fixed, statically-enumerated palette — Tailwind v4's
 // content scanner only picks up class names that appear literally in
 // source, so this can't be built by interpolating a hex value into a class
-// string at runtime (same constraint SessionPlanner's LOAD_BORDER_CLASS
-// already works around for physical-load colors).
+// string at runtime.
 const BORDER_CLASSES = [
   'border-l-accent',
   'border-l-ok',

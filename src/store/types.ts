@@ -4,7 +4,11 @@
 
 export type PitchFormat = '11v11' | 'small_sided'
 export type CoachRole = 'owner' | 'coach'
-export type AvailabilityStatus = 'available' | 'unavailable' | 'unconfirmed'
+// One status per (session, player) row, serving double duty: a coach can
+// set it as a pre-session RSVP guess or as the actual post-session
+// roll-call outcome — 'unconfirmed' is the seeded default either way. See
+// supabase/migrations/010_attendance_roll_call_status.sql.
+export type AvailabilityStatus = 'unconfirmed' | 'present' | 'injured' | 'away'
 
 export const PITCH_FORMAT_LABELS: Record<PitchFormat, string> = {
   '11v11': '11-a-side',
@@ -46,7 +50,6 @@ export interface Player {
   team_id: string
   name: string
   positions: PlayerPosition[]
-  dob: string | null
   squad_number: number | null
   created_at: string
 }
@@ -67,8 +70,6 @@ export interface Session {
   // Nullable only for rows created before the Calendar feature added this
   // column — every session created or edited since always sets it.
   start_time: string | null
-  physical_load: number | null
-  equipment: string | null
   coaching_notes: string | null
   season_label: string | null
   created_at: string

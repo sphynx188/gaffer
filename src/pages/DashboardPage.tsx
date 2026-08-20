@@ -5,8 +5,6 @@ import { useStore } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
-import { Badge } from '../components/ui/Badge'
-import { loadTone } from '../components/ui/badgeTones'
 import { teamAccentDotClass } from '../lib/teamColor'
 import { addDays, formatDayLabel, formatTimeLabel, parseLocalDate, toISODate } from '../lib/date'
 
@@ -105,12 +103,7 @@ export function DashboardPage() {
                         <p className="text-xs text-ink-muted">{team?.name ?? 'Unknown team'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-ink-muted">{s.duration_minutes} min</span>
-                      {s.physical_load != null && (
-                        <Badge tone={loadTone(s.physical_load)}>load {s.physical_load}/5</Badge>
-                      )}
-                    </div>
+                    <span className="text-xs text-ink-muted">{s.duration_minutes} min</span>
                   </button>
                 </li>
               )

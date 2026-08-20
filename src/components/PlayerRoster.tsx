@@ -6,7 +6,6 @@ import { PlayerNotes } from './PlayerNotes'
 interface PlayerFormValues {
   name?: string
   positions?: PlayerPosition[]
-  dob?: string | null
   squad_number?: number | null
 }
 
@@ -74,11 +73,13 @@ function PositionTagPicker({
 
 // Phase 1.3 — Player roster CRUD (US-5, gaffer_mvp_build_steps.md). Mirrors
 // TeamManagement's create-form + inline-edit-row pattern. Definition of
-// Done: a player is attached to exactly one team; all four fields (name,
-// position tags, dob, squad number) are editable after creation; no photo
-// field exists. Scoped by the store's `selectedTeamId` (teamSlice) — never
-// teams[0] — so switching teams via TeamSwitcher shows that team's roster
-// only, per US-4's "data from different teams never bleeds together."
+// Done: a player is attached to exactly one team; name/position tags/squad
+// number are editable after creation; no photo field exists. Scoped by the
+// store's `selectedTeamId` (teamSlice) — never teams[0] — so switching
+// teams via TeamSwitcher shows that team's roster only, per US-4's "data
+// from different teams never bleeds together." (dob dropped — see
+// supabase/migrations/009_drop_player_dob_and_session_extras.sql — not
+// needed at the moment.)
 export function PlayerRoster() {
   const selectedTeamId = useStore((s) => s.selectedTeamId)
   const players = useStore((s) => s.players)
@@ -125,7 +126,6 @@ interface NewPlayerFormInput {
   team_id: string
   name: string
   positions?: PlayerPosition[]
-  dob?: string | null
   squad_number?: number | null
 }
 
@@ -138,7 +138,6 @@ function CreatePlayerForm({
 }) {
   const [name, setName] = useState('')
   const [positions, setPositions] = useState<PlayerPosition[]>([])
-  const [dob, setDob] = useState('')
   const [squadNumber, setSquadNumber] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -150,14 +149,12 @@ function CreatePlayerForm({
       team_id: teamId,
       name: name.trim(),
       positions,
-      dob: dob || null,
       squad_number: squadNumber ? Number(squadNumber) : null,
     })
     setSubmitting(false)
     if (created) {
       setName('')
       setPositions([])
-      setDob('')
       setSquadNumber('')
     }
   }
@@ -181,18 +178,6 @@ function CreatePlayerForm({
         <div className="mt-1">
           <PositionTagPicker value={positions} onChange={setPositions} idPrefix="new-player-position" />
         </div>
-      </div>
-      <div>
-        <label htmlFor="new-player-dob" className="block text-xs font-medium text-ink-muted">
-          DOB
-        </label>
-        <input
-          id="new-player-dob"
-          type="date"
-          value={dob}
-          onChange={(e) => setDob(e.target.value)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-        />
       </div>
       <div className="w-20">
         <label htmlFor="new-player-squad-number" className="block text-xs font-medium text-ink-muted">
@@ -229,7 +214,6 @@ function PlayerRow({
   const [notesOpen, setNotesOpen] = useState(false)
   const [name, setName] = useState(player.name)
   const [positions, setPositions] = useState<PlayerPosition[]>(player.positions ?? [])
-  const [dob, setDob] = useState(player.dob ?? '')
   const [squadNumber, setSquadNumber] = useState(
     player.squad_number != null ? String(player.squad_number) : ''
   )
@@ -238,7 +222,6 @@ function PlayerRow({
   const startEdit = () => {
     setName(player.name)
     setPositions(player.positions ?? [])
-    setDob(player.dob ?? '')
     setSquadNumber(player.squad_number != null ? String(player.squad_number) : '')
     setEditing(true)
   }
@@ -250,7 +233,6 @@ function PlayerRow({
     const saved = await onSave(player.id, {
       name: name.trim(),
       positions,
-      dob: dob || null,
       squad_number: squadNumber ? Number(squadNumber) : null,
     })
     setSaving(false)
@@ -269,9 +251,7 @@ function PlayerRow({
               )}
               {player.name}
             </p>
-            <p className="text-xs text-ink-muted">
-              {[positionSummary, player.dob].filter(Boolean).join(' · ') || '—'}
-            </p>
+            <p className="text-xs text-ink-muted">{positionSummary || '—'}</p>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <button
@@ -311,15 +291,6 @@ function PlayerRow({
           <div className="mt-1">
             <PositionTagPicker value={positions} onChange={setPositions} idPrefix={`edit-player-${player.id}-position`} />
           </div>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-ink-muted">DOB</label>
-          <input
-            type="date"
-            value={dob}
-            onChange={(e) => setDob(e.target.value)}
-            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-          />
         </div>
         <div className="w-20">
           <label className="block text-xs font-medium text-ink-muted">Squad #</label>

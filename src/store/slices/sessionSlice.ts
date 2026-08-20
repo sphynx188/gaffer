@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
+import { addDays, parseLocalDate, toISODate } from '../../lib/date'
 import type { Session, Availability, SessionDrill } from '../types'
 import type { StoreState } from '../useStore'
 
@@ -9,8 +10,6 @@ export interface NewSessionInput {
   date: string
   duration_minutes: number
   start_time?: string | null
-  physical_load?: number | null
-  equipment?: string | null
   coaching_notes?: string | null
   season_label?: string | null
 }
@@ -19,9 +18,22 @@ export interface SessionUpdateInput {
   date?: string
   duration_minutes?: number
   start_time?: string | null
-  physical_load?: number | null
-  equipment?: string | null
   coaching_notes?: string | null
+  season_label?: string | null
+}
+
+// A recurring schedule never exists as its own row/concept — it's a
+// generator that creates ordinary, independent `session` rows (one per
+// matching weekday in the range), each editable/duplicable/deletable
+// afterward exactly like a one-off session. `weekdays` uses JS
+// `Date.getDay()`'s convention (0 = Sunday … 6 = Saturday).
+export interface RecurringSessionInput {
+  team_id: string
+  weekdays: number[]
+  start_date: string
+  end_date: string
+  start_time: string
+  duration_minutes: number
   season_label?: string | null
 }
 
@@ -45,11 +57,11 @@ const SESSION_SELECT = '*, availability(*), session_drills(*)'
 // `sessions`, which must stay exactly "the currently selected team's
 // sessions" for SessionPlanner and survive `selectTeam` calls unlike this
 // cross-team data.
-const CALENDAR_SESSION_SELECT = 'id, team_id, date, start_time, duration_minutes, physical_load, season_label'
+const CALENDAR_SESSION_SELECT = 'id, team_id, date, start_time, duration_minutes, season_label'
 
 export type CalendarSession = Pick<
   Session,
-  'id' | 'team_id' | 'date' | 'start_time' | 'duration_minutes' | 'physical_load' | 'season_label'
+  'id' | 'team_id' | 'date' | 'start_time' | 'duration_minutes' | 'season_label'
 >
 
 export interface SessionSlice {
@@ -64,6 +76,12 @@ export interface SessionSlice {
   fetchSessions: (teamId: string) => Promise<void>
   fetchSessionsForWeek: (teamIds: string[], weekStartISO: string, weekEndISO: string) => Promise<void>
   createSession: (input: NewSessionInput) => Promise<SessionWithRelations | null>
+  // Sequential, not Promise.all — this reuses createSession's own
+  // set()/get() read-modify-write of the `sessions` array per call, which
+  // isn't safe to run concurrently against itself. A recurring schedule is
+  // a handful to a few dozen sessions, not a scale where sequential await
+  // matters for latency.
+  createRecurringSessions: (input: RecurringSessionInput) => Promise<SessionWithRelations[]>
   updateSession: (id: string, patch: SessionUpdateInput) => Promise<SessionWithRelations | null>
   // Phase 3.2 — Duplicate a past session (US-16, gaffer_mvp_build_steps.md).
   // Copies the source session's `session_drills` line-up into a brand-new
@@ -222,6 +240,27 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
         ...(session ? { sessions: [...get().sessions, session] } : {}),
       })
       return session
+    },
+
+    createRecurringSessions: async (input) => {
+      const weekdaySet = new Set(input.weekdays)
+      const created: SessionWithRelations[] = []
+      let cursor = parseLocalDate(input.start_date)
+      const end = parseLocalDate(input.end_date)
+      while (toISODate(cursor) <= toISODate(end)) {
+        if (weekdaySet.has(cursor.getDay())) {
+          const session = await get().createSession({
+            team_id: input.team_id,
+            date: toISODate(cursor),
+            duration_minutes: input.duration_minutes,
+            start_time: input.start_time,
+            season_label: input.season_label ?? null,
+          })
+          if (session) created.push(session)
+        }
+        cursor = addDays(cursor, 1)
+      }
+      return created
     },
 
     updateSession: async (id, patch) => {
