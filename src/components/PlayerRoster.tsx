@@ -1,7 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useStore, PLAYER_POSITIONS, PLAYER_POSITION_LABELS } from '../store'
 import type { Player, PlayerPosition } from '../store'
 import { PlayerNotes } from './PlayerNotes'
+import { toISODate } from '../lib/date'
+
+interface AttendanceStat {
+  present: number
+  total: number
+}
 
 interface PlayerFormValues {
   name?: string
@@ -89,9 +95,36 @@ export function PlayerRoster() {
   const createPlayer = useStore((s) => s.createPlayer)
   const updatePlayer = useStore((s) => s.updatePlayer)
 
+  // Season attendance stat, below, needs every past session's embedded
+  // availability — the same `sessions` array SessionPlanner/Attendance
+  // already fetch, just not previously needed on this page.
+  const sessions = useStore((s) => s.sessions)
+  const fetchSessions = useStore((s) => s.fetchSessions)
+
   useEffect(() => {
-    if (selectedTeamId) fetchPlayers(selectedTeamId)
-  }, [selectedTeamId, fetchPlayers])
+    if (selectedTeamId) {
+      fetchPlayers(selectedTeamId)
+      fetchSessions(selectedTeamId)
+    }
+  }, [selectedTeamId, fetchPlayers, fetchSessions])
+
+  // "At the end of the year, how many sessions did they attend and what's
+  // the percentage" — counted against sessions that have actually happened
+  // (date <= today), not the whole season's schedule including sessions
+  // that haven't been run yet, which would understate every player's rate
+  // early in the season.
+  const todayISO = toISODate(new Date())
+  const pastSessions = useMemo(() => sessions.filter((s) => s.date <= todayISO), [sessions, todayISO])
+  const attendanceByPlayer = useMemo(() => {
+    const map = new Map<string, AttendanceStat>()
+    for (const player of players) {
+      const present = pastSessions.filter(
+        (s) => s.availability.find((a) => a.player_id === player.id)?.status === 'present'
+      ).length
+      map.set(player.id, { present, total: pastSessions.length })
+    }
+    return map
+  }, [players, pastSessions])
 
   if (!selectedTeamId) {
     return (
@@ -112,7 +145,12 @@ export function PlayerRoster() {
       {players.length > 0 && (
         <ul className="space-y-2">
           {players.map((player) => (
-            <PlayerRow key={player.id} player={player} onSave={updatePlayer} />
+            <PlayerRow
+              key={player.id}
+              player={player}
+              attendance={attendanceByPlayer.get(player.id)}
+              onSave={updatePlayer}
+            />
           ))}
         </ul>
       )}
@@ -205,9 +243,11 @@ function CreatePlayerForm({
 
 function PlayerRow({
   player,
+  attendance,
   onSave,
 }: {
   player: Player
+  attendance: AttendanceStat | undefined
   onSave: (id: string, patch: PlayerFormValues) => Promise<Player | null>
 }) {
   const [editing, setEditing] = useState(false)
@@ -252,6 +292,11 @@ function PlayerRow({
               {player.name}
             </p>
             <p className="text-xs text-ink-muted">{positionSummary || '—'}</p>
+            {attendance && attendance.total > 0 && (
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Attendance: {attendance.present}/{attendance.total} ({Math.round((attendance.present / attendance.total) * 100)}%)
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <button
