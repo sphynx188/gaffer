@@ -187,9 +187,52 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
   real bug. Same "known, safe to ignore" status as the two pre-existing
   `AttendancePage.tsx`/`SessionPlanner.tsx` warnings.
 
+- **Phase 4 (mobile-first audit)** — done, **no code changes needed**. Every
+  screen was clean at 375×812 (`resize_window` mobile preset): Dashboard,
+  the hamburger drawer, Roster (card layout, not the desktop grid table —
+  no misalignment risk there), Sessions, Overview, Drill Library,
+  Login/Sign-up/Forgot-password (well-centered), and — the two highest-risk
+  screens given Phase 2/3's new wider toolbars — **Design** and **Tactics**:
+  the expanded 10-button equipment/arrow toolbar wraps cleanly into a
+  3-column grid, and the Konva canvas stays responsive via its existing
+  `ResizeObserver` (`useMeasuredWidth` in `PitchCanvas.tsx`, unchanged).
+  **Attendance** (the roadmap's named critical mobile workflow) was tested
+  functionally, not just visually: seeded one test session + availability
+  rows directly via SQL (`execute_sql`) since creating one through the
+  mobile UI hit the same animated-toggle timeout described below, tapped a
+  cell, confirmed it cycled Unconfirmed → Present → Injured correctly and
+  the "Attended" tally updated live. From an already-logged-in,
+  already-team-selected state, marking one player present is 2 taps
+  (Attendance tab, then the cell) — well inside "as few taps as possible."
+  One non-bug worth knowing about: **Calendar**'s 7-day week grid only
+  shows ~3 days at 375px width, the rest reachable by swiping — confirmed
+  via `el.scrollWidth`/`scrollLeft` that this is a properly-scoped
+  `overflow-x-auto` container (the *page* itself never scrolls
+  horizontally, `document.body.scrollWidth === 375`), so it's the correct
+  pattern, just with no visual hint that more days exist off-screen. Purely
+  a discoverability nicety, not something this phase's scope ("no
+  horizontal *page* scroll") requires fixing — flagged here in case a
+  future session wants to add a peek/affordance.
+  **Important tooling finding for future sessions** (broader than just this
+  phase — also hit repeatedly in Phase 3): the Browser pane's `computer`
+  tool's `left_click` reliably **times out after 30s ("pane hidden")** on
+  any interaction that triggers a CSS transition (the mobile nav drawer's
+  slide-in) or an async write (attendance cell tap, any Supabase-backed
+  toggle) — **even though the interaction itself completes successfully**.
+  Don't read a timeout as "broken." Verify via DOM/state inspection instead
+  (`read_page`, `get_page_text`, or `javascript_tool` reading the relevant
+  class/state) before concluding something doesn't work, and prefer
+  `javascript_tool`'s `element.click()` (or the Konva synthetic-event
+  technique from the Phase 3 entry above, for canvas shapes specifically)
+  to drive the interaction reliably when a `computer` click keeps timing
+  out.
+  Leftover test data on the "Test U12 Reds" team from this phase: one
+  session (today's date, 17:30) with availability rows seeded for all 3
+  roster players, Alex Keeper currently marked "Injured" — harmless scratch
+  data, consistent with everything else already on that test team.
+
 ### Not started yet
 
-- Phase 4 (mobile-first audit)
 - Phase 5 (final verification + docs)
 
 ### Blockers / deviations from the plan
@@ -206,36 +249,32 @@ U12 Reds"), 3 roster players (GK #1, DEF #4, ST #9).
 
 ### Exact next step
 
-Phase 3 (Tactic Creator) is now fully done — start Phase 4 (mobile-first
-audit) per UPGRADE_IMPLEMENTATION_PLAN.md's Phase 4 section. This phase is
-mostly verification + targeted CSS fixes, not new feature work — and it's
-the first phase where *every* screen being audited (including the two
-brand-new ones from Phases 1–3) can actually be checked live, since Phase 1
-unlocked real login.
+Phase 4 (mobile-first audit) is now fully done, with no code changes
+needed — start Phase 5 (final verification + docs), the last phase of the
+plan, per UPGRADE_IMPLEMENTATION_PLAN.md's Phase 5 section:
 
-1. `resize_window` to the `mobile` preset (375×812) in the Browser pane.
-2. Walk every screen: Login/Sign-up/Forgot-password (new, Phase 1),
-   Dashboard, Calendar, Team Overview, Roster, Sessions, **Attendance**
-   (the roadmap's one explicitly-named critical mobile workflow — check it
-   can be completed in a small number of taps, and record the actual
-   count), Design (drill creator — canvas + right-panel toolbar stacking
-   at narrow width, now with the wider equipment/arrow toolbar from Phase
-   2B/2C), Drill library, Tactics (new, Phase 3 — same canvas+panel layout
-   concern as Design).
-3. For each: screenshot, check no horizontal page scroll, tap targets
-   reasonably sized, hamburger nav reachable and usable.
-4. Any issue found: fix using the repo's established pattern — shared
-   `grid-template-columns` constants for header+row UI (per this file's own
-   prior "Watch Out For" precedent below), not `flex`/`flex-1`.
-5. **Tooling note carried over from Phase 3**: if verifying a canvas-based
-   interaction (Design/Tactics pages) at mobile width and `computer` clicks
-   on small shapes seem unreliable, don't conclude something's broken —
-   use the `javascript_tool` + `window.Konva.stages[0]` technique described
-   in the Phase 3 entry above before assuming a real bug.
+1. **5.1 Full regression pass** — `npm run build && npm run lint` clean
+   (expected: 0 errors, the 4 known warnings — 2 pre-existing in
+   `AttendancePage.tsx`/`SessionPlanner.tsx`, 2 new-but-harmless in
+   `TacticBoard.tsx`, all documented above). Re-check every pre-existing
+   feature still works via the test account — roster, sessions, attendance,
+   calendar — not just the new Phase 1–4 work in isolation.
+2. **5.2 Update HANDOFF.md** — fold this whole "UPGRADE IN PROGRESS"
+   section into a closing summary once Phase 5 itself is done (the plan
+   calls for logging what shipped/worked/didn't and any deviations — most
+   of that is already captured per-phase above; this step is mainly about
+   marking the upgrade complete rather than starting from scratch).
+3. **5.3 CLAUDE.md / plan close-out** — the CLAUDE.md merge question from
+   Phase 0 is already resolved (restored + merged). Confirm with the user
+   whether `UPGRADE_IMPLEMENTATION_PLAN.md` should stay in the repo as a
+   record or whether anything in `Upgrade Roadmap Plan.md` needs a status
+   update now that Phases 1–4 are shipped.
+4. Decide what to do with the leftover test data on "Test U12 Reds"
+   (5 test drills, 1 tactic, 1 session with availability rows) — ask the
+   user whether to keep it as a reference/demo team or clean it up now that
+   verification is done.
 
-No test account changes needed — reuse `gaffertest2026v2@gmail.com` above,
-which already has a team, roster, drills (all 4 sizes), and one tactic to
-audit against.
+No test account changes needed — reuse `gaffertest2026v2@gmail.com` above.
 
 ---
 
