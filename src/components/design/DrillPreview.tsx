@@ -303,82 +303,18 @@ export function DrillPreview() {
   }
 
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-      {/* Canvas column */}
-      <div className="min-w-0 flex-1 space-y-3">
-        {!selectedTeamId && <EmptyState icon={PenTool} message="Select a team to preview its drills." />}
-        {selectedTeamId && drillsLoading && drills.length === 0 && (
-          <p className="text-sm text-ink-muted">Loading drills…</p>
-        )}
-        {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
-        {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
-          <EmptyState icon={PenTool} message="No drills yet for this team — create one on the right." />
-        )}
-
-        {drill && phase && (
-          <>
-            <PitchCanvas
-              pitchSize={drill.pitch_size}
-              orientation={drill.orientation}
-              phase={phase}
-              maxWidth={960}
-              editable
-              onElementDragMove={handleDragMove}
-              onElementDragEnd={handleDragEnd}
-              annotationMode={placementMode !== null && placementMode !== 'remove'}
-              onCanvasClick={handleCanvasClick}
-              removeMode={placementMode === 'remove'}
-              onElementClick={handleElementRemove}
-              onAnnotationClick={handleAnnotationRemove}
-              onArrowClick={handleArrowRemove}
-              pendingArrowStart={pendingArrowStart}
-              hintText={placementHint}
-            />
-
-            {pendingNote && (
-              <form
-                onSubmit={handleSaveNote}
-                className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel-raised p-2"
-              >
-                <label htmlFor="new-annotation-text" className="text-xs font-medium text-ink-muted">
-                  Note
-                </label>
-                <input
-                  id="new-annotation-text"
-                  autoFocus
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="e.g. Press trigger"
-                  className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                />
-                <button
-                  type="submit"
-                  disabled={!noteText.trim()}
-                  className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-                >
-                  Save note
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPendingNote(null)}
-                  className="px-2 py-1.5 text-sm text-ink-muted"
-                >
-                  Cancel
-                </button>
-              </form>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Right panel — every control lives here, closer to the reference's
-          Block Title/Duration/Load panel layout, rather than stacked below
-          the canvas. */}
+    <div className="space-y-4">
+      {/* Top settings bar — drill selection/creation, pitch size, and phase
+          navigation/management: everything that's a *setting* about the
+          current drill or phase, rather than a thing you place on the
+          pitch. Wraps onto multiple lines on narrow screens, but reads as
+          one horizontal options bar on desktop — the element/tool palette
+          lives in the right-side rail instead (see below). */}
       {selectedTeamId && (
-        <div className="space-y-4 rounded-xl border border-line bg-panel p-4 lg:w-80 lg:shrink-0">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border border-line bg-panel p-3">
           {drills.length > 0 && (
             <div className="space-y-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <label htmlFor="drill-preview-picker" className="text-xs font-medium text-ink-muted">
                   Drill
                 </label>
@@ -388,7 +324,7 @@ export function DrillPreview() {
                 id="drill-preview-picker"
                 value={selectedDrillId ?? ''}
                 onChange={(e) => handleSelectDrill(e.target.value)}
-                className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                className="w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
               >
                 {drills.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -411,16 +347,17 @@ export function DrillPreview() {
                   forward/back swaps which phase index is current; PitchCanvas
                   fully re-renders from the new phase's own element arrays, so
                   there's never a leftover element from the previous phase. */}
-              <div className="space-y-2 border-t border-line pt-4">
-                <div className="flex items-center gap-2">
-                  <NumberChip index={phaseIndex + 1} />
-                  <span className="text-xs font-medium text-ink-muted">of {drill.phases.length} phases</span>
-                  <div className="ml-auto flex items-center gap-1">
+              <div className="flex flex-wrap items-end gap-3 border-l border-line pl-6">
+                <div className="space-y-1">
+                  <span className="block text-xs font-medium text-ink-muted">Phase</span>
+                  <div className="flex items-center gap-1">
+                    <NumberChip index={phaseIndex + 1} />
+                    <span className="text-xs text-ink-muted">of {drill.phases.length}</span>
                     <button
                       type="button"
                       onClick={() => setPhaseIndex((i) => Math.max(0, i - 1))}
                       disabled={phaseIndex === 0}
-                      className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted disabled:opacity-40"
+                      className="ml-1 rounded-md border border-line px-2 py-1 text-xs text-ink-muted disabled:opacity-40"
                     >
                       ← Prev
                     </button>
@@ -434,7 +371,7 @@ export function DrillPreview() {
                     </button>
                   </div>
                 </div>
-                <form onSubmit={handleSavePhaseMeta} className="space-y-2">
+                <form onSubmit={handleSavePhaseMeta} className="flex flex-wrap items-end gap-2">
                   <div>
                     <label htmlFor="phase-label" className="block text-xs font-medium text-ink-muted">
                       Block title
@@ -447,12 +384,12 @@ export function DrillPreview() {
                         setPhaseMetaDirty(true)
                       }}
                       placeholder="e.g. Directional possession"
-                      className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                      className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
                     />
                   </div>
                   <div>
                     <label htmlFor="phase-duration" className="block text-xs font-medium text-ink-muted">
-                      Duration (seconds)
+                      Duration (s)
                     </label>
                     <input
                       id="phase-duration"
@@ -463,21 +400,21 @@ export function DrillPreview() {
                         setPhaseDuration(e.target.value)
                         setPhaseMetaDirty(true)
                       }}
-                      className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                      className="mt-1 w-20 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={!phaseMetaDirty}
-                    className="w-full rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
                   >
-                    Save phase details
+                    Save
                   </button>
                 </form>
               </div>
 
               {/* Phase controls (2c, step 2) */}
-              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
+              <div className="flex flex-wrap items-end gap-2 border-l border-line pl-6">
                 <button
                   type="button"
                   onClick={() => handleAddPhase('duplicate')}
@@ -502,42 +439,115 @@ export function DrillPreview() {
                   Delete phase
                 </button>
               </div>
-
-              {/* Placement controls (adds players/equipment/balls/notes, and
-                  removes any of them). */}
-              <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
-                <PlacementToggle mode="player-a" active={placementMode} onToggle={togglePlacement} label="Player A" />
-                <PlacementToggle mode="player-b" active={placementMode} onToggle={togglePlacement} label="Player B" />
-                <PlacementToggle mode="cone" active={placementMode} onToggle={togglePlacement} label="Cone" />
-                <PlacementToggle
-                  mode="witches-hat"
-                  active={placementMode}
-                  onToggle={togglePlacement}
-                  label="Witches' hat"
-                />
-                <PlacementToggle mode="mannequin" active={placementMode} onToggle={togglePlacement} label="Mannequin" />
-                <PlacementToggle mode="ball" active={placementMode} onToggle={togglePlacement} label="Ball" />
-                <PlacementToggle
-                  mode="arrow-player"
-                  active={placementMode}
-                  onToggle={togglePlacement}
-                  label="Player arrow"
-                />
-                <PlacementToggle mode="arrow-ball" active={placementMode} onToggle={togglePlacement} label="Ball arrow" />
-                <PlacementToggle mode="note" active={placementMode} onToggle={togglePlacement} label="Note" />
-                <PlacementToggle
-                  mode="remove"
-                  active={placementMode}
-                  onToggle={togglePlacement}
-                  label="Remove"
-                  className="border-bad/30 text-bad hover:border-bad/60"
-                  activeClassName="border-bad bg-bad text-white"
-                />
-              </div>
             </>
           )}
         </div>
       )}
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* Canvas column */}
+        <div className="min-w-0 flex-1 space-y-3">
+          {!selectedTeamId && <EmptyState icon={PenTool} message="Select a team to preview its drills." />}
+          {selectedTeamId && drillsLoading && drills.length === 0 && (
+            <p className="text-sm text-ink-muted">Loading drills…</p>
+          )}
+          {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
+          {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
+            <EmptyState icon={PenTool} message="No drills yet for this team — create one above." />
+          )}
+
+          {drill && phase && (
+            <>
+              <PitchCanvas
+                pitchSize={drill.pitch_size}
+                orientation={drill.orientation}
+                phase={phase}
+                maxWidth={960}
+                editable
+                onElementDragMove={handleDragMove}
+                onElementDragEnd={handleDragEnd}
+                annotationMode={placementMode !== null && placementMode !== 'remove'}
+                onCanvasClick={handleCanvasClick}
+                removeMode={placementMode === 'remove'}
+                onElementClick={handleElementRemove}
+                onAnnotationClick={handleAnnotationRemove}
+                onArrowClick={handleArrowRemove}
+                pendingArrowStart={pendingArrowStart}
+                hintText={placementHint}
+              />
+
+              {pendingNote && (
+                <form
+                  onSubmit={handleSaveNote}
+                  className="flex flex-wrap items-center gap-2 rounded-md border border-line bg-panel-raised p-2"
+                >
+                  <label htmlFor="new-annotation-text" className="text-xs font-medium text-ink-muted">
+                    Note
+                  </label>
+                  <input
+                    id="new-annotation-text"
+                    autoFocus
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="e.g. Press trigger"
+                    className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!noteText.trim()}
+                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                  >
+                    Save note
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingNote(null)}
+                    className="px-2 py-1.5 text-sm text-ink-muted"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Right tool rail — Photoshop-style: every element/tool you can add
+            to (or remove from) the pitch, and nothing else. Two columns so
+            it reads as a compact palette rather than a long single list. */}
+        {drill && phase && (
+          <div className="grid grid-cols-2 content-start gap-2 rounded-xl border border-line bg-panel p-3 lg:w-44 lg:shrink-0">
+            <p className="col-span-2 text-xs font-medium text-ink-muted">Tools</p>
+            <PlacementToggle mode="player-a" active={placementMode} onToggle={togglePlacement} label="Player A" />
+            <PlacementToggle mode="player-b" active={placementMode} onToggle={togglePlacement} label="Player B" />
+            <PlacementToggle mode="cone" active={placementMode} onToggle={togglePlacement} label="Cone" />
+            <PlacementToggle
+              mode="witches-hat"
+              active={placementMode}
+              onToggle={togglePlacement}
+              label="Witches' hat"
+            />
+            <PlacementToggle mode="mannequin" active={placementMode} onToggle={togglePlacement} label="Mannequin" />
+            <PlacementToggle mode="ball" active={placementMode} onToggle={togglePlacement} label="Ball" />
+            <PlacementToggle
+              mode="arrow-player"
+              active={placementMode}
+              onToggle={togglePlacement}
+              label="Player arrow"
+            />
+            <PlacementToggle mode="arrow-ball" active={placementMode} onToggle={togglePlacement} label="Ball arrow" />
+            <PlacementToggle mode="note" active={placementMode} onToggle={togglePlacement} label="Note" />
+            <PlacementToggle
+              mode="remove"
+              active={placementMode}
+              onToggle={togglePlacement}
+              label="Remove"
+              className="border-bad/30 text-bad hover:border-bad/60"
+              activeClassName="border-bad bg-bad text-white"
+            />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -568,7 +578,7 @@ function PlacementToggle({
       onClick={() => onToggle(mode)}
       aria-pressed={isActive}
       className={
-        'rounded-md border px-2 py-1 text-xs font-medium transition-colors ' +
+        'w-full rounded-md border px-2 py-1.5 text-center text-xs font-medium transition-colors ' +
         (isActive ? activeClassName : `border-line text-ink-muted hover:border-line-strong ${className}`)
       }
     >
@@ -616,7 +626,7 @@ function CreateDrillForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2 border-t border-line pt-4 first:border-t-0 first:pt-0">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2">
       <div>
         <label htmlFor="new-drill-name" className="block text-xs font-medium text-ink-muted">
           New drill name
@@ -626,49 +636,47 @@ function CreateDrillForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Rondo warm-up"
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
         />
       </div>
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label htmlFor="new-drill-size" className="block text-xs font-medium text-ink-muted">
-            Pitch size
-          </label>
-          <select
-            id="new-drill-size"
-            value={pitchSize}
-            onChange={(e) => setPitchSize(e.target.value as PitchSize)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-          >
-            {pitchSizeOptions.map((s) => (
-              <option key={s} value={s}>
-                {PITCH_SIZE_LABELS[s] ?? s}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label htmlFor="new-drill-orientation" className="block text-xs font-medium text-ink-muted">
-            Orientation
-          </label>
-          <select
-            id="new-drill-orientation"
-            value={orientation}
-            onChange={(e) => setOrientation(e.target.value as PitchOrientation)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
-          >
-            {pitchOrientationOptions.map((o) => (
-              <option key={o} value={o}>
-                {PITCH_ORIENTATION_LABELS[o] ?? o}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label htmlFor="new-drill-size" className="block text-xs font-medium text-ink-muted">
+          Pitch size
+        </label>
+        <select
+          id="new-drill-size"
+          value={pitchSize}
+          onChange={(e) => setPitchSize(e.target.value as PitchSize)}
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+        >
+          {pitchSizeOptions.map((s) => (
+            <option key={s} value={s}>
+              {PITCH_SIZE_LABELS[s] ?? s}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label htmlFor="new-drill-orientation" className="block text-xs font-medium text-ink-muted">
+          Orientation
+        </label>
+        <select
+          id="new-drill-orientation"
+          value={orientation}
+          onChange={(e) => setOrientation(e.target.value as PitchOrientation)}
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+        >
+          {pitchOrientationOptions.map((o) => (
+            <option key={o} value={o}>
+              {PITCH_ORIENTATION_LABELS[o] ?? o}
+            </option>
+          ))}
+        </select>
       </div>
       <button
         type="submit"
         disabled={!name.trim() || submitting}
-        className="w-full rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+        className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
       >
         {submitting ? 'Creating…' : 'Create drill'}
       </button>
