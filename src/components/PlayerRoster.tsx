@@ -144,6 +144,12 @@ export function PlayerRoster() {
 
       {players.length > 0 && (
         <ul className="space-y-2">
+          <li className="hidden px-3 sm:flex sm:items-center sm:gap-6">
+            <span className="w-10 shrink-0 text-xs font-medium text-ink-muted">#</span>
+            <span className="min-w-32 flex-1 text-xs font-medium text-ink-muted">Name</span>
+            <span className="w-32 shrink-0 text-xs font-medium text-ink-muted">Position</span>
+            <span className="w-40 shrink-0 text-xs font-medium text-ink-muted">Attendance</span>
+          </li>
           {players.map((player) => (
             <PlayerRow
               key={player.id}
@@ -283,22 +289,18 @@ function PlayerRow({
     const positionSummary = (player.positions ?? []).map((p) => PLAYER_POSITION_LABELS[p]).join(', ')
     return (
       <li className="rounded-md border border-line px-3 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-40">
-            <p className="text-sm font-medium text-ink">
-              {player.squad_number != null && (
-                <span className="mr-1.5 text-ink-muted">#{player.squad_number}</span>
-              )}
-              {player.name}
-            </p>
-            <p className="text-xs text-ink-muted">{positionSummary || '—'}</p>
-            {attendance && attendance.total > 0 && (
-              <p className="mt-0.5 text-xs text-ink-muted">
-                Attendance: {attendance.present}/{attendance.total} ({Math.round((attendance.present / attendance.total) * 100)}%)
-              </p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="w-10 shrink-0 text-sm text-ink-muted">
+            {player.squad_number != null ? `#${player.squad_number}` : '—'}
+          </span>
+          <span className="min-w-32 flex-1 text-sm font-medium text-ink">{player.name}</span>
+          <span className="w-32 shrink-0 text-xs text-ink-muted">{positionSummary || '—'}</span>
+          <span className="w-40 shrink-0 text-xs text-ink-muted">
+            {attendance && attendance.total > 0
+              ? `${attendance.present}/${attendance.total} (${Math.round((attendance.present / attendance.total) * 100)}%)`
+              : '—'}
+          </span>
+          <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1">
             <button
               type="button"
               onClick={() => setNotesOpen((open) => !open)}
