@@ -21,6 +21,13 @@ the stable architecture instead. See also
 [UPGRADE_IMPLEMENTATION_PLAN.md](UPGRADE_IMPLEMENTATION_PLAN.md) for the
 in-progress feature roadmap and its phase-by-phase execution plan.
 
+**Before writing or changing any UI, read [design.md](design.md) first.**
+It's the design-system reference — color/type tokens, the touchline motif
+and where it does and doesn't apply, component conventions (`Card`,
+`PageHeader`, `NumberBadge`), and the corner-radius/shadow rules. Skipping
+it is how the pre-redesign generic-SaaS defaults (`rounded-xl` + shadow,
+raw hex colors) crept back in before.
+
 ## Commands
 
 All commands run from this directory (`/Users/max/Desktop/app/gaffer`) — the
@@ -126,6 +133,8 @@ canvas component.
 
 ### Styling
 
+See **[design.md](design.md)** for the full design system — color/type
+tokens, the touchline motif, and component conventions. Briefly:
 `src/index.css` defines the entire color system as Tailwind v4 `@theme`
 CSS custom properties (`--color-surface`, `--color-panel`, `--color-ink`,
 `--color-accent`, etc.) — dark-mode-only, no light theme. Always reach for
