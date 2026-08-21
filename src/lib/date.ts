@@ -41,6 +41,24 @@ export function formatWeekLabel(start: Date, end: Date): string {
   return `${startLabel} – ${endLabel}`
 }
 
+export function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1)
+}
+
+export function addMonths(d: Date, months: number): Date {
+  const date = new Date(d)
+  date.setMonth(date.getMonth() + months)
+  return date
+}
+
+export function formatMonthLabel(d: Date): string {
+  return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
+export function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+
 export function formatDayLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
 }

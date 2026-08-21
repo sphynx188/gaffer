@@ -1,23 +1,35 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { EmptyState } from './ui/EmptyState'
-import { teamAccentBorderClass, teamAccentDotClass } from '../lib/teamColor'
-import { layoutDayColumn } from '../lib/calendarLayout'
-import { addDays, formatTimeLabel, formatWeekLabel, startOfWeek, timeToMinutes, toISODate } from '../lib/date'
+import { teamAccentDotClass } from '../lib/teamColor'
+import {
+  addDays,
+  addMonths,
+  formatDayLabel,
+  formatMonthLabel,
+  formatWeekLabel,
+  startOfMonth,
+  startOfWeek,
+  toISODate,
+} from '../lib/date'
 import { CalendarClock } from 'lucide-react'
+import { CalendarWeekView } from './calendar/CalendarWeekView'
+import { CalendarDayView } from './calendar/CalendarDayView'
+import { CalendarMonthView } from './calendar/CalendarMonthView'
 
-const GRID_HEIGHT_PX = 640
-const DEFAULT_RANGE_START_MIN = 8 * 60 // 08:00
-const DEFAULT_RANGE_END_MIN = 20 * 60 // 20:00
-const DEFAULT_TIME_LABELS = ['08:00', '12:00', '16:00', '20:00']
-const HEADER_ROW_HEIGHT_PX = 40
+type CalendarView = 'day' | 'week' | 'month'
 
-const WEEKDAY_FORMATTER = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+const VIEW_OPTIONS: { value: CalendarView; label: string }[] = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+]
 
-// Cross-team weekly time grid — the coach-level counterpart to
-// SessionPlanner's single-team week list. Every team's sessions for the
-// week, positioned/sized on a shared time axis and split into side-by-side
-// lanes where two teams' sessions overlap (see layoutDayColumn).
+// Cross-team calendar — every team's sessions, in a day/week/month view the
+// coach picks via the toggle below. `anchorDate` is the one date each view
+// is computed relative to (the day itself in Day view, the containing week
+// in Week view, the containing month in Month view); switching views keeps
+// the same anchor so the coach doesn't lose their place.
 export function CalendarGrid() {
   const teams = useStore((s) => s.teams)
   const calendarSessions = useStore((s) => s.calendarSessions)
@@ -25,35 +37,40 @@ export function CalendarGrid() {
   const calendarSessionsError = useStore((s) => s.calendarSessionsError)
   const fetchSessionsForWeek = useStore((s) => s.fetchSessionsForWeek)
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+  const [view, setView] = useState<CalendarView>('week')
+  const [anchorDate, setAnchorDate] = useState(() => new Date())
+
+  const weekStart = startOfWeek(anchorDate)
   const weekEnd = addDays(weekStart, 6)
-  const weekStartISO = toISODate(weekStart)
-  const weekEndISO = toISODate(weekEnd)
-  const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
+  const monthGridStart = startOfWeek(startOfMonth(anchorDate))
+  const monthGridEnd = addDays(monthGridStart, 41) // 6 full weeks, aligned to Monday
+
+  const { rangeStartISO, rangeEndISO } = useMemo(() => {
+    if (view === 'day') {
+      const iso = toISODate(anchorDate)
+      return { rangeStartISO: iso, rangeEndISO: iso }
+    }
+    if (view === 'month') {
+      return { rangeStartISO: toISODate(monthGridStart), rangeEndISO: toISODate(monthGridEnd) }
+    }
+    return { rangeStartISO: toISODate(weekStart), rangeEndISO: toISODate(weekEnd) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- weekStart/weekEnd/monthGridStart/monthGridEnd are derived from anchorDate each render
+  }, [view, anchorDate])
+
+  const days = useMemo(() => {
+    if (view === 'week') return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
+    if (view === 'month') return Array.from({ length: 42 }, (_, i) => addDays(monthGridStart, i))
+    return []
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- weekStart/monthGridStart derived from anchorDate each render
+  }, [view, anchorDate])
 
   const teamIds = useMemo(() => teams.map((t) => t.id), [teams])
   const teamIdsKey = teamIds.join(',')
 
   useEffect(() => {
-    if (teamIds.length > 0) fetchSessionsForWeek(teamIds, weekStartISO, weekEndISO)
+    if (teamIds.length > 0) fetchSessionsForWeek(teamIds, rangeStartISO, rangeEndISO)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teamIds re-derived from teamIdsKey each render
-  }, [teamIdsKey, weekStartISO, weekEndISO, fetchSessionsForWeek])
-
-  const scheduled = useMemo(() => calendarSessions.filter((s) => s.start_time != null), [calendarSessions])
-
-  const { rangeStartMin, pxPerMin, timeLabels } = useMemo(() => {
-    const starts = scheduled.map((s) => timeToMinutes(s.start_time!))
-    const ends = scheduled.map((s) => timeToMinutes(s.start_time!) + s.duration_minutes)
-    const rangeStartMin = Math.min(DEFAULT_RANGE_START_MIN, ...(starts.length ? starts : [DEFAULT_RANGE_START_MIN]))
-    const rangeEndMin = Math.max(DEFAULT_RANGE_END_MIN, ...(ends.length ? ends : [DEFAULT_RANGE_END_MIN]))
-    const pxPerMin = GRID_HEIGHT_PX / (rangeEndMin - rangeStartMin)
-    const presentTimes = Array.from(new Set(scheduled.map((s) => s.start_time!))).sort()
-    return {
-      rangeStartMin,
-      pxPerMin,
-      timeLabels: presentTimes.length > 0 ? presentTimes : DEFAULT_TIME_LABELS,
-    }
-  }, [scheduled])
+  }, [teamIdsKey, rangeStartISO, rangeEndISO, fetchSessionsForWeek])
 
   if (teams.length === 0) {
     return (
@@ -65,32 +82,66 @@ export function CalendarGrid() {
     )
   }
 
+  const title =
+    view === 'day'
+      ? formatDayLabel(anchorDate)
+      : view === 'month'
+        ? formatMonthLabel(anchorDate)
+        : `Week of ${formatWeekLabel(weekStart, weekEnd)}`
+
+  const step = (direction: 1 | -1) => {
+    setAnchorDate((d) => {
+      if (view === 'day') return addDays(d, direction)
+      if (view === 'month') return addMonths(d, direction)
+      return addDays(d, 7 * direction)
+    })
+  }
+
   return (
     <div className="rounded-lg border border-line bg-panel">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-        <h2 className="text-sm font-semibold text-ink">Week of {formatWeekLabel(weekStart, weekEnd)}</h2>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setWeekStart((w) => addDays(w, -7))}
-            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
-          >
-            ← Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekStart(startOfWeek(new Date()))}
-            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
-          >
-            Today
-          </button>
-          <button
-            type="button"
-            onClick={() => setWeekStart((w) => addDays(w, 7))}
-            className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
-          >
-            Next →
-          </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+        <h2 className="text-sm font-semibold text-ink">{title}</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-0.5 rounded-md border border-line p-0.5">
+            {VIEW_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setView(opt.value)}
+                aria-pressed={view === opt.value}
+                className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                  view === opt.value ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:text-ink'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              aria-label={`Previous ${view}`}
+              className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
+            >
+              ← Prev
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnchorDate(new Date())}
+              className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              aria-label={`Next ${view}`}
+              className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       </div>
 
@@ -99,57 +150,11 @@ export function CalendarGrid() {
         <p className="px-4 py-2 text-sm text-ink-muted">Loading…</p>
       )}
 
-      <div className="overflow-x-auto">
-        <div className="flex min-w-[720px]">
-          <div className="w-14 shrink-0 border-r border-line">
-            <div style={{ height: HEADER_ROW_HEIGHT_PX }} className="border-b border-line" />
-            <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
-              {timeLabels.map((t) => (
-                <span
-                  key={t}
-                  className="absolute left-1 -translate-y-1/2 text-[11px] text-ink-faint"
-                  style={{ top: (timeToMinutes(t) - rangeStartMin) * pxPerMin }}
-                >
-                  {formatTimeLabel(t)}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {days.map((day) => {
-            const iso = toISODate(day)
-            const daySessions = calendarSessions.filter((s) => s.date === iso)
-            const laidOut = layoutDayColumn(daySessions, rangeStartMin, pxPerMin)
-            return (
-              <div key={iso} className="flex-1 border-r border-line last:border-r-0">
-                <div
-                  style={{ height: HEADER_ROW_HEIGHT_PX }}
-                  className="flex flex-col justify-center border-b border-line px-2"
-                >
-                  <p className="truncate text-xs font-medium text-ink">{WEEKDAY_FORMATTER.format(day)}</p>
-                  <p className="text-[11px] text-ink-faint">{day.getDate()}</p>
-                </div>
-                <div className="relative" style={{ height: GRID_HEIGHT_PX }}>
-                  {laidOut.map(({ session, top, height, leftPct, widthPct }) => {
-                    const team = teams.find((t) => t.id === session.team_id)
-                    return (
-                      <div
-                        key={session.id}
-                        title={`${team?.name ?? 'Unknown team'} · ${formatTimeLabel(session.start_time!)} · ${session.duration_minutes} min`}
-                        className={`absolute overflow-hidden rounded-md border-l-4 bg-panel-raised px-1.5 py-1 text-[11px] leading-tight ${teamAccentBorderClass(session.team_id)}`}
-                        style={{ top, height, left: `${leftPct}%`, width: `${widthPct}%` }}
-                      >
-                        <p className="truncate font-medium text-ink">{team?.name ?? 'Unknown team'}</p>
-                        <p className="truncate text-ink-muted">{formatTimeLabel(session.start_time!)}</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      {view === 'day' && <CalendarDayView teams={teams} calendarSessions={calendarSessions} />}
+      {view === 'week' && <CalendarWeekView days={days} teams={teams} calendarSessions={calendarSessions} />}
+      {view === 'month' && (
+        <CalendarMonthView days={days} monthAnchor={anchorDate} teams={teams} calendarSessions={calendarSessions} />
+      )}
 
       {teams.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3">
