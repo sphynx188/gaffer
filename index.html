@@ -18,6 +18,24 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Gaffer" />
 
+    <!-- Applies a previously-chosen light theme (see src/hooks/useTheme.ts)
+         before first paint — without this, a light-mode user would see a
+         flash of the dark default every load. Deliberately inline/
+         synchronous, not in main.tsx, since it has to run before CSS
+         paints. Wrapped in try/catch because localStorage can throw in
+         some embedded/private-browsing contexts, and a themeing failure
+         should never block the app from loading. -->
+    <script>
+      (function () {
+        try {
+          if (localStorage.getItem('gaffer-theme') === 'light') {
+            document.documentElement.setAttribute('data-theme', 'light')
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', '#fbfbfa')
+          }
+        } catch (e) {}
+      })()
+    </script>
+
     <!-- Type system (index.css's @theme --font-* tokens, per newdesign.md's
          "single voice from display to body" principle): Inter carries every
          weight from headings to body copy — no separate display face.

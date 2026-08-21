@@ -3,20 +3,22 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   CalendarClock,
   CalendarDays,
-  ChevronLeft,
   ClipboardCheck,
   LayoutDashboard,
   LibraryBig,
   LogOut,
   Menu,
+  Moon,
   PenTool,
   Settings,
   Shield,
+  Sun,
   Users,
   X,
 } from 'lucide-react'
 import { useStore } from '../store'
 import { useSession } from '../hooks/useSession'
+import { useTheme } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
 import { TeamSwitcher } from '../components/TeamSwitcher'
 
@@ -81,23 +83,36 @@ function NavList({
   )
 }
 
-// Coach-level routes show the "Gaffer" wordmark; team-level routes show the
-// selected team's name with a back chevron to the coach-level Dashboard —
-// the one persistent "where am I" indicator now that there's no permanent
-// sidebar labelling the app.
-function BrandBlock({ inTeamContext, teamName }: { inTeamContext: boolean; teamName?: string }) {
-  if (inTeamContext) {
-    return (
-      <Link to="/" className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-ink hover:text-accent">
-        <ChevronLeft className="h-4 w-4 shrink-0" />
-        <span className="max-w-[10rem] truncate">{teamName ?? 'Team'}</span>
-      </Link>
-    )
-  }
+// Always the "Gaffer" wordmark, on every route — the one persistent,
+// consistent "where am I" anchor and the way back to the coach-level
+// Dashboard from any team-scoped page. Previously swapped for the
+// selected team's name + a back chevron on team-scoped routes; the team
+// name now sits next to it instead (see the header's left-side cluster in
+// AppShell), so this never changes shape between contexts.
+function BrandBlock() {
   return (
     <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight text-ink">
       Gaffer
     </Link>
+  )
+}
+
+// Sun = "switch to light" (shown while dark is active), Moon = "switch to
+// dark" (shown while light is active) — the icon always represents the
+// mode a click switches TO, not the current mode.
+function ThemeToggleButton() {
+  const { theme, toggleTheme } = useTheme()
+  const switchingTo = theme === 'dark' ? 'light' : 'dark'
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={`Switch to ${switchingTo} mode`}
+      title={`Switch to ${switchingTo} mode`}
+      className="rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink"
+    >
+      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
   )
 }
 
@@ -128,8 +143,6 @@ function SignOutFooter({ email }: { email?: string }) {
 export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
-  const teams = useStore((s) => s.teams)
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
   const location = useLocation()
   const [navOpen, setNavOpen] = useState(false)
 
@@ -150,41 +163,52 @@ export function AppShell() {
 
   const inTeamContext = TEAM_SCOPED_PATHS.some((p) => location.pathname.startsWith(p))
   const activeItems = inTeamContext ? NAV_ITEMS_TEAM : NAV_ITEMS_COACH
-  const selectedTeam = teams.find((t) => t.id === selectedTeamId) ?? null
 
   return (
     <div className="min-h-svh bg-surface">
-      <div className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line bg-panel px-4">
-        <BrandBlock inTeamContext={inTeamContext} teamName={selectedTeam?.name} />
-
-        {/* Desktop/tablet: full tab strip + switcher + sign-out, in the bar itself */}
-        <div className="hidden flex-1 items-center gap-4 lg:flex">
-          <NavList items={activeItems} direction="row" />
-          <div className="ml-auto flex items-center gap-3">
-            <div className="max-w-[10rem]">
+      <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4">
+        {/* Left cluster — "Gaffer" is always here, unchanged by route; the
+            selected team's name (previously shown on the right, in the
+            desktop-only TeamSwitcher) sits right next to it on
+            team-scoped routes, so this is the one place a team name ever
+            appears in the header. */}
+        <div className="flex min-w-0 shrink-0 items-center gap-2">
+          <BrandBlock />
+          {inTeamContext && (
+            <div className="min-w-0 max-w-28 border-l border-line pl-2 sm:max-w-40">
               <TeamSwitcher compact />
             </div>
-            <button
-              type="button"
-              onClick={() => supabase.auth.signOut()}
-              aria-label="Sign out"
-              title={session?.user.email ? `Sign out (${session.user.email})` : 'Sign out'}
-              className="rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
+          )}
         </div>
 
-        {/* Mobile: everything above collapses behind this hamburger */}
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          aria-label="Open menu"
-          className="ml-auto rounded-md p-2 text-ink-muted hover:bg-panel-raised lg:hidden"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        {/* Desktop/tablet: full tab strip, in the bar itself */}
+        <div className="hidden flex-1 items-center lg:flex">
+          <NavList items={activeItems} direction="row" />
+        </div>
+
+        {/* Theme toggle is always visible (mobile + desktop); sign-out
+            only in the bar on desktop (mobile gets it in the drawer
+            footer) and the hamburger only collapses the nav on mobile. */}
+        <div className="ml-auto flex items-center gap-1">
+          <ThemeToggleButton />
+          <button
+            type="button"
+            onClick={() => supabase.auth.signOut()}
+            aria-label="Sign out"
+            title={session?.user.email ? `Sign out (${session.user.email})` : 'Sign out'}
+            className="hidden rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink lg:inline-flex"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            className="rounded-md p-2 text-ink-muted hover:bg-panel-raised lg:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile drawer — always mounted (not conditionally rendered) so the
@@ -200,7 +224,7 @@ export function AppShell() {
           className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-xl transition-transform duration-200 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
-            <BrandBlock inTeamContext={inTeamContext} teamName={selectedTeam?.name} />
+            <BrandBlock />
             <button
               type="button"
               onClick={() => setNavOpen(false)}

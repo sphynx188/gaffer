@@ -43,10 +43,37 @@ The **one place** UI-chrome colors live. Always reach for the tokens below
 | `--color-warn` | `#d08b3a` | Muted amber — unconfirmed / medium load. Not in the reference; extended with the same desaturated restraint to cover Gaffer's status states (availability tracking needs 3 distinct states, not 1) |
 | `--color-bad` | `#e5484d` | Muted red — unavailable / heavy load / destructive |
 
-Dark-mode-only (`color-scheme: dark` on `:root`) — functional (pitch-side
-glare/battery), not aesthetic, and isn't up for revisiting casually. This
-call is independent of the palette above and survived the swap from the
-touchline system unchanged.
+Dark is the default (`color-scheme: dark` on `:root`, matching the values
+above) and is what a fresh visitor sees with no script or stored
+preference at all — but the coach can switch to light via the header
+toggle (`ThemeToggleButton` in `AppShell.tsx`, backed by
+[useTheme.ts](src/hooks/useTheme.ts)). Never assume dark is the only mode
+when touching chrome; check both.
+
+### Light theme
+
+`:root[data-theme="light"]` in `index.css` re-maps every token above —
+deepened accent/ok/warn/bad rather than reusing the dark-mode hex values,
+since those read washed-out and fail contrast on white at UI-text sizes.
+
+| Token | Value |
+|---|---|
+| `--color-surface` | `#fbfbfa` |
+| `--color-panel` | `#ffffff` |
+| `--color-panel-raised` | `#f4f4f5` |
+| `--color-line` / `--color-line-strong` | `#e4e4e7` / `#d4d4d8` |
+| `--color-ink` | `#18181b` |
+| `--color-ink-muted` / `--color-ink-faint` | `#6b6b74` / `#a1a1aa` |
+| `--color-accent` / `--color-accent-hover` | `#5e6ad2` / `#4750b3` (hover darkens, not lightens, on light) |
+| `--color-ok` / `--color-warn` / `--color-bad` | `#15803d` / `#b45309` / `#dc2626` |
+
+`Card`'s `panel-edge` highlight (below) also flips — see its own entry.
+
+The toggle persists to `localStorage` (`gaffer-theme`) and is applied
+before first paint by an inline script in `index.html`, so light-mode
+coaches never see a flash of the dark default on load. If you add a new
+color anywhere in chrome, add its light-mode value in the same place —
+there's no automatic light/dark derivation.
 
 ## Typography
 
@@ -73,10 +100,13 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 ## Components (`src/components/ui/`)
 
 - **`Card`** — `rounded-xl border border-line bg-panel p-6`, plus the
-  `panel-edge` class (a 1px inset white highlight on the top edge — see
-  index.css). No shadow, ever — the reference explicitly resists drop
-  shadows on dark surfaces; depth comes from the surface ladder + hairline
-  border + that subtle top highlight instead.
+  `panel-edge` class (a 1px inset top highlight — see index.css). No
+  shadow, ever — the reference explicitly resists drop shadows on dark
+  surfaces; depth comes from the surface ladder + hairline border + that
+  subtle top highlight instead. `panel-edge` itself is theme-aware: a
+  white highlight in dark mode, a faint dark hairline in light mode (a
+  white highlight has nothing to read against on a white surface) — both
+  defined in index.css, nothing to do in the component.
 - **`PageHeader`** — every routed page's title: `text-2xl font-semibold
   tracking-tight`, sentence case (not uppercase). No rule/motif underneath
   — separation comes from an `mb-8` gap, not a drawn line. Don't build a
@@ -87,6 +117,23 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
   drills) — not a generic icon+number card.
 - **`Badge`** (`ok`/`warn`/`bad`/`neutral` tone pills) — unchanged shape,
   colors inherit from the tokens above automatically.
+
+## Navigation shell (`AppShell.tsx`)
+
+- **"Gaffer" is always top-left**, unchanged by route — it's the
+  consistent brand anchor and doubles as the way back to the coach-level
+  Dashboard from any team-scoped page (it links to `/`). Don't swap it
+  for anything else on team-scoped routes; that was tried (a team-name +
+  back-chevron swap) and reversed.
+- **Team name lives immediately to the right of "Gaffer"** (a
+  bordered-off `TeamSwitcher compact`), only on team-scoped routes. This
+  is the one place a team name appears in the header — don't add a
+  second one elsewhere (an earlier version also showed it on the right
+  side of the desktop bar; that's gone).
+- **Top-right** is reserved for the theme toggle (always visible, mobile
+  and desktop) and sign-out (desktop only — mobile gets it in the drawer
+  footer instead, since the collapsed bar doesn't have room for it next
+  to the hamburger).
 
 ## Conventions
 

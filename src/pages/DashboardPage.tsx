@@ -58,7 +58,7 @@ export function DashboardPage() {
   if (teams.length === 0) {
     return (
       <div>
-        <PageHeader title="Dashboard" />
+        <PageHeader title="Coach Dashboard" />
         <EmptyState
           icon={Users}
           message="Create your first team to get started."
@@ -70,7 +70,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" />
+      <PageHeader title="Coach Dashboard" />
 
       <Card>
         <h2 className="mb-4 text-sm font-semibold text-ink">Upcoming this week</h2>

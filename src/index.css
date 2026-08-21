@@ -42,9 +42,40 @@
 
 /* Declaring `dark` (rather than leaving it unset) keeps native form
    controls — <select>, checkboxes, scrollbars — drawn in the OS's dark
-   style instead of clashing with the app's own dark palette. */
+   style instead of clashing with the app's own dark palette. Dark is the
+   default (matches the @theme values above); `[data-theme="light"]`
+   below overrides both this and every --color-* token. The attribute is
+   applied to <html> by src/hooks/useTheme.ts (persisted to localStorage,
+   toggled from AppShell's header button) and, before first paint, by the
+   inline script in index.html — that script only ever needs to handle
+   the light case, since dark is already what a fresh visitor sees with
+   no script at all. */
 :root {
   color-scheme: dark;
+}
+
+/* Light theme — every token re-mapped to newdesign.md's spirit (hairline
+   borders, a shallow surface ladder, the same restrained lavender accent)
+   rather than a straight invert; accent/ok/warn/bad are deepened from
+   their dark-mode values since the same hex on white reads washed out and
+   fails contrast at these sizes. Card's `panel-edge` highlight flips from
+   a light-on-dark top highlight to a faint dark hairline (see below) —
+   an inset white line has nothing to read against on a white surface. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-surface: #fbfbfa;
+  --color-panel: #ffffff;
+  --color-panel-raised: #f4f4f5;
+  --color-line: #e4e4e7;
+  --color-line-strong: #d4d4d8;
+  --color-ink: #18181b;
+  --color-ink-muted: #6b6b74;
+  --color-ink-faint: #a1a1aa;
+  --color-accent: #5e6ad2;
+  --color-accent-hover: #4750b3;
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-bad: #dc2626;
 }
 
 body {
@@ -70,7 +101,13 @@ body {
    faint sense of being physically lit from above, instead of reading as a
    flat rectangle. Applied via Card.tsx; deliberately just an inset
    highlight, never a full shadow (newdesign.md: "resists drop shadows on
-   dark almost entirely"). */
+   dark almost entirely"). Flips to a faint dark hairline in light mode —
+   a white highlight has nothing to read against on a white surface, so
+   the same "lit from above" idea is carried by a subtle dark inset line
+   instead. */
 .panel-edge {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+:root[data-theme='light'] .panel-edge {
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.04);
 }
