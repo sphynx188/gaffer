@@ -87,7 +87,7 @@ function NavList({
 // consistent "where am I" anchor and the way back to the coach-level
 // Dashboard from any team-scoped page. Previously swapped for the
 // selected team's name + a back chevron on team-scoped routes; the team
-// name now sits next to it instead (see the header's left-side cluster in
+// name lives in the header's right-side cluster instead now (see
 // AppShell), so this never changes shape between contexts.
 function BrandBlock() {
   return (
@@ -167,29 +167,24 @@ export function AppShell() {
   return (
     <div className="min-h-svh bg-surface">
       <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4">
-        {/* Left cluster — "Gaffer" is always here, unchanged by route; the
-            selected team's name (previously shown on the right, in the
-            desktop-only TeamSwitcher) sits right next to it on
-            team-scoped routes, so this is the one place a team name ever
-            appears in the header. */}
-        <div className="flex min-w-0 shrink-0 items-center gap-2">
-          <BrandBlock />
-          {inTeamContext && (
-            <div className="min-w-0 max-w-28 border-l border-line pl-2 sm:max-w-40">
-              <TeamSwitcher compact />
-            </div>
-          )}
-        </div>
+        {/* "Gaffer" is always here, unchanged by route. */}
+        <BrandBlock />
 
         {/* Desktop/tablet: full tab strip, in the bar itself */}
         <div className="hidden flex-1 items-center lg:flex">
           <NavList items={activeItems} direction="row" />
         </div>
 
-        {/* Theme toggle is always visible (mobile + desktop); sign-out
-            only in the bar on desktop (mobile gets it in the drawer
-            footer) and the hamburger only collapses the nav on mobile. */}
-        <div className="ml-auto flex items-center gap-1">
+        {/* Right cluster — team name (desktop only, team-scoped routes),
+            theme toggle (always visible), sign-out (desktop only — mobile
+            gets it in the drawer footer instead), hamburger (mobile
+            only). */}
+        <div className="ml-auto flex items-center gap-3">
+          {inTeamContext && (
+            <div className="hidden max-w-40 lg:block">
+              <TeamSwitcher compact />
+            </div>
+          )}
           <ThemeToggleButton />
           <button
             type="button"

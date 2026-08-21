@@ -125,15 +125,14 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
   Dashboard from any team-scoped page (it links to `/`). Don't swap it
   for anything else on team-scoped routes; that was tried (a team-name +
   back-chevron swap) and reversed.
-- **Team name lives immediately to the right of "Gaffer"** (a
-  bordered-off `TeamSwitcher compact`), only on team-scoped routes. This
-  is the one place a team name appears in the header — don't add a
-  second one elsewhere (an earlier version also showed it on the right
-  side of the desktop bar; that's gone).
-- **Top-right** is reserved for the theme toggle (always visible, mobile
-  and desktop) and sign-out (desktop only — mobile gets it in the drawer
-  footer instead, since the collapsed bar doesn't have room for it next
-  to the hamburger).
+- **Team name is top-right** (desktop only, team-scoped routes) — a
+  `TeamSwitcher compact`, next to the theme toggle. This is the one place
+  a team name appears in the header. (A version of this put it top-left
+  next to "Gaffer" instead — also reversed; top-right is current.)
+- **Theme toggle** is always visible (mobile and desktop), sitting
+  leftmost in the top-right cluster. **Sign-out** is desktop-only in that
+  same cluster — mobile gets it in the drawer footer instead, since the
+  collapsed bar doesn't have room for it next to the hamburger.
 
 ## Conventions
 
