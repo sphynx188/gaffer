@@ -38,7 +38,7 @@ export function TeamSwitcher({ compact = false }: { compact?: boolean }) {
         id="team-switcher"
         value={selectedTeamId ?? ''}
         onChange={(e) => selectTeam(e.target.value)}
-        className="w-full rounded-md border border-line bg-panel-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
+        className="w-full rounded-md border border-line bg-panel-raised px-2 py-1 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
       >
         {teams.map((team) => (
           <option key={team.id} value={team.id}>
@@ -58,7 +58,7 @@ export function TeamSwitcher({ compact = false }: { compact?: boolean }) {
         id="team-switcher"
         value={selectedTeamId ?? ''}
         onChange={(e) => selectTeam(e.target.value)}
-        className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+        className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
       >
         {teams.map((team) => (
           <option key={team.id} value={team.id}>

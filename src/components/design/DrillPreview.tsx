@@ -486,7 +486,7 @@ export function DrillPreview() {
                 id="drill-preview-picker"
                 value={selectedDrillId ?? ''}
                 onChange={(e) => handleSelectDrill(e.target.value)}
-                className="w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                className="w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
               >
                 {drills.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -551,7 +551,7 @@ export function DrillPreview() {
                     value={noteText}
                     onChange={(e) => setNoteText(e.target.value)}
                     placeholder="e.g. Press trigger"
-                    className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                    className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
                   />
                   <button
                     type="submit"
@@ -643,7 +643,7 @@ export function DrillPreview() {
                         setPhaseMetaDirty(true)
                       }}
                       placeholder="e.g. Directional possession"
-                      className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                      className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
                     />
                   </div>
                   <div>
@@ -659,7 +659,7 @@ export function DrillPreview() {
                         setPhaseDuration(e.target.value)
                         setPhaseMetaDirty(true)
                       }}
-                      className="mt-1 w-24 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                      className="mt-1 w-24 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
                     />
                   </div>
                   <button
@@ -871,7 +871,7 @@ function CreateDrillForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Rondo warm-up"
-          className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <div>
@@ -882,7 +882,7 @@ function CreateDrillForm({
           id="new-drill-size"
           value={pitchSize}
           onChange={(e) => setPitchSize(e.target.value as PitchSize)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         >
           {pitchSizeOptions.map((s) => (
             <option key={s} value={s}>
@@ -899,7 +899,7 @@ function CreateDrillForm({
           id="new-drill-orientation"
           value={orientation}
           onChange={(e) => setOrientation(e.target.value as PitchOrientation)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         >
           {pitchOrientationOptions.map((o) => (
             <option key={o} value={o}>

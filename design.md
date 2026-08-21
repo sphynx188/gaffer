@@ -101,6 +101,14 @@ keep it solid.
   `rounded-xl` — that was the old default.
 - No `shadow-sm`/drop shadows on panels. Depth comes from `border-line`
   against `bg-panel`/`bg-surface`, not shadows.
+- Focus states: plain buttons/links get the amber ring for free from the
+  global `:focus-visible` rule in `index.css` — don't add per-element focus
+  styling to them. Text inputs/selects/textareas use their own
+  `outline-none transition-colors focus:border-accent focus:ring-2
+  focus:ring-accent/30` (a border-color change plus a soft ring reads
+  better on a filled field than an outset ring alone) — copy that exact
+  class string on any new form field rather than inventing a new focus
+  treatment.
 - For header + repeated-data-row UI (tables, grids), use a shared
   `grid-template-columns` constant applied to both the header and every
   row (see `ROW_GRID` in `PlayerRoster.tsx`) rather than `flex`/`flex-1`,

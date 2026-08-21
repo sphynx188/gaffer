@@ -74,7 +74,7 @@ export function DrillLibrary() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or pitch format…"
-              className="w-full max-w-sm rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+              className="w-full max-w-sm rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
             />
           </div>
 

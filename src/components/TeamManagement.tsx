@@ -92,7 +92,7 @@ function CreateTeamForm({ onCreate }: { onCreate: (input: { name: string }) => P
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. U12 Reds"
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <button
@@ -220,7 +220,7 @@ function TeamCard({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <button

@@ -54,7 +54,7 @@ export function ResetPassword({ onDone }: ResetPasswordProps) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="At least 6 characters"
-          className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2 text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2 text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
 
         <label htmlFor="confirm-new-password" className="mt-4 block text-sm font-medium text-ink-muted">
@@ -68,7 +68,7 @@ export function ResetPassword({ onDone }: ResetPasswordProps) {
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2 text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2 text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
 
         {error && <p className="mt-2 text-sm text-bad">{error}</p>}

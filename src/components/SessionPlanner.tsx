@@ -433,7 +433,7 @@ function SessionRow({
                 required
                 value={duplicateDate}
                 onChange={(e) => setDuplicateDate(e.target.value)}
-                className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
               />
             </div>
             <button
@@ -469,7 +469,7 @@ function SessionRow({
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div>
@@ -479,7 +479,7 @@ function SessionRow({
             required
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="w-24">
@@ -489,7 +489,7 @@ function SessionRow({
             min={1}
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="w-full">
@@ -498,7 +498,7 @@ function SessionRow({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="min-w-32 flex-1">
@@ -507,7 +507,7 @@ function SessionRow({
             value={seasonLabel}
             onChange={(e) => setSeasonLabel(e.target.value)}
             placeholder="e.g. Winter 2026"
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <button
@@ -594,7 +594,7 @@ function CreateSessionForm({
           required
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <div>
@@ -607,7 +607,7 @@ function CreateSessionForm({
           required
           value={startTime}
           onChange={(e) => setStartTime(e.target.value)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <div className="w-24">
@@ -620,7 +620,7 @@ function CreateSessionForm({
           min={1}
           value={duration}
           onChange={(e) => setDuration(e.target.value)}
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <div className="w-full">
@@ -633,7 +633,7 @@ function CreateSessionForm({
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="e.g. Focus on pressing triggers in the middle third."
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <div className="min-w-32 flex-1">
@@ -645,7 +645,7 @@ function CreateSessionForm({
           value={seasonLabel}
           onChange={(e) => setSeasonLabel(e.target.value)}
           placeholder="e.g. Winter 2026"
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <button
@@ -752,7 +752,7 @@ function RecurringScheduleForm({
             required
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div>
@@ -765,7 +765,7 @@ function RecurringScheduleForm({
             required
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div>
@@ -778,7 +778,7 @@ function RecurringScheduleForm({
             required
             value={startTime}
             onChange={(e) => setStartTime(e.target.value)}
-            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="w-24">
@@ -791,7 +791,7 @@ function RecurringScheduleForm({
             min={1}
             value={duration}
             onChange={(e) => setDuration(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="min-w-32 flex-1">
@@ -803,7 +803,7 @@ function RecurringScheduleForm({
             value={seasonLabel}
             onChange={(e) => setSeasonLabel(e.target.value)}
             placeholder="e.g. Winter 2026"
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
       </div>

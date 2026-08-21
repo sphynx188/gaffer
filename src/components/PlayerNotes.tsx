@@ -109,7 +109,7 @@ function AddNoteForm({
         onChange={(e) => setBody(e.target.value)}
         rows={2}
         placeholder="e.g. Worked on first touch under pressure — improving."
-        className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+        className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
       />
       <button
         type="submit"

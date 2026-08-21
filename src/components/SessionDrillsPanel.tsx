@@ -126,7 +126,7 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
           <select
             value={selectedDrillId}
             onChange={(e) => setSelectedDrillId(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           >
             <option value="">
               {drills.length === 0 ? 'No drills yet — build one in Design above' : 'Select a drill…'}
@@ -146,7 +146,7 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
             value={plannedDuration}
             onChange={(e) => setPlannedDuration(e.target.value)}
             placeholder="optional"
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="min-w-32 flex-1">
@@ -155,7 +155,7 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g. focus on first touch"
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <button
@@ -265,7 +265,7 @@ function SessionDrillRow({
               setPlannedDuration(e.target.value)
               setDirty(true)
             }}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <div className="min-w-32 flex-1">
@@ -276,7 +276,7 @@ function SessionDrillRow({
               setNotes(e.target.value)
               setDirty(true)
             }}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
           />
         </div>
         <button

@@ -281,7 +281,7 @@ export function TacticBoard() {
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="e.g. Press trigger"
-                  className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                  className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
                 />
                 <button
                   type="submit"
@@ -319,7 +319,7 @@ export function TacticBoard() {
                 id="tactic-picker"
                 value={selectedTacticId ?? ''}
                 onChange={(e) => setSelectedTacticId(e.target.value)}
-                className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
               >
                 {tactics.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -462,7 +462,7 @@ function CreateTacticForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. 4-3-3 — Build Up"
-          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+          className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
       </div>
       <button
