@@ -1,10 +1,11 @@
-import { useEffect, useMemo, type ComponentType } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, CalendarDays, LibraryBig, Users } from 'lucide-react'
+import { ArrowRight, CalendarDays } from 'lucide-react'
 import { useStore } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
+import { NumberBadge } from '../components/ui/NumberBadge'
 import { formatDayLabel, parseLocalDate, toISODate } from '../lib/date'
 
 // The team-level hub — landed on after picking a team from the coach-level
@@ -64,9 +65,9 @@ export function TeamOverviewPage() {
       <PageHeader title={team ? team.name : 'Overview'} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard icon={Users} label="Players on roster" value={players.length} to="/roster" />
-        <StatCard icon={CalendarDays} label="Upcoming sessions" value={upcomingSessions.length} to="/sessions" />
-        <StatCard icon={LibraryBig} label="Drills in library" value={drills.length} to="/drills" />
+        <StatCard label="Players on roster" value={players.length} to="/roster" />
+        <StatCard label="Upcoming sessions" value={upcomingSessions.length} to="/sessions" />
+        <StatCard label="Drills in library" value={drills.length} to="/drills" />
       </div>
 
       <Card>
@@ -113,31 +114,12 @@ export function TeamOverviewPage() {
   )
 }
 
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  to,
-}: {
-  icon: ComponentType<{ className?: string }>
-  label: string
-  value: number
-  to: string
-}) {
+function StatCard({ label, value, to }: { label: string; value: number; to: string }) {
   return (
-    <Link
-      to={to}
-      className="rounded-xl border border-line bg-panel p-5 shadow-sm transition-colors hover:border-accent/40 hover:bg-accent/5"
-    >
-      <div className="flex items-center gap-3">
-        <div className="rounded-lg bg-accent/15 p-2 text-accent">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-2xl font-semibold text-ink">{value}</p>
-          <p className="text-xs text-ink-muted">{label}</p>
-        </div>
-      </div>
+    <Link to={to}>
+      <Card className="p-5 transition-colors hover:border-accent/40 hover:bg-accent/5">
+        <NumberBadge value={value} label={label} />
+      </Card>
     </Link>
   )
 }

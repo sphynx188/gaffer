@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
-/* Redesign — Gaffer moved to a dark-mode-only palette (inspired by First
-   Phase Studio), reversing the earlier "light-mode-only by design" decision
-   in discussion_visual_style.md. This is the ONE place UI-chrome colors
-   live, the same way pitchTheme.ts is the one place canvas colors live —
-   every component should reach for these tokens (bg-panel, text-ink-muted,
-   border-line, bg-accent, text-ok, etc.) rather than a raw Tailwind slate/
-   indigo class or an arbitrary hex value. */
+/* "Touchline" redesign — Gaffer's chrome had settled into a generic dark-
+   SaaS default (near-black + one electric-blue accent, system sans
+   everywhere) with zero relationship to the sport, while pitchTheme.ts (the
+   canvas) already had a real football identity: turf green, hi-vis amber
+   equipment, kit navy/red. This palette pulls that identity up into the
+   chrome instead of leaving it stranded on the canvas — surfaces carry a
+   faint turf-at-night undertone rather than neutral gray, the primary
+   accent is hi-vis training amber (floodlight/bib, not another SaaS blue),
+   and `ok` is a real grass green rather than a generic emerald. Still
+   dark-mode-only (see discussion_visual_style.md's reversal) — that call
+   was functional (pitch-side glare/battery), not aesthetic, and stands.
+   This is the ONE place UI-chrome colors live, the same way pitchTheme.ts
+   is the one place canvas colors live — every component should reach for
+   these tokens (bg-panel, text-ink-muted, border-line, bg-accent, text-ok,
+   etc.) rather than a raw Tailwind slate/indigo class or an arbitrary hex
+   value. Canvas colors (pitchTheme.ts) are a deliberately separate system
+   and are NOT changed here. */
 @theme {
-  --color-surface: #0a0a0d; /* app shell / page background */
-  --color-panel: #14151c; /* card/panel background */
-  --color-panel-raised: #1b1d26; /* nested surface: pills, table headers, hover rows */
-  --color-line: #262832; /* default border */
-  --color-line-strong: #383b48; /* dividers, stronger borders */
-  --color-ink: #f2f3f5; /* primary text */
-  --color-ink-muted: #9598a3; /* secondary text */
-  --color-ink-faint: #5c5f6b; /* placeholder/tertiary text */
-  --color-accent: #3b5bfb; /* electric blue — primary actions, active nav, chips */
-  --color-accent-hover: #5372ff;
-  --color-ok: #22c55e; /* available / light load */
-  --color-warn: #f5a524; /* unconfirmed / medium load */
-  --color-bad: #ef4444; /* unavailable / heavy load / destructive */
+  --color-surface: #0a0d0a; /* app shell / page background — near-black, faint turf-night undertone */
+  --color-panel: #12160f; /* card/panel background */
+  --color-panel-raised: #1a1f18; /* nested surface: pills, table headers, hover rows */
+  --color-line: #262b23; /* default border */
+  --color-line-strong: #383f34; /* dividers, stronger borders */
+  --color-ink: #f3f4ef; /* primary text — warm chalk-white, not cool gray */
+  --color-ink-muted: #979c8f; /* secondary text */
+  --color-ink-faint: #5c6058; /* placeholder/tertiary text */
+  --color-accent: #f0a30a; /* hi-vis training amber — floodlight/bib, primary actions, active nav, chips */
+  --color-accent-hover: #ffb52e;
+  --color-ok: #5fbf6b; /* grass green — available / light load */
+  --color-warn: #fb923c; /* referee-caution orange — unconfirmed / medium load */
+  --color-bad: #e5484d; /* red-card red — unavailable / heavy load / destructive */
+
+  /* Type system: Oswald (condensed, stadium-signage) carries headings and
+     any standalone number; Inter is body/data copy — the pairing itself is
+     the point, so both are declared explicitly rather than leaning on the
+     browser's default sans. JetBrains Mono is reserved for tabular
+     figures — durations, counts, scorelines — anywhere a fixed-width
+     digit reads more like a scoreboard than a label. */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Oswald', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
 /* Declaring `dark` (rather than leaving it unset) keeps native form
@@ -33,4 +53,23 @@
 body {
   background-color: var(--color-surface);
   color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Signature motif — a broken chalk line, the one recurring structural
+   device tying every panel back to "you're standing on a pitch": used on
+   the shell header's bottom edge, under page titles, and along the top of
+   every Card, in place of a plain solid border in those spots. Deliberately
+   not applied everywhere (see Card.tsx/PageHeader.tsx) — restraint is the
+   point, one motif repeated with discipline rather than decoration spread
+   thin. */
+.touchline {
+  height: 2px;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--color-accent) 0,
+    var(--color-accent) 16px,
+    transparent 16px,
+    transparent 24px
+  );
 }

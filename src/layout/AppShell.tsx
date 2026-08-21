@@ -95,7 +95,7 @@ function BrandBlock({ inTeamContext, teamName }: { inTeamContext: boolean; teamN
     )
   }
   return (
-    <Link to="/" className="shrink-0 text-lg font-bold tracking-tight text-ink">
+    <Link to="/" className="font-display shrink-0 text-lg font-semibold tracking-wide text-ink uppercase">
       Gaffer
     </Link>
   )
@@ -154,37 +154,40 @@ export function AppShell() {
 
   return (
     <div className="min-h-svh bg-surface">
-      <div className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-line bg-panel px-4">
-        <BrandBlock inTeamContext={inTeamContext} teamName={selectedTeam?.name} />
+      <div className="sticky top-0 z-30 bg-panel">
+        <div className="flex h-14 items-center gap-4 px-4">
+          <BrandBlock inTeamContext={inTeamContext} teamName={selectedTeam?.name} />
 
-        {/* Desktop/tablet: full tab strip + switcher + sign-out, in the bar itself */}
-        <div className="hidden flex-1 items-center gap-4 lg:flex">
-          <NavList items={activeItems} direction="row" />
-          <div className="ml-auto flex items-center gap-3">
-            <div className="max-w-[10rem]">
-              <TeamSwitcher compact />
+          {/* Desktop/tablet: full tab strip + switcher + sign-out, in the bar itself */}
+          <div className="hidden flex-1 items-center gap-4 lg:flex">
+            <NavList items={activeItems} direction="row" />
+            <div className="ml-auto flex items-center gap-3">
+              <div className="max-w-[10rem]">
+                <TeamSwitcher compact />
+              </div>
+              <button
+                type="button"
+                onClick={() => supabase.auth.signOut()}
+                aria-label="Sign out"
+                title={session?.user.email ? `Sign out (${session.user.email})` : 'Sign out'}
+                className="rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => supabase.auth.signOut()}
-              aria-label="Sign out"
-              title={session?.user.email ? `Sign out (${session.user.email})` : 'Sign out'}
-              className="rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
           </div>
-        </div>
 
-        {/* Mobile: everything above collapses behind this hamburger */}
-        <button
-          type="button"
-          onClick={() => setNavOpen(true)}
-          aria-label="Open menu"
-          className="ml-auto rounded-md p-2 text-ink-muted hover:bg-panel-raised lg:hidden"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+          {/* Mobile: everything above collapses behind this hamburger */}
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            aria-label="Open menu"
+            className="ml-auto rounded-md p-2 text-ink-muted hover:bg-panel-raised lg:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="touchline" />
       </div>
 
       {/* Mobile drawer — always mounted (not conditionally rendered) so the

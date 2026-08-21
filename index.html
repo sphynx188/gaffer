@@ -12,11 +12,22 @@
          tags below aren't part of that injection, so they're set here by
          hand. iOS ignores the manifest entirely for "Add to Home Screen"
          and needs its own tags regardless. -->
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#0a0d0a" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Gaffer" />
+
+    <!-- Touchline/scoreboard type system (index.css's @theme --font-*
+         tokens): Oswald for headings/numbers (condensed stadium-signage
+         feel), Inter for body copy, JetBrains Mono for tabular
+         counts/durations. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>
