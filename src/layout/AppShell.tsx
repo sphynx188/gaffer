@@ -1,8 +1,9 @@
 import { useEffect, useState, type ComponentType } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   CalendarClock,
   CalendarDays,
+  ChevronLeft,
   ClipboardCheck,
   LayoutDashboard,
   LibraryBig,
@@ -97,6 +98,33 @@ function BrandBlock() {
   )
 }
 
+// Mobile-only browser-history back arrow — the hamburger drawer's nav
+// links are the only way to move between screens on mobile (no persistent
+// tab strip like desktop has), so getting back to whatever screen a coach
+// was just on otherwise means reopening the drawer and finding it again.
+// Plain `navigate(-1)`: every nav-link tap and every programmatic
+// `navigate()` call elsewhere in the app (team pick, session-click
+// deep-links, etc.) already pushes a real history entry, so this always
+// lands on the actual previous screen rather than a fixed "up one level"
+// destination. Hidden on the coach Dashboard ("/") — that's the app's
+// true landing screen, with nothing behind it to go back to.
+function BackButton() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  if (location.pathname === '/') return null
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(-1)}
+      aria-label="Back"
+      title="Back"
+      className="-ml-1.5 rounded-md p-2 text-ink-muted hover:bg-panel-raised hover:text-ink lg:hidden"
+    >
+      <ChevronLeft className="h-5 w-5" />
+    </button>
+  )
+}
+
 // Sun = "switch to light" (shown while dark is active), Moon = "switch to
 // dark" (shown while light is active) — the icon always represents the
 // mode a click switches TO, not the current mode.
@@ -167,7 +195,9 @@ export function AppShell() {
   return (
     <div className="min-h-svh bg-surface">
       <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4">
-        {/* "Gaffer" is always here, unchanged by route. */}
+        {/* Back arrow (mobile only) then "Gaffer", always here unchanged
+            by route. */}
+        <BackButton />
         <BrandBlock />
 
         {/* Desktop/tablet: full tab strip, in the bar itself */}
