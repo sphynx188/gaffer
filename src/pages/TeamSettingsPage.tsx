@@ -4,7 +4,7 @@ import { TeamManagement } from '../components/TeamManagement'
 export function TeamSettingsPage() {
   return (
     <div>
-      <PageHeader title="Teams" description="Create and manage the teams you coach." />
+      <PageHeader title="Teams" />
       <TeamManagement />
     </div>
   )

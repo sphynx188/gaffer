@@ -96,7 +96,7 @@ export function AttendancePage() {
 
   return (
     <div>
-      <PageHeader title="Attendance" description="Click a cell to mark present, injured, or away — like a roll call." />
+      <PageHeader title="Attendance" />
 
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink">Week of {formatWeekLabel(weekStart, weekEnd)}</h2>

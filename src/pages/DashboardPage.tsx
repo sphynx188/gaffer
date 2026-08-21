@@ -70,7 +70,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" description="What's coming up, across every team." />
+      <PageHeader title="Dashboard" />
 
       <Card>
         <h2 className="mb-4 text-sm font-semibold text-ink">Upcoming this week</h2>

@@ -5,7 +5,7 @@ import { PlayerRoster } from '../components/PlayerRoster'
 export function RosterPage() {
   return (
     <div>
-      <PageHeader title="Roster" description="Manage players, positions, and development notes." />
+      <PageHeader title="Roster" />
       <Card>
         <PlayerRoster />
       </Card>

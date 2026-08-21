@@ -5,7 +5,7 @@ import { DrillLibrary } from '../components/design/DrillLibrary'
 export function DrillLibraryPage() {
   return (
     <div>
-      <PageHeader title="Drill library" description="Browse and search every reusable drill." />
+      <PageHeader title="Drill library" />
       <Card>
         <DrillLibrary />
       </Card>

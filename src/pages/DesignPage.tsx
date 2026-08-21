@@ -5,7 +5,7 @@ import { DrillPreview } from '../components/design/DrillPreview'
 export function DesignPage() {
   return (
     <div>
-      <PageHeader title="Design" description="Step through a drill's phases, drag elements, and add coaching notes." />
+      <PageHeader title="Design" />
       <Card>
         <DrillPreview />
       </Card>

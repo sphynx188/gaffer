@@ -61,7 +61,7 @@ export function TeamOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={team ? team.name : 'Overview'} description={team ? 'Squad overview' : undefined} />
+      <PageHeader title={team ? team.name : 'Overview'} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard icon={Users} label="Players on roster" value={players.length} to="/roster" />
