@@ -203,7 +203,12 @@ export function PitchCanvas({
     : new Map<string, string>()
 
   return (
-    <div ref={containerRef} className={className} style={{ width: '100%', maxWidth }}>
+    <div
+      ref={containerRef}
+      data-pitch-canvas
+      className={className}
+      style={{ width: '100%', maxWidth }}
+    >
       {width > 0 && (
         <Stage
           width={width}
