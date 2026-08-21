@@ -149,7 +149,7 @@ function TeamCard({
 
   if (confirmingDelete) {
     return (
-      <div className="rounded-xl border border-bad/30 bg-bad/10 p-6 shadow-sm">
+      <div className="rounded-lg border border-bad/30 bg-bad/10 p-6">
         <p className="text-sm text-bad">
           Delete <span className="font-medium">{team.name}</span>? Its roster, sessions and drills go with it — this
           can&rsquo;t be undone.
@@ -213,7 +213,7 @@ function TeamCard({
   }
 
   return (
-    <div className="rounded-xl border border-line-strong bg-panel p-6 shadow-sm">
+    <div className="rounded-lg border border-line-strong bg-panel p-6">
       <form onSubmit={handleSave} className="flex flex-wrap items-end gap-2">
         <div className="flex-1">
           <label className="block text-xs font-medium text-ink-muted">Team name</label>

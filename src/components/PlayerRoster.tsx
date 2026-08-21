@@ -326,7 +326,7 @@ function PlayerRow({
           </span>
           <span className="text-sm font-medium text-ink">{player.name}</span>
           <span className="text-xs text-ink-muted">{positionSummary || '—'}</span>
-          <span className="text-xs text-ink-muted">
+          <span className="font-mono text-xs tabular-nums text-ink-muted">
             {attendance && attendance.total > 0
               ? `${attendance.present}/${attendance.total} (${Math.round((attendance.present / attendance.total) * 100)}%)`
               : '—'}

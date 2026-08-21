@@ -128,7 +128,7 @@ function QuickAction({ to, label }: { to: string; label: string }) {
   return (
     <Link
       to={to}
-      className="flex items-center justify-between rounded-xl border border-line bg-panel px-4 py-3 text-sm font-medium text-ink shadow-sm transition-colors hover:border-accent/40 hover:text-accent"
+      className="flex items-center justify-between rounded-lg border border-line bg-panel px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent"
     >
       {label}
       <ArrowRight className="h-4 w-4" />

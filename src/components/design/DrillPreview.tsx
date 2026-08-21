@@ -473,7 +473,7 @@ export function DrillPreview() {
           canvas (a filmstrip, not a setting up here — see below); the
           element/tool palette lives in the right-side rail (see below). */}
       {selectedTeamId && (
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-xl border border-line bg-panel p-3">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3 rounded-lg border border-line bg-panel p-3">
           {drills.length > 0 && (
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -576,7 +576,7 @@ export function DrillPreview() {
                   phase; PitchCanvas fully re-renders from the new phase's
                   own element arrays, so there's never a leftover element
                   from the previous one. */}
-              <div className="space-y-3 rounded-xl border border-line bg-panel p-3">
+              <div className="space-y-3 rounded-lg border border-line bg-panel p-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="text-xs font-medium text-ink-muted">Phases</span>
@@ -589,7 +589,7 @@ export function DrillPreview() {
                           aria-pressed={i === phaseIndex}
                           title={p.label || `Phase ${i + 1}`}
                           className={
-                            'flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors ' +
+                            'flex h-8 w-8 items-center justify-center rounded-md border font-mono text-xs font-semibold tabular-nums transition-colors ' +
                             (i === phaseIndex
                               ? 'border-accent bg-accent text-white'
                               : 'border-line text-ink-muted hover:border-line-strong')
@@ -681,7 +681,7 @@ export function DrillPreview() {
             arrows/note/remove stay click-to-arm-then-tap (see PlacementMode's
             comment for why). */}
         {drill && phase && (
-          <div className="flex flex-col gap-2 rounded-xl border border-line bg-panel p-3 lg:w-40 lg:shrink-0">
+          <div className="flex flex-col gap-2 rounded-lg border border-line bg-panel p-3 lg:w-40 lg:shrink-0">
             <p className="text-xs font-medium text-ink-muted">Tools</p>
             <DraggableTool mode="player-a" dragMode={dragMode} onPointerDown={startDrag('player-a')} label="Player A" icon={<PlayerToolIcon color={PLAYER_A_COLOR} />} />
             <DraggableTool mode="player-b" dragMode={dragMode} onPointerDown={startDrag('player-b')} label="Player B" icon={<PlayerToolIcon color={PLAYER_B_COLOR} />} />

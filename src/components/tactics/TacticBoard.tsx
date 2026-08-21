@@ -306,7 +306,7 @@ export function TacticBoard() {
       {/* Right panel — tactic picker/create, roster (grouped by position,
           unplaced only), then drawing tools. */}
       {selectedTeamId && (
-        <div className="space-y-4 rounded-xl border border-line bg-panel p-4 lg:w-80 lg:shrink-0">
+        <div className="space-y-4 rounded-lg border border-line bg-panel p-4 lg:w-80 lg:shrink-0">
           {tactics.length > 0 && (
             <div className="space-y-1">
               <div className="flex items-center justify-between">

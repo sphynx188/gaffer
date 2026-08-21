@@ -66,7 +66,7 @@ export function CalendarGrid() {
   }
 
   return (
-    <div className="rounded-xl border border-line bg-panel">
+    <div className="rounded-lg border border-line bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
         <h2 className="text-sm font-semibold text-ink">Week of {formatWeekLabel(weekStart, weekEnd)}</h2>
         <div className="flex items-center gap-1.5">

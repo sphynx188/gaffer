@@ -140,7 +140,7 @@ export function AttendancePage() {
           action={{ to: '/sessions', label: 'Plan one →' }}
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-panel">
+        <div className="overflow-x-auto rounded-lg border border-line bg-panel">
           <table className="w-full min-w-max border-collapse text-sm">
             <thead>
               <tr>
@@ -196,7 +196,7 @@ export function AttendancePage() {
                         </td>
                       )
                     })}
-                    <td className="border-b border-l border-line px-2 py-2 text-center text-xs font-medium text-ink-muted">
+                    <td className="border-b border-l border-line px-2 py-2 text-center font-mono text-xs tabular-nums text-ink-muted">
                       {attendedCount}/{weekSessions.length}
                     </td>
                   </tr>
