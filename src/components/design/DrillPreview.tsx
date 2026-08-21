@@ -412,57 +412,61 @@ export function DrillPreview() {
                   own element arrays, so there's never a leftover element
                   from the previous one. */}
               <div className="space-y-3 rounded-xl border border-line bg-panel p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-ink-muted">Phases</span>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {drill.phases.map((p, i) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setPhaseIndex(i)}
-                        aria-pressed={i === phaseIndex}
-                        title={p.label || `Phase ${i + 1}`}
-                        className={
-                          'flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors ' +
-                          (i === phaseIndex
-                            ? 'border-accent bg-accent text-white'
-                            : 'border-line text-ink-muted hover:border-line-strong')
-                        }
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs font-medium text-ink-muted">Phases</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {drill.phases.map((p, i) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPhaseIndex(i)}
+                          aria-pressed={i === phaseIndex}
+                          title={p.label || `Phase ${i + 1}`}
+                          className={
+                            'flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors ' +
+                            (i === phaseIndex
+                              ? 'border-accent bg-accent text-white'
+                              : 'border-line text-ink-muted hover:border-line-strong')
+                          }
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAddPhase('blank')}
-                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
-                  >
-                    + Add phase
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAddPhase('duplicate')}
-                    className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
-                  >
-                    Duplicate
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeletePhase}
-                    disabled={drill.phases.length <= 1}
-                    title={drill.phases.length <= 1 ? 'A drill needs at least one phase' : undefined}
-                    className="rounded-md border border-bad/30 px-2 py-1 text-xs text-bad hover:border-bad/60 disabled:opacity-40"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleAddPhase('blank')}
+                      className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
+                    >
+                      + Add phase
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPhase('duplicate')}
+                      className="rounded-md border border-line px-2 py-1 text-xs text-ink-muted hover:border-line-strong"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeletePhase}
+                      disabled={drill.phases.length <= 1}
+                      title={drill.phases.length <= 1 ? 'A drill needs at least one phase' : undefined}
+                      className="rounded-md border border-bad/30 px-2 py-1 text-xs text-bad hover:border-bad/60 disabled:opacity-40"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <form
                   onSubmit={handleSavePhaseMeta}
-                  className="flex flex-wrap items-end gap-2 border-t border-line pt-3"
+                  className="flex flex-wrap items-end gap-3 border-t border-line pt-3"
                 >
-                  <div>
+                  <div className="min-w-48 flex-1">
                     <label htmlFor="phase-label" className="block text-xs font-medium text-ink-muted">
                       Block title
                     </label>
@@ -474,7 +478,7 @@ export function DrillPreview() {
                         setPhaseMetaDirty(true)
                       }}
                       placeholder="e.g. Directional possession"
-                      className="mt-1 w-44 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                      className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
                     />
                   </div>
                   <div>
@@ -490,13 +494,13 @@ export function DrillPreview() {
                         setPhaseDuration(e.target.value)
                         setPhaseMetaDirty(true)
                       }}
-                      className="mt-1 w-20 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                      className="mt-1 w-24 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none focus:border-accent"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={!phaseMetaDirty}
-                    className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+                    className="rounded-md bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
                   >
                     Save
                   </button>
