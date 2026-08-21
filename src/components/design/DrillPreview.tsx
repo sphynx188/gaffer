@@ -40,8 +40,8 @@ function ConeToolIcon() {
 function WitchesHatToolIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <polygon points="11,2 20,19 2,19" fill={WITCHES_HAT.fill} stroke={WITCHES_HAT.stroke} strokeWidth="1" />
-      <rect x="7" y="12" width="8" height="2.3" fill={WITCHES_HAT.stripeFill} />
+      <polygon points="8.5,2 13.5,2 19,15.5 3,15.5" fill={WITCHES_HAT.fill} />
+      <rect x="1.5" y="15.5" width="19" height="3.3" rx="1.65" fill={WITCHES_HAT.fill} />
     </svg>
   )
 }
@@ -690,7 +690,7 @@ export function DrillPreview() {
               mode="witches-hat"
               dragMode={dragMode}
               onPointerDown={startDrag('witches-hat')}
-              label="Witches' hat"
+              label="Cone"
               icon={<WitchesHatToolIcon />}
             />
             <DraggableTool

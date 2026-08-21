@@ -42,16 +42,14 @@ export const CONE = {
   base: '#18181b', // the pole's flat base
 } as const
 
-// Upgrade Phase 2B (UPGRADE_IMPLEMENTATION_PLAN.md) equipment types —
-// distinguished from CONE and from each other by shape, not just color,
-// same "shape distinction over palette" rule PLAYER's comment sets out.
-// "Witches' hat" is the AU/NZ term for a tall training cone (as opposed to
-// a flat marker/disc) — rendered as a larger triangle with a reflective
-// stripe near the top, distinct from the flat marker's plain triangle.
+// Upgrade Phase 2B (UPGRADE_IMPLEMENTATION_PLAN.md) equipment type —
+// distinguished from CONE (the agility pole) by shape, not just color, same
+// "shape distinction over palette" rule PLAYER's comment sets out. Restyled
+// to match a reference photo of a classic flat-base training cone: a
+// tapered body on a flat pill-shaped base, single flat fill color, no
+// stroke/stripe.
 export const WITCHES_HAT = {
-  fill: '#f97316', // brighter/more saturated than CONE's default orange
-  stroke: '#7c2d12',
-  stripeFill: '#fefdf8', // reflective band
+  fill: '#c0392b',
 } as const
 
 // Training mannequin/dummy — rendered as a ring head + mesh-look torso +

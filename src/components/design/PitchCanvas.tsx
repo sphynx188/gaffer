@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
-import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, RegularPolygon, Stage, Tag, Text } from 'react-konva'
+import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Stage, Tag, Text } from 'react-konva'
 import type { DrillElementType, DrillPhase, PitchOrientation, PitchSize } from '../../store'
 import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, TURF, WITCHES_HAT } from './pitchTheme'
 import { assignTeamColors, getPitchAspectRatio, getPitchMarkings } from './pitchGeometry'
@@ -306,38 +306,49 @@ export function PitchCanvas({
               const kind = cone.kind ?? 'cone'
 
               // Equipment types (Upgrade Phase 2B) share drag/click wiring
-              // but differ in shape — "witches' hat" (AU/NZ term for a tall
-              // training cone, vs. a flat marker/disc) and "mannequin" each
+              // but differ in shape — "witches' hat" (a classic flat-base
+              // training cone, per the reference photo) and "mannequin" each
               // group a couple of primitives so they read as a distinct
               // silhouette rather than just a recolored triangle.
               if (kind === 'witches_hat') {
-                const hatRadius = coneRadius * 1.3
+                const bodyHeight = coneRadius * 2
+                const baseHeight = coneRadius * 0.45
+                const topWidth = coneRadius * 0.5
+                const bottomWidth = coneRadius * 2
+                const baseWidth = coneRadius * 2.3
+                const totalHeight = bodyHeight + baseHeight
+                const top = -totalHeight / 2
+                const bodyBottom = top + bodyHeight
                 return (
                   <Group
                     key={cone.id}
                     x={p.x}
                     y={p.y}
                     draggable={editable}
-                    dragBoundFunc={editable ? makeDragBound(hatRadius) : undefined}
+                    dragBoundFunc={editable ? makeDragBound(totalHeight / 2) : undefined}
                     onDragMove={editable ? makeDragMoveHandler('cones', cone.id) : undefined}
                     onDragEnd={editable ? makeDragEndHandler('cones', cone.id) : undefined}
                     onClick={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
                     onTap={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
                   >
-                    <RegularPolygon
-                      sides={3}
-                      radius={hatRadius}
+                    <Line
+                      points={[
+                        -topWidth / 2, top,
+                        topWidth / 2, top,
+                        bottomWidth / 2, bodyBottom,
+                        -bottomWidth / 2, bodyBottom,
+                      ]}
+                      closed
                       fill={WITCHES_HAT.fill}
-                      stroke={WITCHES_HAT.stroke}
-                      strokeWidth={1}
+                      lineJoin="round"
                     />
                     <Rect
-                      x={-hatRadius * 0.35}
-                      y={hatRadius * 0.15}
-                      width={hatRadius * 0.7}
-                      height={hatRadius * 0.22}
-                      fill={WITCHES_HAT.stripeFill}
-                      listening={false}
+                      x={-baseWidth / 2}
+                      y={bodyBottom}
+                      width={baseWidth}
+                      height={baseHeight}
+                      cornerRadius={baseHeight / 2}
+                      fill={WITCHES_HAT.fill}
                     />
                   </Group>
                 )
