@@ -6,19 +6,24 @@ Canvas colors (players/cones/arrows on the pitch) are a separate, already-
 tuned system — see [pitchTheme.ts](src/components/design/pitchTheme.ts)
 and do not change canvas colors from here.
 
-## The identity: "touchline"
+## The identity
 
-Gaffer is a solo grassroots coach's pitch-side tool, checked one-handed
-outdoors — not a SaaS product with an audience to win over. The chrome had
-drifted into a generic dark-dashboard default (near-black + one blue
-accent, default system sans, `rounded-xl` + soft shadow) with no
-relationship to football, while the canvas already had a real identity
-(turf green, hi-vis amber equipment, kit navy/red). This system pulls that
-identity into the chrome instead of leaving it stranded on the canvas.
+Adapted from [newdesign.md](newdesign.md) (a Linear marketing-site design
+analysis) onto Gaffer's actual app surfaces — this superseded an earlier
+football-themed "touchline" system (amber accent, Oswald type, a chalk-line
+motif). That system is gone; don't reintroduce amber, Oswald, or a
+signature rule/motif as if it's still current.
 
-Vocabulary: touchline chalk markings, scoreboards/substitution boards,
-matchday teamsheets. Not generic "sports" clichés — every choice below
-should trace back to one of these three things.
+The core move: a near-black canvas, a shallow surface ladder for hierarchy
+instead of shadows, one restrained lavender-blue accent used sparingly
+(brand mark, primary actions, focus, active nav — never as a section
+background or card fill), hairline borders throughout, and a single type
+family carried at different weights rather than switching fonts for
+hierarchy. newsdesign.md's own components (pricing cards, testimonials,
+CTA banners, top-nav with "Sign in") are marketing-site concepts with no
+Gaffer equivalent — what's adapted here is the underlying discipline
+(surface ladder, hairline precision, restrained accent, type scale), not
+literal component copies.
 
 ## Color (`src/index.css` `@theme`)
 
@@ -27,83 +32,72 @@ The **one place** UI-chrome colors live. Always reach for the tokens below
 
 | Token | Value | Meaning |
 |---|---|---|
-| `--color-surface` | `#0a0d0a` | App shell / page background — near-black, faint turf-night undertone |
-| `--color-panel` | `#12160f` | Card/panel background |
-| `--color-panel-raised` | `#1a1f18` | Nested surface: pills, table headers, hover rows |
-| `--color-line` / `--color-line-strong` | `#262b23` / `#383f34` | Default border / stronger border, divider |
-| `--color-ink` | `#f3f4ef` | Primary text — warm chalk-white, not cool gray |
-| `--color-ink-muted` / `--color-ink-faint` | `#979c8f` / `#5c6058` | Secondary / placeholder text |
-| `--color-accent` / `--color-accent-hover` | `#f0a30a` / `#ffb52e` | Hi-vis training amber — floodlight/bib. Primary actions, active nav, chips |
-| `--color-ok` | `#5fbf6b` | Grass green — available / light load |
-| `--color-warn` | `#fb923c` | Referee-caution orange — unconfirmed / medium load |
-| `--color-bad` | `#e5484d` | Red-card red — unavailable / heavy load / destructive |
+| `--color-surface` | `#010102` | App shell / page background — near-pure black |
+| `--color-panel` | `#0f1011` | Card/panel background — surface-1 |
+| `--color-panel-raised` | `#141516` | Nested surface: pills, table headers, hover rows — surface-2 |
+| `--color-line` / `--color-line-strong` | `#23252a` / `#34343a` | Default hairline border / stronger border, divider |
+| `--color-ink` | `#f7f8f8` | Primary text |
+| `--color-ink-muted` / `--color-ink-faint` | `#8a8f98` / `#62666d` | Secondary / placeholder text |
+| `--color-accent` / `--color-accent-hover` | `#5e6ad2` / `#828fff` | Lavender-blue — primary actions, active nav, chips, focus. Used scarcely, never as a fill/background |
+| `--color-ok` | `#27a644` | The one semantic color the reference documents — status/success |
+| `--color-warn` | `#d08b3a` | Muted amber — unconfirmed / medium load. Not in the reference; extended with the same desaturated restraint to cover Gaffer's status states (availability tracking needs 3 distinct states, not 1) |
+| `--color-bad` | `#e5484d` | Muted red — unavailable / heavy load / destructive |
 
-Dark-mode-only (`color-scheme: dark` on `:root`) — this is functional (pitch-
-side glare/battery), not aesthetic, and isn't up for revisiting casually.
+Dark-mode-only (`color-scheme: dark` on `:root`) — functional (pitch-side
+glare/battery), not aesthetic, and isn't up for revisiting casually. This
+call is independent of the palette above and survived the swap from the
+touchline system unchanged.
 
 ## Typography
 
-Three faces, each with one job — declared as `--font-sans` / `--font-display`
-/ `--font-mono` in `@theme`, loaded via Google Fonts `<link>` tags in
+One family, two roles — `--font-sans` (Inter) and `--font-mono`
+(JetBrains Mono), both loaded via Google Fonts `<link>` tags in
 `index.html`:
 
-- **`font-display` (Oswald)** — condensed, stadium-signage feel. Page
-  titles (`PageHeader`) and the nav wordmark only. Not for section
-  subheadings inside a page — those stay plain `font-sans font-semibold`
-  (see `<h2>`s in `DashboardPage.tsx`, `SessionPlanner.tsx`, etc.). Display
-  face marks "you're on a new page," not every heading level.
-- **`font-sans` (Inter)** — body copy, labels, buttons, everything else.
-  The default; most UI text needs no explicit class.
-- **`font-mono` (JetBrains Mono)**, paired with `tabular-nums` — reserved
-  for figures that read like a scoreboard: `NumberBadge`'s stat values, the
-  drill phase filmstrip's numbered tabs, attendance ratios (`3/5 (60%)`).
-  Not for every number in the UI — a session's "60 min" or a squad number
-  inline in a sentence stays plain text. Apply it where a number is *the*
-  point of what's being displayed, not incidental to a sentence.
-
-## The touchline motif
-
-`.touchline` (`src/index.css`) is a solid double rule — a bold accent line
-over a thin secondary line, evoking a pitch boundary + margin stripe. It is
-the **one** recurring signature device. Two things about it are load-bearing:
-
-1. **Where it lives**: the shell header's bottom edge (`AppShell.tsx`) and
-   directly under every page title (`PageHeader.tsx`). Nowhere else.
-2. **Where it deliberately does not**: `Card` does not carry it. An earlier
-   pass put it on every card too and it read as wallpaper, not a signature
-   — restraint is the point. Don't add `.touchline` to a new component
-   without a real reason it deserves the same weight as a page title.
-
-We also tried a dashed version of this rule first — it read as a repeating
-CSS pattern rather than an intentional line. Solid reads as deliberate;
-keep it solid.
+- **Inter** carries everything — page titles, section headings, body copy,
+  labels, buttons. Hierarchy comes from weight and size (`font-semibold
+  text-2xl tracking-tight` for a page title, `font-medium text-sm` for a
+  label, etc.), never from switching to a separate display face. There is
+  no `--font-display` token — don't add one back.
+- **JetBrains Mono** is reserved for genuinely code-like contexts. Gaffer
+  doesn't currently have any (no code snippets, no IDs shown to the
+  coach) — don't reach for it on stat figures, durations, or counts; those
+  are plain Inter with `font-semibold`/`tracking-tight` for emphasis, same
+  as everything else. An earlier pass used mono+tabular-nums on attendance
+  ratios and the drill phase filmstrip to read as a "scoreboard" — that
+  was specific to the football theme and has been reverted.
+- Prefer `tracking-tight` on headings (Tailwind's `-0.025em`) — an
+  approximation of the reference's more aggressive per-size negative
+  tracking, close enough without hand-tuning `tracking-[value]` per size.
 
 ## Components (`src/components/ui/`)
 
-- **`Card`** — `rounded-lg border border-line bg-panel p-6`, no shadow,
-  no touchline. The one wrapper every content block uses. If you're
-  writing a new bordered panel, use `Card` — don't hand-roll
-  `rounded-xl ... shadow-sm` (that was the pre-redesign default and is
-  gone everywhere in the app now; don't reintroduce it).
-- **`PageHeader`** — every routed page's title, always `font-display`,
-  uppercase, with the touchline rule beneath. Don't build a page-level
-  `<h1>` outside this component.
-- **`NumberBadge`** — the scoreboard-chip stat treatment: `font-mono`
-  tabular value over an uppercase `font-display` label. Use for standalone
-  counts (roster size, sessions, drills) — not a generic icon+number card.
+- **`Card`** — `rounded-xl border border-line bg-panel p-6`, plus the
+  `panel-edge` class (a 1px inset white highlight on the top edge — see
+  index.css). No shadow, ever — the reference explicitly resists drop
+  shadows on dark surfaces; depth comes from the surface ladder + hairline
+  border + that subtle top highlight instead.
+- **`PageHeader`** — every routed page's title: `text-2xl font-semibold
+  tracking-tight`, sentence case (not uppercase). No rule/motif underneath
+  — separation comes from an `mb-8` gap, not a drawn line. Don't build a
+  page-level `<h1>` outside this component.
+- **`NumberBadge`** — a large `text-3xl font-semibold tracking-tight
+  text-accent` value over a small `text-xs text-ink-muted` label. Plain
+  Inter, no mono. Use for standalone counts (roster size, sessions,
+  drills) — not a generic icon+number card.
 - **`Badge`** (`ok`/`warn`/`bad`/`neutral` tone pills) — unchanged shape,
   colors inherit from the tokens above automatically.
 
 ## Conventions
 
-- Corner radius: `rounded-lg` for panels/cards, `rounded-md` for
-  buttons/inputs/small controls, `rounded-full` for pills/chips. Not
-  `rounded-xl` — that was the old default.
-- No `shadow-sm`/drop shadows on panels. Depth comes from `border-line`
-  against `bg-panel`/`bg-surface`, not shadows.
-- Focus states: plain buttons/links get the amber ring for free from the
-  global `:focus-visible` rule in `index.css` — don't add per-element focus
-  styling to them. Text inputs/selects/textareas use their own
+- Corner radius: `rounded-xl` (12px) for panels/cards, `rounded-md`/`rounded-lg`
+  for buttons/inputs/small controls, `rounded-full` for pills/chips/avatars.
+- No `shadow-sm`/drop shadows anywhere on chrome. Depth comes from
+  `border-line` against `bg-panel`/`bg-surface`, plus `panel-edge` on
+  `Card` — never a shadow.
+- Focus states: plain buttons/links get the lavender ring for free from
+  the global `:focus-visible` rule in `index.css` — don't add per-element
+  focus styling to them. Text inputs/selects/textareas use their own
   `outline-none transition-colors focus:border-accent focus:ring-2
   focus:ring-accent/30` (a border-color change plus a soft ring reads
   better on a filled field than an outset ring alone) — copy that exact
@@ -114,6 +108,9 @@ keep it solid.
   row (see `ROW_GRID` in `PlayerRoster.tsx`) rather than `flex`/`flex-1`,
   which breaks alignment silently if a row and its header don't have the
   same number of flex children.
+- Accent is scarce by design — reach for it on primary actions, active
+  nav/tab state, focus rings, and stat/link emphasis. Don't use it as a
+  card background, section fill, or decoratively.
 
 ## Out of scope here
 

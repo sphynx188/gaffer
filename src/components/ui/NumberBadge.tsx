@@ -1,13 +1,14 @@
-// The touchline redesign's signature stat treatment — a tabular-mono
-// numeral over an uppercase display-face label, styled after the handheld
-// substitution boards held up on the touchline, rather than a generic
-// icon-plus-number pattern. Used anywhere a plain count is the point (roster
-// size, upcoming sessions, drills in library) — see TeamOverviewPage.tsx.
+// A plain stat treatment — a large tracked-tight numeral over a small
+// muted caption, in the same single type voice as everything else
+// (newdesign.md drops mono/display-face switching in favor of weight/size
+// hierarchy within one family). Used anywhere a plain count is the point
+// (roster size, upcoming sessions, drills in library) — see
+// TeamOverviewPage.tsx.
 export function NumberBadge({ value, label }: { value: number; label: string }) {
   return (
     <div>
-      <p className="font-mono text-3xl font-semibold tabular-nums text-accent">{value}</p>
-      <p className="font-display text-xs tracking-wide text-ink-muted uppercase">{label}</p>
+      <p className="text-3xl font-semibold tracking-tight text-accent">{value}</p>
+      <p className="text-xs text-ink-muted">{label}</p>
     </div>
   )
 }

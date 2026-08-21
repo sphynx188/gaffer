@@ -196,7 +196,7 @@ export function AttendancePage() {
                         </td>
                       )
                     })}
-                    <td className="border-b border-l border-line px-2 py-2 text-center font-mono text-xs tabular-nums text-ink-muted">
+                    <td className="border-b border-l border-line px-2 py-2 text-center text-xs font-medium text-ink-muted">
                       {attendedCount}/{weekSessions.length}
                     </td>
                   </tr>

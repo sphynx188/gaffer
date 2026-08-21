@@ -589,7 +589,7 @@ export function DrillPreview() {
                           aria-pressed={i === phaseIndex}
                           title={p.label || `Phase ${i + 1}`}
                           className={
-                            'flex h-8 w-8 items-center justify-center rounded-md border font-mono text-xs font-semibold tabular-nums transition-colors ' +
+                            'flex h-8 w-8 items-center justify-center rounded-md border text-xs font-semibold transition-colors ' +
                             (i === phaseIndex
                               ? 'border-accent bg-accent text-white'
                               : 'border-line text-ink-muted hover:border-line-strong')
