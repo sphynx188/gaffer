@@ -56,20 +56,20 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Signature motif — a broken chalk line, the one recurring structural
-   device tying every panel back to "you're standing on a pitch": used on
-   the shell header's bottom edge, under page titles, and along the top of
-   every Card, in place of a plain solid border in those spots. Deliberately
-   not applied everywhere (see Card.tsx/PageHeader.tsx) — restraint is the
-   point, one motif repeated with discipline rather than decoration spread
-   thin. */
+/* Signature motif — a solid double rule (bold accent line over a thin
+   secondary line), evoking a pitch boundary line plus its margin stripe.
+   Full width, used on the shell header's bottom edge and under every page
+   title (PageHeader.tsx) — the one recurring device tying every page back
+   to the same identity. An earlier dashed version in these same two spots
+   read as a repeating CSS pattern rather than a deliberate line; solid
+   reads as an intentional marking instead. Deliberately not applied to
+   Card (see Card.tsx) — restraint is the point, this isn't decoration
+   spread across every panel. */
 .touchline {
-  height: 2px;
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--color-accent) 0,
-    var(--color-accent) 16px,
-    transparent 16px,
-    transparent 24px
-  );
+  height: 5px;
+  background-image: linear-gradient(var(--color-accent), var(--color-accent)),
+    linear-gradient(var(--color-line-strong), var(--color-line-strong));
+  background-size: 100% 2px, 100% 1px;
+  background-position: top, bottom;
+  background-repeat: no-repeat;
 }

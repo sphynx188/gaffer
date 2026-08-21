@@ -4,10 +4,9 @@ import type { ReactNode } from 'react'
 // mounts each page inside the same padded content column, so this is the one
 // place title/description/actions typography is defined — keeps every page
 // visually consistent without each page hand-rolling its own <h1>). Title
-// carries the display face (index.css's --font-display, Oswald) in the
-// touchline redesign — every page opens with the same stadium-signage beat
-// — with the motif's broken chalk-line rule underneath in place of a plain
-// margin gap.
+// carries the display face (index.css's --font-display, Oswald), with the
+// touchline motif's full-width double rule underneath every page's header
+// row.
 export function PageHeader({
   title,
   description,
