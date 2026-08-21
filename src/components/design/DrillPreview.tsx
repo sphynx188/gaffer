@@ -26,10 +26,13 @@ function PlayerToolIcon({ color }: { color: string }) {
   )
 }
 
+// Agility pole — slim shaft on a flat base (internal `kind` stays 'cone',
+// see pitchTheme.ts's CONE comment).
 function ConeToolIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <polygon points="11,3 19,19 3,19" fill={CONE.fallback} stroke={CONE.stroke} strokeWidth="1" />
+      <ellipse cx="11" cy="19.3" rx="6" ry="1.7" fill={CONE.base} />
+      <rect x="9.6" y="2" width="2.8" height="16.5" rx="1.4" fill={CONE.fallback} />
     </svg>
   )
 }
@@ -43,11 +46,20 @@ function WitchesHatToolIcon() {
   )
 }
 
+// Ring head + mesh-look torso (a couple of vertical divider lines standing
+// in for the mesh pattern) + four splayed legs — matches the reference
+// plastic training-dummy photo.
 function MannequinToolIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-      <rect x="6" y="9" width="10" height="10" rx="2" fill={MANNEQUIN.fill} stroke={MANNEQUIN.stroke} strokeWidth="1" />
-      <circle cx="11" cy="6" r="4" fill={MANNEQUIN.fill} stroke={MANNEQUIN.stroke} strokeWidth="1" />
+      <circle cx="11" cy="3.3" r="2.1" fill="none" stroke={MANNEQUIN.stroke} strokeWidth="1.4" />
+      <rect x="6.5" y="6" width="9" height="9.5" rx="1" fill={MANNEQUIN.fill} stroke={MANNEQUIN.stroke} strokeWidth="1.2" />
+      <line x1="9.2" y1="6" x2="9.2" y2="15.5" stroke={MANNEQUIN.stroke} strokeWidth="0.7" />
+      <line x1="12.8" y1="6" x2="12.8" y2="15.5" stroke={MANNEQUIN.stroke} strokeWidth="0.7" />
+      <line x1="7.5" y1="15.5" x2="6.5" y2="20" stroke={MANNEQUIN.stroke} strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="9.3" y1="15.5" x2="8.8" y2="20" stroke={MANNEQUIN.stroke} strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="12.7" y1="15.5" x2="13.2" y2="20" stroke={MANNEQUIN.stroke} strokeWidth="1.4" strokeLinecap="round" />
+      <line x1="14.5" y1="15.5" x2="15.5" y2="20" stroke={MANNEQUIN.stroke} strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   )
 }
@@ -673,7 +685,7 @@ export function DrillPreview() {
             <p className="text-xs font-medium text-ink-muted">Tools</p>
             <DraggableTool mode="player-a" dragMode={dragMode} onPointerDown={startDrag('player-a')} label="Player A" icon={<PlayerToolIcon color={PLAYER_A_COLOR} />} />
             <DraggableTool mode="player-b" dragMode={dragMode} onPointerDown={startDrag('player-b')} label="Player B" icon={<PlayerToolIcon color={PLAYER_B_COLOR} />} />
-            <DraggableTool mode="cone" dragMode={dragMode} onPointerDown={startDrag('cone')} label="Cone" icon={<ConeToolIcon />} />
+            <DraggableTool mode="cone" dragMode={dragMode} onPointerDown={startDrag('cone')} label="Pole" icon={<ConeToolIcon />} />
             <DraggableTool
               mode="witches-hat"
               dragMode={dragMode}

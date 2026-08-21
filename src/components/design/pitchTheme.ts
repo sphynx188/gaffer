@@ -26,18 +26,20 @@ export const PLAYER = {
   numberText: '#ffffff',
 } as const
 
+// Agility pole — a tall slim shaft on a flat base (the internal `kind`/
+// jsonb value stays 'cone' for backward compatibility with already-saved
+// drills; only the label and rendering changed). Named colors from the
+// phase JSON's optional `cones[].color` field map here; anything
+// unrecognized falls back to yellow, matching the reference pole photo.
 export const CONE = {
-  // Named colors from the phase JSON's optional `cones[].color` field map
-  // here; anything unrecognized falls back to orange. Flat markers/discs —
-  // see WITCHES_HAT below for the taller training-cone equipment type.
   named: {
     orange: '#f59e0b',
     yellow: '#eab308',
     red: '#ef4444',
     blue: '#3b82f6',
   } as Record<string, string>,
-  fallback: '#f59e0b',
-  stroke: '#7c4a03',
+  fallback: '#eab308',
+  base: '#18181b', // the pole's flat base
 } as const
 
 // Upgrade Phase 2B (UPGRADE_IMPLEMENTATION_PLAN.md) equipment types —
@@ -52,11 +54,13 @@ export const WITCHES_HAT = {
   stripeFill: '#fefdf8', // reflective band
 } as const
 
-// Training mannequin/dummy — rendered as a body+head silhouette (not a
-// plain circle) so it's never mistaken for a player dot at a glance.
+// Training mannequin/dummy — rendered as a ring head + mesh-look torso +
+// splayed legs (not a plain circle) so it's never mistaken for a player dot
+// at a glance. Blue, matching the common plastic-dummy training equipment
+// this is meant to depict.
 export const MANNEQUIN = {
-  fill: '#64748b', // slate — deliberately muted, distinct from both cone brights and player navy/red
-  stroke: '#334155',
+  fill: '#2563eb',
+  stroke: '#1e3a8a',
 } as const
 
 export const BALL = {

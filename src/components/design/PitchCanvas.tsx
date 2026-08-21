@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
-import { Arrow, Circle, Group, Label, Layer, Line, Rect, RegularPolygon, Stage, Tag, Text } from 'react-konva'
+import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, RegularPolygon, Stage, Tag, Text } from 'react-konva'
 import type { DrillElementType, DrillPhase, PitchOrientation, PitchSize } from '../../store'
 import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, TURF, WITCHES_HAT } from './pitchTheme'
 import { assignTeamColors, getPitchAspectRatio, getPitchMarkings } from './pitchGeometry'
@@ -344,61 +344,98 @@ export function PitchCanvas({
               }
 
               if (kind === 'mannequin') {
+                // Ring head + filled mesh-look torso + two splayed legs —
+                // matches the reference plastic training-dummy photo's
+                // silhouette (loop top, legs at the base) without trying to
+                // render the mesh pattern itself at this scale, which
+                // wouldn't stay legible pitch-side (see this file's own
+                // "kept to 2-3 colors... legibility" framing).
                 const bodyWidth = coneRadius * 1.1
-                const bodyHeight = coneRadius * 2.2
-                const headRadius = coneRadius * 0.55
+                const bodyHeight = coneRadius * 1.8
+                const headRadius = coneRadius * 0.5
+                const legSpread = coneRadius * 0.7
+                const legLength = coneRadius * 0.65
                 return (
                   <Group
                     key={cone.id}
                     x={p.x}
                     y={p.y}
                     draggable={editable}
-                    dragBoundFunc={editable ? makeDragBound(bodyHeight / 2) : undefined}
+                    dragBoundFunc={editable ? makeDragBound(bodyHeight / 2 + legLength) : undefined}
                     onDragMove={editable ? makeDragMoveHandler('cones', cone.id) : undefined}
                     onDragEnd={editable ? makeDragEndHandler('cones', cone.id) : undefined}
                     onClick={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
                     onTap={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
                   >
+                    <Circle
+                      x={0}
+                      y={-bodyHeight / 2 - headRadius}
+                      radius={headRadius}
+                      stroke={MANNEQUIN.stroke}
+                      strokeWidth={1.3}
+                    />
                     <Rect
                       x={-bodyWidth / 2}
-                      y={-bodyHeight / 2 + headRadius}
+                      y={-bodyHeight / 2}
                       width={bodyWidth}
-                      height={bodyHeight - headRadius}
-                      cornerRadius={bodyWidth * 0.2}
+                      height={bodyHeight}
+                      cornerRadius={bodyWidth * 0.15}
                       fill={MANNEQUIN.fill}
                       stroke={MANNEQUIN.stroke}
                       strokeWidth={1}
                     />
-                    <Circle
-                      x={0}
-                      y={-bodyHeight / 2 + headRadius * 0.6}
-                      radius={headRadius}
-                      fill={MANNEQUIN.fill}
+                    <Line
+                      points={[-legSpread / 2, bodyHeight / 2, -legSpread, bodyHeight / 2 + legLength]}
                       stroke={MANNEQUIN.stroke}
-                      strokeWidth={1}
+                      strokeWidth={1.3}
+                      lineCap="round"
+                    />
+                    <Line
+                      points={[legSpread / 2, bodyHeight / 2, legSpread, bodyHeight / 2 + legLength]}
+                      stroke={MANNEQUIN.stroke}
+                      strokeWidth={1.3}
+                      lineCap="round"
                     />
                   </Group>
                 )
               }
 
+              // Agility pole (the internal `kind` stays 'cone' — see
+              // pitchTheme.ts's CONE comment): a slim shaft on a flat base,
+              // rather than a flat marker triangle.
+              const poleHeight = coneRadius * 2.4
+              const poleWidth = Math.max(2, coneRadius * 0.35)
+              const baseWidth = coneRadius * 1.3
+              const baseHeight = coneRadius * 0.4
               const fill = CONE.named[cone.color ?? ''] ?? CONE.fallback
               return (
-                <RegularPolygon
+                <Group
                   key={cone.id}
                   x={p.x}
                   y={p.y}
-                  sides={3}
-                  radius={coneRadius}
-                  fill={fill}
-                  stroke={CONE.stroke}
-                  strokeWidth={1}
                   draggable={editable}
-                  dragBoundFunc={editable ? makeDragBound(coneRadius) : undefined}
+                  dragBoundFunc={editable ? makeDragBound(poleHeight / 2) : undefined}
                   onDragMove={editable ? makeDragMoveHandler('cones', cone.id) : undefined}
                   onDragEnd={editable ? makeDragEndHandler('cones', cone.id) : undefined}
                   onClick={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
                   onTap={removeMode ? () => onElementClick?.('cones', cone.id) : undefined}
-                />
+                >
+                  <Rect
+                    x={-poleWidth / 2}
+                    y={-poleHeight / 2}
+                    width={poleWidth}
+                    height={poleHeight}
+                    cornerRadius={poleWidth / 2}
+                    fill={fill}
+                  />
+                  <Ellipse
+                    x={0}
+                    y={poleHeight / 2 - baseHeight / 2}
+                    radiusX={baseWidth / 2}
+                    radiusY={baseHeight / 2}
+                    fill={CONE.base}
+                  />
+                </Group>
               )
             })}
 
