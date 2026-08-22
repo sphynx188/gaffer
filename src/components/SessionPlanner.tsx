@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import type { RecurringSessionInput, SessionWithRelations } from '../store'
 import { AvailabilityPanel } from './AvailabilityPanel'
 import { SessionDrillsPanel } from './SessionDrillsPanel'
+import { Skeleton } from './ui/Skeleton'
 import {
   addDays,
   formatDayLabel,
@@ -84,6 +85,11 @@ export function SessionPlanner() {
   const sessions = useStore((s) => s.sessions ?? EMPTY_SESSIONS)
   const sessionsLoading = useStore((s) => s.sessionsLoading)
   const sessionsError = useStore((s) => s.sessionsError)
+  // `sessionsLoading` is shared with writes (create/update/duplicate all set
+  // it), so gating the skeleton on it alone would flash placeholders over the
+  // week every time a session is saved. Pairing it with an empty list narrows
+  // it to the genuine first load — the same idiom used across the app.
+  const isInitialSessionLoad = sessionsLoading && sessions.length === 0
   const fetchSessions = useStore((s) => s.fetchSessions)
   const createSession = useStore((s) => s.createSession)
   const createRecurringSessions = useStore((s) => s.createRecurringSessions)
@@ -212,9 +218,20 @@ export function SessionPlanner() {
       </div>
 
       {sessionsError && <p className="text-sm text-bad">{sessionsError}</p>}
-      {sessionsLoading && sessions.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
 
-      <ul className="space-y-2">
+      {/* The week scaffold always renders, so during the first fetch every
+          day would otherwise read "No session" — telling the coach they have
+          an empty week when the data simply hasn't arrived. While that first
+          load is in flight the per-day line becomes a skeleton instead, and
+          the list itself becomes a live region so the state is announced.
+          Both revert once sessions land: a permanent role="status" here
+          would announce every later session edit too. */}
+      <ul
+        className="space-y-2"
+        role={isInitialSessionLoad ? 'status' : undefined}
+        aria-busy={isInitialSessionLoad || undefined}
+        aria-label={isInitialSessionLoad ? 'Loading sessions…' : undefined}
+      >
         {days.map((day) => {
           const iso = toISODate(day)
           const daySessions = sessionsByDay.get(iso) ?? EMPTY_SESSIONS
@@ -243,9 +260,13 @@ export function SessionPlanner() {
                   </button>
                 )}
               </div>
-              {daySessions.length === 0 && !isCreating && (
-                <p className="mt-1 text-sm text-ink-faint">No session</p>
-              )}
+              {daySessions.length === 0 &&
+                !isCreating &&
+                (isInitialSessionLoad ? (
+                  <Skeleton className="mt-1 h-4 w-40" />
+                ) : (
+                  <p className="mt-1 text-sm text-ink-faint">No session</p>
+                ))}
               {daySessions.length > 0 && (
                 <ul className="mt-1.5 space-y-1.5">
                   {daySessions.map((session) => (

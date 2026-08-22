@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import type { Availability, AvailabilityStatus } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Skeleton } from '../components/ui/Skeleton'
 import { addDays, formatDayLabel, formatTimeLabel, formatWeekLabel, parseLocalDate, startOfWeek, toISODate } from '../lib/date'
 
 // Click-to-cycle order for a roll-call cell — unconfirmed is always the
@@ -48,6 +49,13 @@ function nextStatus(status: AvailabilityStatus): AvailabilityStatus {
 // through unconfirmed -> present -> injured -> away -> unconfirmed via the
 // existing updateAvailability action, no new table or column. Scoped to the
 // selected team, same as SessionPlanner/PlayerRoster.
+// Fixed placeholder counts for the loading skeleton — enough rows/columns to
+// read as "a table is coming" without implying a real roster or session
+// count. Module-level so the array references are stable across renders,
+// same reasoning as SKELETON_ROWS in PlayerRoster.
+const SKELETON_ATTENDANCE_ROWS = [0, 1, 2, 3]
+const SKELETON_ATTENDANCE_COLS = [0, 1, 2]
+
 export function AttendancePage() {
   const selectedTeamId = useStore((s) => s.selectedTeamId)
   const players = useStore((s) => s.players)
@@ -125,9 +133,47 @@ export function AttendancePage() {
         </div>
       </div>
 
-      {sessionsLoading && weekSessions.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
+      {sessionsLoading && weekSessions.length === 0 && (
+        <div role="status" aria-busy="true" className="overflow-x-auto rounded-lg border border-line bg-panel">
+          <span className="sr-only">Loading attendance…</span>
+          <table className="w-full min-w-max border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 min-w-36 border-b border-r border-line bg-panel px-3 py-2 text-left">
+                  <Skeleton className="h-3 w-16" />
+                </th>
+                {SKELETON_ATTENDANCE_COLS.map((col) => (
+                  <th key={col} className="min-w-20 border-b border-line px-2 py-2">
+                    <Skeleton className="mx-auto h-3 w-12" />
+                  </th>
+                ))}
+                <th className="min-w-16 border-b border-l border-line px-2 py-2">
+                  <Skeleton className="mx-auto h-3 w-14" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {SKELETON_ATTENDANCE_ROWS.map((row) => (
+                <tr key={row}>
+                  <td className="sticky left-0 z-10 border-r border-line bg-panel px-3 py-2">
+                    <Skeleton className="h-4 w-24" />
+                  </td>
+                  {SKELETON_ATTENDANCE_COLS.map((col) => (
+                    <td key={col} className="border-line px-2 py-2 text-center">
+                      <Skeleton className="mx-auto h-6 w-6 rounded-full" />
+                    </td>
+                  ))}
+                  <td className="border-l border-line px-2 py-2">
+                    <Skeleton className="mx-auto h-3 w-8" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-      {players.length === 0 ? (
+      {!(sessionsLoading && weekSessions.length === 0) && (players.length === 0 ? (
         <EmptyState
           icon={CalendarDays}
           message="No players on the roster yet."
@@ -205,7 +251,7 @@ export function AttendancePage() {
             </tbody>
           </table>
         </div>
-      )}
+      ))}
 
       <div className="mt-3 flex flex-wrap gap-4 text-xs text-ink-muted">
         {STATUS_CYCLE.map((status) => (

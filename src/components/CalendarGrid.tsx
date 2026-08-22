@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { EmptyState } from './ui/EmptyState'
+import { Skeleton } from './ui/Skeleton'
 import { teamAccentDotClass } from '../lib/teamColor'
 import {
   addDays,
@@ -147,7 +148,12 @@ export function CalendarGrid() {
 
       {calendarSessionsError && <p className="px-4 py-2 text-sm text-bad">{calendarSessionsError}</p>}
       {calendarSessionsLoading && calendarSessions.length === 0 && (
-        <p className="px-4 py-2 text-sm text-ink-muted">Loading…</p>
+        <div role="status" aria-busy="true" className="flex items-center gap-2 px-4 py-2">
+          <span className="sr-only">Loading calendar…</span>
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20" />
+        </div>
       )}
 
       {view === 'day' && <CalendarDayView teams={teams} calendarSessions={calendarSessions} />}

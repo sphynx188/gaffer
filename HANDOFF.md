@@ -314,8 +314,49 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    separation from the page behind it.
    **Verified**: clean build, lint unchanged from the Stage 0 baseline.
 
+3. **Stage 2 — skeleton loading states across 10 screens** — added
+   `src/components/ui/Skeleton.tsx` (a flat `animate-pulse` bar on the
+   `bg-line` token, so it flips correctly under the light theme) and
+   replaced the plain `Loading…` text line in `PlayerRoster`,
+   `SessionPlanner`, `TeamManagement`, `PlayerNotes`, `CalendarGrid`,
+   `DrillLibrary`, `DrillPreview`, `TacticBoard`, `DashboardPage` and
+   `AttendancePage` with skeletons shaped like each screen's real rows.
+   The one that mattered most is `SessionPlanner`: its 7-day week
+   scaffold renders regardless of load state, so every day used to read
+   "No session" while the first fetch was still in flight — actively
+   telling the coach they had an empty week. `AttendancePage` carried the
+   same class of bug ("No sessions this week") and is now guarded the
+   same way.
+   Every skeleton is gated on `loading && list.length === 0`, never on
+   the loading flag alone: those flags are shared with writes
+   (`drillsLoading` fires on every canvas dragend), so a flag-only gate
+   would flash placeholders during ordinary editing.
+   Accessibility: the bars are `aria-hidden`, and each call site carries
+   `role="status"` + `aria-busy` + an `sr-only` label so the announcement
+   the removed visible "Loading…" text used to provide still happens. In
+   `SessionPlanner` those attributes go on the `<ul>` itself and are
+   dropped once loaded — a `<span>` isn't valid inside `<ul>`, and a
+   permanent `role="status"` there would announce every later edit.
+   **Deliberately left as text**: the whole-app auth gate in `App.tsx`
+   (no page shape to stand in for yet) and `SessionDrillsPanel`'s
+   `Attaching…`/`Saving…`, which are write states — a skeleton says
+   "content is coming", not "your click is processing".
+   **Verified**: clean build; lint shows the same 5 pre-existing warnings
+   and no new ones.
+   **Not verified live** (honest gap): the skeletons have not yet been
+   watched rendering in a browser — that needs a logged-in session, so
+   it's folded into the single Stage 5 walkthrough rather than asking for
+   a login at every stage. Low risk to defer: the colour is a one-line
+   change in `Skeleton.tsx` if it reads wrong, since all 10 consumers
+   inherit it.
+
 ### What Worked
 
+- **Centralising the skeleton's colour in one primitive** means the
+  token choice (`bg-line`) is a single-line fix across all 10 screens if
+  it turns out to read too strong or too faint in either theme — which is
+  what made deferring the visual check to Stage 5 a safe call rather than
+  a gamble.
 - **Baselining lint before touching anything** immediately paid off — it
   surfaced two `set-state-in-effect` warnings that `CLAUDE.md` doesn't
   document, so they can't later be mistaken for a regression caused by
@@ -333,9 +374,20 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
 
 ## Next Steps
 
-- Stage 2: replace the plain `Loading…` text loaders with skeleton
-  components across the app (2A build `ui/Skeleton.tsx`, 2B the three
-  primary lists, 2C the remaining seven screens).
+- Stage 3: persistent icon-rail sidebar in `AppShell.tsx` at `lg:`+
+  (fixed `<aside>` below the sticky top bar, `w-16`, icon-only, tooltips
+  already free via each NavLink's existing `title`). Mobile drawer stays
+  untouched. **Deliberately overrides `DESIGN.md`'s "there is no
+  permanent sidebar"** at explicit user instruction — update that section
+  of `DESIGN.md` in the same commit, marking it as a reversal rather than
+  deleting the history.
+- Stage 4: swap the global `:focus-visible` outline in `index.css` for a
+  shadow-based accent glow, plus a `forced-colors` fallback. Also an
+  explicit `DESIGN.md` override ("never a shadow").
+- Stage 5: full logged-in walkthrough (both themes, 375/768/1280), which
+  is also where Stage 2's skeletons get their first live look. Then user
+  sign-off, then `git push origin main` — Vercel auto-deploys from main,
+  so the push is the deploy. Nothing is pushed before that point.
 
 ---
 

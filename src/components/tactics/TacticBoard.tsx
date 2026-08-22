@@ -4,6 +4,7 @@ import { useStore } from '../../store'
 import type { Player, PlayerPosition, Tactic } from '../../store'
 import { PitchCanvas } from '../design/PitchCanvas'
 import { EmptyState } from '../ui/EmptyState'
+import { Skeleton } from '../ui/Skeleton'
 
 // Tactics are always a full pitch, portrait — unlike drills, there's no
 // size/orientation picker here (the roadmap fixes the Tactic Creator to
@@ -240,7 +241,10 @@ export function TacticBoard() {
       <div className="min-w-0 flex-1 space-y-3">
         {!selectedTeamId && <EmptyState icon={Shield} message="Select a team to build its tactics." />}
         {selectedTeamId && tacticsLoading && tactics.length === 0 && (
-          <p className="text-sm text-ink-muted">Loading tactics…</p>
+          <div role="status" aria-busy="true">
+            <span className="sr-only">Loading tactics…</span>
+            <Skeleton className="aspect-[2/3] w-full max-w-[640px] rounded-lg" />
+          </div>
         )}
         {tacticsError && <p className="text-sm text-bad">{tacticsError}</p>}
         {selectedTeamId && !tacticsLoading && tactics.length === 0 && !tacticsError && (

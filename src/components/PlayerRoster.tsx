@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { useStore, PLAYER_POSITIONS, PLAYER_POSITION_LABELS } from '../store'
 import type { Player, PlayerPosition } from '../store'
 import { PlayerNotes } from './PlayerNotes'
+import { Skeleton } from './ui/Skeleton'
 import { toISODate } from '../lib/date'
 
 interface AttendanceStat {
@@ -20,6 +21,12 @@ interface AttendanceStat {
 // `sm:` and up — below that, rows fall back to a wrapping flex stack (see
 // PlayerRow) since these fixed column widths don't fit a phone screen.
 const ROW_GRID = 'sm:grid sm:grid-cols-[2.5rem_1fr_8rem_10rem_1fr] sm:items-center sm:gap-x-6'
+
+// Fixed placeholder count for the loading skeleton — enough rows to read as
+// "a list is coming" without implying a real squad size. Module-level so the
+// array reference is stable across renders, same reasoning as EMPTY_SESSIONS
+// in SessionPlanner.
+const SKELETON_ROWS = [0, 1, 2, 3]
 
 interface PlayerFormValues {
   name?: string
@@ -151,7 +158,24 @@ export function PlayerRoster() {
   return (
     <section className="space-y-4 text-left">
       {playersError && <p className="text-sm text-bad">{playersError}</p>}
-      {playersLoading && players.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
+      {playersLoading && players.length === 0 && (
+        <div role="status" aria-busy="true">
+          <span className="sr-only">Loading roster…</span>
+          <ul className="space-y-2">
+            {SKELETON_ROWS.map((row) => (
+              <li key={row} className="rounded-md border border-line px-3 py-2">
+                <div className={`flex flex-wrap items-center gap-x-6 gap-y-2 ${ROW_GRID}`}>
+                  <Skeleton className="h-4 w-8" />
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-12 sm:ml-auto" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!playersLoading && !playersError && players.length === 0 && (
         <p className="text-sm text-ink-muted">No players yet — add the first one below.</p>
       )}

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useStore } from '../store'
 import type { PlayerNote } from '../store'
 import { useSession } from '../hooks/useSession'
+import { Skeleton } from './ui/Skeleton'
 
 interface NewPlayerNoteFormInput {
   player_id: string
@@ -16,6 +17,12 @@ interface NewPlayerNoteFormInput {
 // player with zero notes, which is exactly the state right when the panel
 // first opens. Reusing this constant instead of an inline `[]` fixes it.
 const EMPTY_NOTES: PlayerNote[] = []
+
+// Fixed placeholder count for the loading skeleton — this is a small nested
+// list, so two rows is plenty to read as "notes are coming". Module-level so
+// the array reference is stable across renders, same reasoning as
+// SKELETON_ROWS in PlayerRoster.
+const SKELETON_NOTES = [0, 1]
 
 // Phase 1.4 — Player development notes (US-6, gaffer_mvp_build_steps.md).
 // Mounted inside a PlayerRow (PlayerRoster.tsx) when a coach expands that
@@ -41,7 +48,19 @@ export function PlayerNotes({ playerId }: { playerId: string }) {
   return (
     <div className="mt-3 space-y-3 border-t border-line pt-3">
       {error && <p className="text-sm text-bad">{error}</p>}
-      {loading && notes.length === 0 && <p className="text-sm text-ink-muted">Loading notes…</p>}
+      {loading && notes.length === 0 && (
+        <div role="status" aria-busy="true">
+          <span className="sr-only">Loading notes…</span>
+          <ul className="space-y-2">
+            {SKELETON_NOTES.map((row) => (
+              <li key={row} className="rounded-md border border-line px-3 py-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="mt-1 h-3 w-24" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!loading && !error && notes.length === 0 && (
         <p className="text-sm text-ink-muted">No notes yet — add the first one below.</p>
       )}

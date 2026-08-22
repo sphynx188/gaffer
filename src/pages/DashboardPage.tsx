@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
+import { Skeleton } from '../components/ui/Skeleton'
 import { teamAccentDotClass } from '../lib/teamColor'
 import { addDays, formatDayLabel, formatTimeLabel, parseLocalDate, toISODate } from '../lib/date'
 
@@ -15,6 +16,12 @@ import { addDays, formatDayLabel, formatTimeLabel, parseLocalDate, toISODate } f
 // data CalendarGrid.tsx uses, just for a rolling 7-day window from today
 // instead of a Monday-aligned calendar week — "what's on soon" reads better
 // here than "what's on this calendar week" when today is, say, a Saturday.
+// Fixed placeholder count for the loading skeleton — enough rows to read as
+// "a list is coming" without implying a real upcoming-session count.
+// Module-level so the array reference is stable across renders, same
+// reasoning as SKELETON_ROWS in PlayerRoster.
+const SKELETON_UPCOMING = [0, 1, 2]
+
 export function DashboardPage() {
   const teams = useStore((s) => s.teams)
   const selectTeam = useStore((s) => s.selectTeam)
@@ -75,7 +82,25 @@ export function DashboardPage() {
       <Card>
         <h2 className="mb-4 text-sm font-semibold text-ink">Upcoming this week</h2>
         {calendarSessionsError && <p className="text-sm text-bad">{calendarSessionsError}</p>}
-        {calendarSessionsLoading && upcoming.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
+        {calendarSessionsLoading && upcoming.length === 0 && (
+          <div role="status" aria-busy="true">
+            <span className="sr-only">Loading upcoming sessions…</span>
+            <ul className="divide-y divide-line">
+              {SKELETON_UPCOMING.map((row) => (
+                <li key={row} className="flex w-full flex-wrap items-center justify-between gap-2 px-2 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <Skeleton className="h-2 w-2 shrink-0 rounded-full" />
+                    <div>
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="mt-1 h-3 w-20" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-3 w-12" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {!calendarSessionsLoading && upcoming.length === 0 ? (
           <EmptyState
             icon={CalendarDays}

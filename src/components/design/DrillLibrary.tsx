@@ -3,6 +3,7 @@ import { LibraryBig, Pause, Play } from 'lucide-react'
 import { useStore } from '../../store'
 import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { EmptyState } from '../ui/EmptyState'
+import { Skeleton } from '../ui/Skeleton'
 import { PitchCanvas } from './PitchCanvas'
 
 // Phase 3.1 — Drill library / browse & search (US-17, gaffer_mvp_build_steps.md).
@@ -35,6 +36,12 @@ import { PitchCanvas } from './PitchCanvas'
 // (a coach can add/remove players between phases), so there's no general
 // way to interpolate between two arbitrary phases' element sets.
 const DEFAULT_PHASE_SECONDS = 3
+
+// Fixed placeholder count for the loading skeleton — enough cards to read as
+// "a grid is coming" without implying a real drill count. Module-level so
+// the array reference is stable across renders, same reasoning as
+// SKELETON_ROWS in PlayerRoster.
+const SKELETON_CARDS = [0, 1, 2, 3, 4, 5]
 
 export function DrillLibrary() {
   const selectedTeamId = useStore((s) => s.selectedTeamId)
@@ -91,7 +98,17 @@ export function DrillLibrary() {
     <div className="space-y-4">
       {!selectedTeamId && <p className="text-sm text-ink-muted">Select a team to browse its drills.</p>}
       {selectedTeamId && drillsLoading && drills.length === 0 && (
-        <p className="text-sm text-ink-muted">Loading drills…</p>
+        <div role="status" aria-busy="true">
+          <span className="sr-only">Loading drills…</span>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {SKELETON_CARDS.map((card) => (
+              <li key={card} className="flex items-center justify-between rounded-lg border border-line px-4 py-3">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
       {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (

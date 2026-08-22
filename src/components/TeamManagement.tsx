@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import type { Team } from '../store'
 import { Card } from './ui/Card'
 import { Badge } from './ui/Badge'
+import { Skeleton } from './ui/Skeleton'
 import { useTeamSummaries, type TeamSummary } from '../hooks/useTeamSummaries'
 
 // Phase 1.1 — Team management (US-3, gaffer_mvp_build_steps.md). Real
@@ -20,6 +21,12 @@ import { useTeamSummaries, type TeamSummary } from '../hooks/useTeamSummaries'
 // Drill.orientation are the fields that actually drive anything (which
 // pitch shape the canvas renders), set independently per drill, never
 // derived from the team's format. Creating a team now only asks for a name.
+// Fixed placeholder count for the loading skeleton — enough cards to read as
+// "a grid is coming" without implying a real team count. Module-level so the
+// array reference is stable across renders, same reasoning as SKELETON_ROWS
+// in PlayerRoster.
+const SKELETON_TEAMS = [0, 1]
+
 export function TeamManagement() {
   const teams = useStore((s) => s.teams)
   const teamsLoading = useStore((s) => s.teamsLoading)
@@ -46,7 +53,26 @@ export function TeamManagement() {
   return (
     <section className="space-y-4 text-left">
       {teamsError && <p className="text-sm text-bad">{teamsError}</p>}
-      {teamsLoading && teams.length === 0 && <p className="text-sm text-ink-muted">Loading…</p>}
+      {teamsLoading && teams.length === 0 && (
+        <div role="status" aria-busy="true">
+          <span className="sr-only">Loading teams…</span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {SKELETON_TEAMS.map((card) => (
+              <Card key={card}>
+                <Skeleton className="h-5 w-32" />
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-32 rounded-full" />
+                </div>
+                <div className="mt-3 flex items-center gap-3 border-t border-line pt-3">
+                  <Skeleton className="h-4 w-10" />
+                  <Skeleton className="h-4 w-12" />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {teams.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

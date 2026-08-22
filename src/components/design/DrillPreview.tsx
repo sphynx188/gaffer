@@ -6,6 +6,7 @@ import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { PitchCanvas } from './PitchCanvas'
 import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, WITCHES_HAT } from './pitchTheme'
 import { EmptyState } from '../ui/EmptyState'
+import { Skeleton } from '../ui/Skeleton'
 
 // Player A/B tool-icon colors — the same navy/red pair PitchCanvas assigns
 // to whichever two team labels appear first in a phase (pitchTheme.ts's
@@ -510,7 +511,10 @@ export function DrillPreview() {
         <div className="min-w-0 flex-1 space-y-3">
           {!selectedTeamId && <EmptyState icon={PenTool} message="Select a team to preview its drills." />}
           {selectedTeamId && drillsLoading && drills.length === 0 && (
-            <p className="text-sm text-ink-muted">Loading drills…</p>
+            <div role="status" aria-busy="true">
+              <span className="sr-only">Loading drills…</span>
+              <Skeleton className="aspect-[3/2] w-full max-w-[960px] rounded-lg" />
+            </div>
           )}
           {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
           {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
