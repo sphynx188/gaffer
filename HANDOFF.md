@@ -276,6 +276,226 @@ in.
 
 ---
 
+## Session log — design rework: skeletons, icon rail, focus ring
+
+Executing `rework-plan-gaffer-2026-08-22.md` (the Supabase Studio design
+brief diffed against Gaffer) via a staged execution plan. Stages: 0
+baseline, 1 remove stray `shadow-sm`, 2 skeleton loading states app-wide,
+3 persistent icon-rail sidebar, 4 shadow-based focus ring, 5 final
+verification + deploy. Stages 3 and 4 deliberately override settled
+`DESIGN.md` decisions at explicit user instruction — see each entry.
+
+Nothing is pushed to `origin/main` until Stage 5, after user sign-off.
+Vercel auto-deploys from `main`, so the push IS the deploy.
+
+### What happened, in order
+
+1. **Stage 0 — baseline and clean tree** — verified `main` in sync with
+   `origin/main` and a clean `npm run build` + `npm run lint` on the
+   untouched tree before any changes, so later failures are attributable
+   to this work rather than inherited. Committed the pre-existing
+   uncommitted `HANDOFF.md` session log plus the untracked
+   `rework-plan-gaffer-2026-08-22.md` as housekeeping, so every
+   subsequent stage commit contains only that stage's changes.
+   **Verified**: clean build, clean lint (bar the known
+   `preserve-manual-memoization` warning), clean `git status` afterwards.
+
+### What Worked
+
+### What Didn't Work / Watch Out For
+
+## Next Steps
+
+- Stage 1: remove the stray `shadow-sm` at
+  `src/components/design/PitchCanvas.tsx:216`.
+
+---
+
+## Session log — design overhaul, feature import, nav polish, Calendar views
+
+Everything below is committed and pushed to `origin/main`, most recent
+last: `bf20e62` → `d1f99cb` → `cf38b6a` → `5d33ac0` → `401f231` →
+`5961ea2` → `487b7d3` → `fa38f7c` → `4e2ef87` → `8f4c5d5` → `7477452`
+(plus `3209fa9`/`a4d5022`, drill-canvas equipment redesigns, and
+`a82a367`/`6812599`/`215661e`/`1a8a503`/`fd4655b`, earlier Design-page
+layout work — all before the identity work below). No test suite; every
+item verified via `npm run build` + `npm run lint` (clean throughout,
+same 4 known pre-existing warnings as the upgrade section above) plus a
+live logged-in Browser-pane walkthrough on a fresh tab.
+
+### What happened, in order
+
+1. **Drill-canvas equipment redesign** (`3209fa9`, `a4d5022`) — cone
+   redesigned to match reference photos, ending on a flat-base classic
+   cone (`WITCHES_HAT` in `pitchTheme.ts` simplified to a single fill
+   color, `PitchCanvas.tsx`'s render rebuilt as a tapered `Line` body +
+   rounded `Rect` base). Label changed "Witches' hat" → "Cone" in
+   `DrillPreview.tsx`.
+2. **Claude Code skills** — searched GitHub for popular, genuinely
+   verified (real star counts, not blog-farm) skills relevant to this
+   project; installed 4 recommended sources into `~/.claude/skills/` at
+   the user's request. Tooling-level change, not app code — nothing to
+   verify in-app.
+3. **Touchline redesign** (`bf20e62` → `d1f99cb` → `cf38b6a`) — first
+   full UI identity pass via `/frontend-design`: amber accent, Oswald
+   display type, a chalk-line signature motif. The motif itself went
+   through several live A/B/C/D/E comparisons before landing on a solid
+   double rule (option "D"), then was carried through every page.
+   `design.md` created (`5d33ac0`) as the binding design-system
+   reference, with `CLAUDE.md` updated to require reading it before any
+   UI work. `401f231` added matching `:focus-visible` states app-wide.
+4. **Full replacement to a Linear-inspired system** (`5961ea2`) — the
+   touchline identity was fully discarded (not blended) for a
+   near-black-canvas, lavender-blue-accent (`#5e6ad2`), hairline-border,
+   single-voice-Inter system with no signature motif — confirmed via
+   `AskUserQuestion` as "full replacement," not a merge of the two.
+   `design.md` and `CLAUDE.md` rewritten to match; this is the design
+   system still current as of this log.
+5. **DesignSync feature import** (`487b7d3`) — imported and read a
+   Claude Design mockup project via the DesignSync MCP tool
+   (`get_project`/`list_files`/`get_file`, read-only), but per explicit
+   instruction ("keep the current ui theme etc, just use this ui design
+   as inspiration to improve and update features") extracted only a
+   genuine **feature** idea — an animated drill-phase preview in the
+   Drill Library (auto-advancing `PitchCanvas` preview, Play/Pause) —
+   and left the Linear visual system untouched. `key={phase.id}` used on
+   the preview's `PitchCanvas` to force clean remounts across rapid
+   state-driven prop changes.
+6. **Nav/theme/copy polish** (`fa38f7c`, corrected by `4e2ef87`) — five
+   concrete changes: "Gaffer" wordmark always top-left across every
+   route (`BrandBlock` in `AppShell.tsx`); team name confined to the
+   header's right-hand cluster (`TeamSwitcher compact`, desktop-only,
+   team-scoped routes only) — **I initially placed it top-left next to
+   "Gaffer" by mistake, the user corrected "team name top right actually
+   not top left," fixed in `4e2ef87`**; a dark/light theme toggle button
+   top-right (new `useTheme()` hook in `src/hooks/useTheme.ts`,
+   `data-theme` attribute + `<meta name="theme-color">` + `localStorage`
+   under key `gaffer-theme`, FOUC-prevention inline `<script>` in
+   `index.html`'s `<head>` reading `localStorage` before first paint);
+   "Dashboard" renamed to "Coach Dashboard" (`DashboardPage.tsx`); team
+   overview page title renamed to `"<team name> Dashboard"`
+   (`TeamOverviewPage.tsx`). `index.css` gained a full
+   `:root[data-theme='light']` override block (re-maps the same
+   `--color-*` custom properties Tailwind utilities already read, so no
+   component classes needed to change).
+7. **Realistic test data** — seeded across every section (players,
+   sessions, availability, drills with full jsonb phase content,
+   session_drills, tactics, player notes) via the Supabase MCP
+   (`execute_sql`), **scoped entirely to `team_id =
+   'b4ec3149-6ce9-4252-8c42-d3f105322f53'` ("Test U12 Reds")** — audited
+   `team` table ownership first to confirm no other real user's team
+   data was touched. No migration/commit for this (direct data, not
+   schema). One self-introduced bug found and fixed in the same pass:
+   some seeded `availability` rows had `status = 'unconfirmed'` but a
+   non-null `responded_at`, contradicting the app's own invariant
+   ("responded" = has a `responded_at`); fixed via two `UPDATE`s (null
+   out `responded_at` where unconfirmed, backfill it where a status
+   implies a response but the timestamp was missing).
+8. **"Test for any bugs" — started, PAUSED, not resumed.** See "Next
+   Steps" below — this is the one open thread from this log.
+9. **Mobile back arrow** (`8f4c5d5`) — `BackButton` in `AppShell.tsx`,
+   mobile-only (`lg:hidden`), plain `navigate(-1)`, hidden on `/` (the
+   landing screen). Verified: correct show/hide by route, functional
+   back-nav, hidden at true desktop width (see the `resize_window` note
+   under What Didn't Work).
+10. **Calendar Day/Week/Month view toggle** (`7477452`, most recent) —
+    Calendar previously only had the one week grid. Extracted it as-is
+    into `src/components/calendar/CalendarWeekView.tsx`, added
+    `CalendarDayView.tsx` (single-column time grid, fuller session
+    cards, empty state) and `CalendarMonthView.tsx` (6-week grid,
+    session chips per cell, today circled in accent), plus a
+    Day/Week/Month segmented toggle in `CalendarGrid.tsx`'s header next
+    to Prev/Today/Next. `CalendarGrid.tsx` now owns one `anchorDate` +
+    `view` state; Prev/Next step by the active view's unit (day/week/
+    month) and switching views keeps the same anchor. Added
+    `startOfMonth`/`addMonths`/`formatMonthLabel`/`isSameDay` to
+    `src/lib/date.ts`; `fetchSessionsForWeek` (sessionSlice.ts) reused
+    unchanged — despite its name it already took an arbitrary
+    `[startISO, endISO]` range, so no store change was needed for the
+    new views. Verified live: all three views render correct sessions
+    for the seeded test data, Month highlights today correctly, Day's
+    empty state shows on a day with nothing scheduled, view-switching
+    preserves the anchor date, zero console errors, build/lint clean.
+
+### What Worked
+
+- **`AskUserQuestion` for big, genuinely ambiguous design calls** — used
+  once to settle "full replacement vs. blend the two systems," picked
+  cleanly by the user rather than being guessed at.
+- **DesignSync import scoped to "extract one feature idea, discard the
+  visual system"** — reading a whole mockup project but deliberately
+  taking only what the user actually asked for (a feature, not a
+  restyle) avoided an unwanted second theme swap.
+- **Auditing `team` ownership before seeding any test data** in a shared
+  Supabase project — confirmed no other real user's rows would be
+  touched before writing a single row, then kept every seed scoped to
+  one `team_id`.
+- **Fresh Browser-pane tab as the fix for stale-HMR false-positive
+  console errors** — recurred again this session (long-lived tabs
+  showing errors for identifiers that were actually fine); a fresh tab
+  reliably resolved it every time, consistent with the pre-existing
+  pattern from the upgrade phases above.
+- **`resize_window`'s explicit `{width, height}` over the "desktop"
+  preset** — the preset quirkily caps around ~605px; passing
+  `{width: 1280, height: 800}` explicitly is the only reliable way to
+  test true desktop width in this environment.
+
+### What Didn't Work / Watch Out For
+
+- **`design.md` got overwritten mid-session** with unrelated content
+  (most likely a side effect of the `frontend-design` plugin skill's own
+  tooling) — caught only because a follow-up `Edit`'s `old_string`
+  failed to match; restored via `git show <prior-commit>:design.md` and
+  reapplied the pending edit on top. **Worth a sanity check on
+  `design.md`'s contents after any `/frontend-design` invocation**, not
+  just trusting the diff looks plausible.
+- **`replace_all: true` silently missed occurrences with different
+  leading whitespace** — `DashboardPage.tsx` had two `PageHeader
+  title="Dashboard"` lines at 8-space and 6-space indent; the string
+  match only caught one. Caught via a grep verification pass after the
+  edit, not before — grep for the expected occurrence count *before*
+  trusting a `replace_all` result on anything with inconsistent
+  indentation.
+- **Misread "team name top right" as "top left" on the first pass** —
+  implemented it next to "Gaffer," the user corrected it in the very
+  next message. No structural cause, just worth re-reading nav-placement
+  requests carefully since "top-left/top-right" instructions are easy to
+  transpose while implementing multiple nav changes in one batch.
+- Browser-pane `computer` screenshot timeouts ("pane not
+  displayed/hidden") continued to show up intermittently (mobile drawer,
+  Calendar, back-button testing) — same non-bug pattern documented in
+  the upgrade section above; `read_page`/`get_page_text`/`javascript_tool`
+  remain the reliable fallback.
+
+## Next Steps
+
+**Resume "test for any bugs" — the one real open thread.** The user
+explicitly asked for a bug-testing pass; I covered Dashboard, Teams,
+Calendar, Roster (Notes toggle), and part of Sessions (Drills panel,
+attach-drill, reorder) before they interrupted to ask for a status
+update. I asked "keep going through the rest, or pause here?" — **they
+never answered that question**; they gave two unrelated requests instead
+(mobile back arrow, then Calendar views), both now done. **Do not
+silently resume the bug sweep** — ask the user first whether they still
+want it, since their attention has moved elsewhere twice since it was
+paused. If they do, the still-untested areas are: Attendance
+status-cycling, session edit/duplicate/delete, the Design canvas (phase
+management, drag-and-drop tool placement), Drill library search, Tactics
+(create/place-player/arrows), the dark/light toggle round-trip, mobile
+drawer nav, plus a general console-error sweep across all of those.
+
+Other open threads, not urgent, surface only if they come up naturally:
+- Calendar Day/Month views (flagged as a gap in the upgrade-phase
+  mobile audit) are now **done** as of this log — no longer open.
+- Test data lives only on `team_id = 'b4ec3149-6ce9-4252-8c42-d3f105322f53'`
+  ("Test U12 Reds") — never seed or modify any other team in this shared
+  Supabase project without the user's say-so.
+- `_to_delete/` (both at this repo root and the outer
+  `/Users/max/Desktop/app/_to_delete/`) remains deliberately untouched —
+  never added to a commit, never deleted, absent explicit instruction.
+
+---
+
 ## Prior session log (pre-upgrade)
 
 No test suite. At the time of this log, auth was magic-link only, so **no
