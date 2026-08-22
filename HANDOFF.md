@@ -297,17 +297,45 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    uncommitted `HANDOFF.md` session log plus the untracked
    `rework-plan-gaffer-2026-08-22.md` as housekeeping, so every
    subsequent stage commit contains only that stage's changes.
-   **Verified**: clean build, clean lint (bar the known
-   `preserve-manual-memoization` warning), clean `git status` afterwards.
+   **Verified**: clean build; lint exits 0 with the known
+   `preserve-manual-memoization` warning *plus* two
+   `react(set-state-in-effect)` warnings on `TacticBoard.tsx:84,93` that
+   are also pre-existing (they appear on the untouched tree, before any
+   change in this session) but are NOT listed in `CLAUDE.md`'s
+   known-warnings note. Clean `git status` afterwards.
+
+2. **Stage 1 — removed the stray `shadow-sm`** —
+   `src/components/design/PitchCanvas.tsx:216` carried
+   `shadow-sm` on the canvas wrapper, the one live violation of
+   `DESIGN.md`'s "never a shadow" rule for chrome. Removed; `grep -rn
+   "shadow-sm" src` now returns zero hits. `shadow-xl` on the mobile
+   drawer in `AppShell.tsx` was deliberately left alone — the no-shadow
+   rule governs chrome surfaces, not a modal overlay that needs
+   separation from the page behind it.
+   **Verified**: clean build, lint unchanged from the Stage 0 baseline.
 
 ### What Worked
 
+- **Baselining lint before touching anything** immediately paid off — it
+  surfaced two `set-state-in-effect` warnings that `CLAUDE.md` doesn't
+  document, so they can't later be mistaken for a regression caused by
+  this session's changes.
+
 ### What Didn't Work / Watch Out For
+
+- **`CLAUDE.md`'s known-lint-warnings note is incomplete.** It names only
+  `react(preserve-manual-memoization)` on
+  `SessionPlanner.tsx`/`AttendancePage.tsx`, but the untouched tree also
+  emits `react(set-state-in-effect)` on `TacticBoard.tsx:84` and `:93`.
+  Both are inherited, not caused by this work — don't chase them
+  mid-stage, and don't read them as a regression introduced by a later
+  stage.
 
 ## Next Steps
 
-- Stage 1: remove the stray `shadow-sm` at
-  `src/components/design/PitchCanvas.tsx:216`.
+- Stage 2: replace the plain `Loading…` text loaders with skeleton
+  components across the app (2A build `ui/Skeleton.tsx`, 2B the three
+  primary lists, 2C the remaining seven screens).
 
 ---
 

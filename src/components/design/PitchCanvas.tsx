@@ -213,7 +213,7 @@ export function PitchCanvas({
         <Stage
           width={width}
           height={height}
-          className="overflow-hidden rounded-lg shadow-sm"
+          className="overflow-hidden rounded-lg"
           style={annotationMode ? { cursor: 'crosshair' } : removeMode ? { cursor: 'pointer' } : undefined}
           onClick={handleStageClick}
           onTap={handleStageClick}
