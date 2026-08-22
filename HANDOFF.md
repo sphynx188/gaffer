@@ -350,6 +350,32 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    change in `Skeleton.tsx` if it reads wrong, since all 10 consumers
    inherit it.
 
+4. **Stage 3 — persistent icon-rail sidebar** (`AppShell.tsx`) — the
+   desktop tab strip that lived inside the sticky top bar is gone,
+   replaced by a fixed `<aside>` pinned below that bar at `lg:`+
+   (`w-16`, icon-only, `z-20` so the `z-30` header still wins overlaps),
+   with `<main>` offset by a matching `lg:pl-16`. `NavList`'s
+   `direction` prop went from `'row' | 'col'` to `'col' | 'rail'` — the
+   `'row'` branch was the tab strip and became dead once it was removed.
+   Mobile is untouched: below `lg` the rail isn't rendered and the
+   hamburger drawer is still the only nav, which is also how the Supabase
+   Studio rail this was adapted from behaves at phone width.
+   Rail links have no visible text, so each carries an explicit
+   `aria-label` on top of the existing `title` tooltip — `title` alone is
+   an unreliable accessible name.
+   Targets are 44px square, not Studio's much tighter rail: adopting the
+   pattern, not the all-day-desktop-tool density, since Gaffer is used
+   pitch-side on a touch screen.
+   **This deliberately overrides a settled decision** — `DESIGN.md` and
+   `CLAUDE.md` both stated there was no permanent sidebar. Both were
+   updated in the same commit to describe the rail and to record the
+   reversal as intentional rather than quietly rewriting them; the
+   earlier choice was deliberate too and deserves to stay legible.
+   **Verified**: clean build, lint unchanged (same 5 inherited warnings),
+   no `direction="row"` references left anywhere.
+   **Not verified live yet** — same reason as Stage 2, folded into the
+   Stage 5 walkthrough.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -374,13 +400,6 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
 
 ## Next Steps
 
-- Stage 3: persistent icon-rail sidebar in `AppShell.tsx` at `lg:`+
-  (fixed `<aside>` below the sticky top bar, `w-16`, icon-only, tooltips
-  already free via each NavLink's existing `title`). Mobile drawer stays
-  untouched. **Deliberately overrides `DESIGN.md`'s "there is no
-  permanent sidebar"** at explicit user instruction — update that section
-  of `DESIGN.md` in the same commit, marking it as a reversal rather than
-  deleting the history.
 - Stage 4: swap the global `:focus-visible` outline in `index.css` for a
   shadow-based accent glow, plus a `forced-colors` fallback. Also an
   explicit `DESIGN.md` override ("never a shadow").

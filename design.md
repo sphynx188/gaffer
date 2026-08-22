@@ -120,6 +120,19 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 
 ## Navigation shell (`AppShell.tsx`)
 
+- **Primary nav on `lg:`+ is a persistent icon rail** — a fixed `<aside>`
+  pinned below the sticky top bar (`w-16`, icon-only, 44px tap targets,
+  each link named by an explicit `aria-label` since there's no visible
+  text, plus the `title` tooltip sighted users get on hover). Content is
+  offset by a matching `lg:pl-16`. Below `lg` the rail isn't rendered at
+  all and the hamburger drawer remains the only nav — unchanged.
+  **This reverses the earlier "there is no permanent sidebar" decision**,
+  which put a horizontal tab strip in the top bar specifically so nothing
+  reserved screen width. Reversed 2026-08-22, adapted from a Supabase
+  Studio design brief at explicit instruction — recorded rather than
+  silently rewritten, since the previous choice was deliberate too. Note
+  the rail adopts the *pattern* but not Studio's much tighter density:
+  Gaffer is used pitch-side on a touch screen, so targets stay at 44px.
 - **"Gaffer" is always top-left**, unchanged by route — it's the
   consistent brand anchor and doubles as the way back to the coach-level
   Dashboard from any team-scoped page (it links to `/`). Don't swap it

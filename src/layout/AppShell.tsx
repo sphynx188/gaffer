@@ -54,30 +54,44 @@ const NAV_ITEMS_TEAM: NavItem[] = [
   { to: '/tactics', label: 'Tactics', icon: Shield },
 ]
 
-const navLinkClass = (direction: 'row' | 'col') => ({ isActive }: { isActive: boolean }) =>
-  (direction === 'row'
-    ? 'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors '
+const navLinkClass = (direction: 'col' | 'rail') => ({ isActive }: { isActive: boolean }) =>
+  (direction === 'rail'
+    ? 'flex h-11 w-11 items-center justify-center rounded-md transition-colors '
     : 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ') +
   (isActive ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
 
-// direction="row" is the desktop/tablet top-bar tab strip; direction="col"
-// is the mobile drawer's vertical list — same items, same active styling,
-// just laid out differently.
+// direction="col" is the mobile drawer's vertical list, icon + label;
+// direction="rail" is the desktop icon-only sidebar — same items and the
+// same active styling, but no visible label, so each link carries an
+// explicit aria-label (the visible text is what normally names it) on top
+// of the `title` that gives sighted users a hover tooltip. Rail targets are
+// 44px square rather than Studio's much tighter icon rail: Gaffer gets used
+// pitch-side on a touch screen, so the pattern is worth adopting at a
+// comfortable tap size, not at an all-day-desktop-tool density.
 function NavList({
   items,
   direction = 'col',
   onNavigate,
 }: {
   items: NavItem[]
-  direction?: 'row' | 'col'
+  direction?: 'col' | 'rail'
   onNavigate?: () => void
 }) {
+  const isRail = direction === 'rail'
   return (
-    <nav className={direction === 'row' ? 'flex items-center gap-1' : 'flex-1 space-y-1 px-3 py-4'}>
+    <nav className={isRail ? 'flex flex-col items-center gap-1 py-3' : 'flex-1 space-y-1 px-3 py-4'}>
       {items.map(({ to, label, icon: Icon, end }) => (
-        <NavLink key={to} to={to} end={end} className={navLinkClass(direction)} onClick={onNavigate} title={label}>
-          <Icon className="h-4 w-4 shrink-0" />
-          {direction === 'col' ? label : <span className="hidden xl:inline">{label}</span>}
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={navLinkClass(direction)}
+          onClick={onNavigate}
+          title={label}
+          aria-label={isRail ? label : undefined}
+        >
+          <Icon className={isRail ? 'h-5 w-5 shrink-0' : 'h-4 w-4 shrink-0'} />
+          {!isRail && label}
         </NavLink>
       ))}
     </nav>
@@ -200,11 +214,6 @@ export function AppShell() {
         <BackButton />
         <BrandBlock />
 
-        {/* Desktop/tablet: full tab strip, in the bar itself */}
-        <div className="hidden flex-1 items-center lg:flex">
-          <NavList items={activeItems} direction="row" />
-        </div>
-
         {/* Right cluster — team name (desktop only, team-scoped routes),
             theme toggle (always visible), sign-out (desktop only — mobile
             gets it in the drawer footer instead), hamburger (mobile
@@ -267,7 +276,19 @@ export function AppShell() {
         </div>
       </div>
 
-      <main>
+      {/* Desktop/tablet primary nav — a persistent icon rail pinned below the
+          top bar. Sits at z-20 so the z-30 sticky header still wins any
+          overlap, and is `fixed` so it stays put while content scrolls.
+          Below `lg` it's absent entirely and the hamburger drawer remains
+          the only nav, which is also how the Supabase Studio rail this was
+          adapted from behaves at phone widths. */}
+      <aside className="fixed bottom-0 left-0 top-14 z-20 hidden w-16 flex-col border-r border-line bg-panel lg:flex">
+        <NavList items={activeItems} direction="rail" />
+      </aside>
+
+      {/* pl matches the rail's w-16 so content clears it; the inner
+          max-w-6xl then centres within the remaining space. */}
+      <main className="lg:pl-16">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
         </div>
