@@ -376,6 +376,25 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    **Not verified live yet** — same reason as Stage 2, folded into the
    Stage 5 walkthrough.
 
+5. **Stage 4 — shadow-based focus ring** (`src/index.css`) — the global
+   `:focus-visible` rule went from `outline: 2px solid var(--color-accent)`
+   to a `box-shadow` glow, `0 0 0 3px` of the accent at 30% via
+   `color-mix(in oklab, …)` so it tracks whichever theme is active without
+   a second rule. A `@media (forced-colors: active)` block hands a real
+   `outline` back, because a painted ring disappears entirely under
+   Windows High Contrast and `outline: none` would otherwise leave
+   keyboard users nothing at all.
+   **This deliberately overrides `design.md`'s "never a shadow"**, at
+   explicit instruction. `design.md` now scopes that rule to surface
+   treatments and records the focus ring as the one carve-out, so it
+   doesn't read as licence for shadows on cards or panels.
+   **Verified live** in the browser pane at `localhost:5174` by real Tab
+   presses: a plain button (`Forgot password?`) resolves to
+   `oklab(… / 0.3) 0 0 0 3px` with `outline-style: none`, and the email
+   input keeps its own `focus:border-accent` + `ring-2` treatment
+   untouched (`border-color: rgb(94, 106, 210)`, the ring's own
+   multi-layer shadow stack).
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -390,6 +409,34 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
 
 ### What Didn't Work / Watch Out For
 
+- **An unlayered CSS rule silently overrides every Tailwind utility.**
+  The first version of the Stage 4 focus ring was written at the top
+  level of `index.css`, which put it outside any cascade layer — and
+  unlayered rules beat layered ones regardless of specificity, so it
+  clobbered the form fields' own `focus:ring-2` (Tailwind utilities live
+  in `@layer utilities`). It looked fine; the inputs had just quietly
+  lost their treatment. Fixed by moving the rule into `@layer base`, so
+  utilities win again. The `forced-colors` fallback is deliberately left
+  unlayered so nothing can override *it*. Worth remembering for anything
+  else added bare to `index.css`.
+- **`git add DESIGN.md` does not stage `design.md`.** The file is
+  lowercase in git's index but macOS's filesystem is case-insensitive, so
+  editing "DESIGN.md" edits the right file while `git add DESIGN.md`
+  matches nothing and fails silently — the Stage 3 commit went in without
+  the design-doc change and needed an amend. Always use the lowercase
+  `design.md`, and check `git status --short` for a stray ` M` before
+  committing.
+- **`.focus()` from `javascript_tool` does not trigger `:focus-visible`.**
+  It sets `document.activeElement` but not the keyboard-interaction
+  heuristic, so the rule never matches and the computed style looks like
+  the change didn't work. Drive real `Tab` presses with the `computer`
+  tool instead — and note a screenshot taken afterwards tends to drop the
+  focus state, so read the computed style rather than relying on a
+  picture.
+- **`npm run dev` won't necessarily be on 5173.** Something already held
+  it, so Vite fell back to 5174 while the preview harness reported a
+  different port again — read the actual server log for the real URL
+  rather than trusting the reported one.
 - **`CLAUDE.md`'s known-lint-warnings note is incomplete.** It names only
   `react(preserve-manual-memoization)` on
   `SessionPlanner.tsx`/`AttendancePage.tsx`, but the untouched tree also
@@ -400,9 +447,6 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
 
 ## Next Steps
 
-- Stage 4: swap the global `:focus-visible` outline in `index.css` for a
-  shadow-based accent glow, plus a `forced-colors` fallback. Also an
-  explicit `DESIGN.md` override ("never a shadow").
 - Stage 5: full logged-in walkthrough (both themes, 375/768/1280), which
   is also where Stage 2's skeletons get their first live look. Then user
   sign-off, then `git push origin main` — Vercel auto-deploys from main,

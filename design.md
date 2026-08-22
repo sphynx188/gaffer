@@ -151,12 +151,26 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 
 - Corner radius: `rounded-xl` (12px) for panels/cards, `rounded-md`/`rounded-lg`
   for buttons/inputs/small controls, `rounded-full` for pills/chips/avatars.
-- No `shadow-sm`/drop shadows anywhere on chrome. Depth comes from
-  `border-line` against `bg-panel`/`bg-surface`, plus `panel-edge` on
-  `Card` — never a shadow.
+- No `shadow-sm`/drop shadows anywhere on chrome **as a surface
+  treatment**. Depth comes from `border-line` against
+  `bg-panel`/`bg-surface`, plus `panel-edge` on `Card` — never a shadow.
+  The one carve-out is the focus ring below, which is a deliberate,
+  instructed exception (2026-08-22) and doesn't license shadows on
+  panels, cards or any other resting surface.
 - Focus states: plain buttons/links get the lavender ring for free from
   the global `:focus-visible` rule in `index.css` — don't add per-element
-  focus styling to them. Text inputs/selects/textareas use their own
+  focus styling to them. That rule is a **`box-shadow` glow**
+  (`0 0 0 3px` of the accent at 30%, via `color-mix`, so it tracks
+  whichever theme is active) rather than the `outline` it used to be —
+  changed 2026-08-22 alongside the icon rail, adapted from a Supabase
+  Studio design brief at explicit instruction. Two consequences worth
+  knowing: a painted ring disappears under forced-colors/High Contrast,
+  so `index.css` hands an `outline` back in that mode — keep that block
+  if you touch the rule; and a `box-shadow` ring can be clipped by an
+  ancestor's `overflow: hidden`/`overflow-x-auto` in a way an `outline`
+  never was, so check focus visibility inside scroll containers (the
+  attendance table, the drill grid) when adding new focusable content
+  there. Text inputs/selects/textareas use their own
   `outline-none transition-colors focus:border-accent focus:ring-2
   focus:ring-accent/30` (a border-color change plus a soft ring reads
   better on a filled field than an outset ring alone) — copy that exact

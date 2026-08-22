@@ -91,9 +91,32 @@ body {
    (see the outline-none + focus:ring-accent pattern throughout
    src/components) since a border-color change plus ring reads better on
    a filled field than an outset ring; this covers everything else. */
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+/* Deliberately inside `@layer base`, which is the whole trick here. An
+   unlayered rule beats every layered one regardless of specificity, so
+   writing this at the top level would override Tailwind's own
+   `focus:ring-2` utilities (they live in `@layer utilities`) and quietly
+   replace the border+ring treatment the form fields set for themselves.
+   In `base` the utilities still win, so this rule does what it's meant to
+   — cover plain buttons and links — and leaves inputs alone. */
+@layer base {
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 30%, transparent);
+    transition: box-shadow 0.15s cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+/* Left unlayered on purpose, unlike the rule above: a painted box-shadow
+   ring disappears entirely under Windows High Contrast / forced-colors,
+   and with `outline: none` that would leave keyboard users no focus
+   indicator at all. Being unlayered means nothing can override this, so
+   the fallback is guaranteed wherever focus lands. CanvasText is
+   guaranteed to contrast with the forced background. */
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+  }
 }
 
 /* newdesign.md's signature surface treatment — "a subtle white edge
