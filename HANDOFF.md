@@ -395,6 +395,26 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    untouched (`border-color: rgb(94, 106, 210)`, the ring's own
    multi-layer shadow stack).
 
+6. **Stage 5 — full logged-in walkthrough** — verified live in the browser
+   pane against a signed-in account at `localhost:5174`:
+   - **Rail** renders at 1280 (`display: flex`), is `display: none` at
+     375, and flips theme correctly — light mode gives it
+     `bg #ffffff` / `border #e4e4e7`, i.e. the `--color-panel` /
+     `--color-line` tokens, not hardcoded values.
+   - **Mobile drawer is untouched**: opens on the hamburger and still
+     lists all seven labelled links. The rail's own links come back as
+     empty text content, which is the icon-only variant behaving as
+     designed — their names come from `aria-label`.
+   - **Roster skeleton** captured rendering: four rows matching the real
+     five-column `ROW_GRID` shape.
+   - **SessionPlanner skeleton** captured with `role="status"`,
+     `aria-busy="true"`, `aria-label="Loading sessions…"`, seven bars
+     (one per day) and — the actual point of the fix — **zero** "No
+     session" strings on screen during load.
+   - **Focus ring** (from Stage 4) confirmed by real Tab presses.
+   Both themes checked; the theme was left back on dark, matching what
+   was stored before the walkthrough.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -437,6 +457,16 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
   it, so Vite fell back to 5174 while the preview harness reported a
   different port again — read the actual server log for the real URL
   rather than trusting the reported one.
+- **Catching a loading state on localhost is harder than it sounds.** A
+  fetch against remote Supabase finishes well inside a single tool
+  round-trip, so screenshots kept landing on the loaded state. Adding a
+  temporary delay inside `runSupabaseAction` didn't help either — Vite
+  never emitted an HMR update for that module and kept serving a stale
+  transform (component and CSS edits hot-reloaded fine throughout, so the
+  watcher itself was working). What did work: temporarily forcing the
+  component's own condition (`isInitialSessionLoad = true`), screenshotting,
+  then reverting. If you need to see a loading state again, force the
+  branch in the component rather than trying to slow the network.
 - **`CLAUDE.md`'s known-lint-warnings note is incomplete.** It names only
   `react(preserve-manual-memoization)` on
   `SessionPlanner.tsx`/`AttendancePage.tsx`, but the untouched tree also
@@ -447,10 +477,21 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
 
 ## Next Steps
 
-- Stage 5: full logged-in walkthrough (both themes, 375/768/1280), which
-  is also where Stage 2's skeletons get their first live look. Then user
-  sign-off, then `git push origin main` — Vercel auto-deploys from main,
-  so the push is the deploy. Nothing is pushed before that point.
+- **Awaiting user sign-off, then `git push origin main`.** All six stages
+  are committed locally and the walkthrough is done; the push is the only
+  step left. Vercel auto-deploys from `main`, so pushing IS deploying —
+  that's why it's gated on explicit approval rather than done
+  automatically.
+- Worth knowing before the push: nothing in the repo actually proves the
+  Vercel project is still connected (no `vercel.json`, no `.vercel/`, no
+  workflow file, no production URL recorded anywhere). The
+  push-to-deploy path comes from the repo owner's own confirmation. If no
+  build fires after pushing, that assumption is where to start looking.
+- Deferred by decision, not forgotten: the OKLCH hue-tied neutral
+  derivation (rework plan Stage 3) — a refinement rather than a fix.
+  Studio's 6px radius scale, its dense 12–13px type scale and its 2px
+  spacing base all stay excluded; the override instruction covered the
+  sidebar and the focus ring only.
 
 ---
 
