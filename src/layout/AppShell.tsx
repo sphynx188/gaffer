@@ -59,18 +59,38 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   (isActive ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
 
 // One icon+label list, shared by the mobile drawer and the desktop rail —
-// both are panels that slide in over the content, so they want the same
-// shape. An icon-only variant existed briefly while the rail was a narrow
-// strip; it went away once the rail started showing labels, since there's
-// no longer a second layout to support. Each link keeps `title` for the
-// hover tooltip, and needs no `aria-label` — the visible text names it.
-function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+// both are panels showing the same items, just at different widths. The
+// drawer is always full-width, so its label always renders plainly.
+//
+// The rail is narrower at rest and only grows to full width on hover/focus
+// (see the `<aside>` below), so `fadeLabel` wraps its label in a span that's
+// `opacity-0` until an ancestor `.group` is hovered/focus-within. This is
+// necessary, not decorative: the label's text still overflows past the
+// rail's resting 64px width regardless of opacity (overflow-hidden on the
+// rail clips it either way) — without fading it too, the sliver that falls
+// *inside* the visible 64px shows as a stray fragment of the first letter
+// rather than a clean icon-only rail.
+function NavList({
+  items,
+  onNavigate,
+  fadeLabel = false,
+}: {
+  items: NavItem[]
+  onNavigate?: () => void
+  fadeLabel?: boolean
+}) {
   return (
     <nav className="flex-1 space-y-1 px-3 py-4">
       {items.map(({ to, label, icon: Icon, end }) => (
         <NavLink key={to} to={to} end={end} className={navLinkClass} onClick={onNavigate} title={label}>
           <Icon className="h-4 w-4 shrink-0" />
-          {label}
+          {fadeLabel ? (
+            <span className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+              {label}
+            </span>
+          ) : (
+            label
+          )}
         </NavLink>
       ))}
     </nav>
@@ -255,34 +275,35 @@ export function AppShell() {
         </div>
       </div>
 
-      {/* Desktop primary nav — an icon rail that stays off-canvas until the
-          cursor reaches the left edge, then slides in over the content.
-          Auto-hiding rather than persistent is what keeps this compatible
-          with the concern that ruled out a sidebar here in the first place:
-          nothing permanently reserves screen width, so `<main>` below is
-          full-width and never shifts.
+      {/* Desktop primary nav — a narrow icon rail that's always visible
+          (unlike the earlier off-canvas version, the icons themselves are
+          the permanent "navigation lives here" cue, not something you have
+          to discover by hovering blind), and widens in place to reveal
+          labels when the cursor is on it. This is a fixed element sitting
+          outside document flow — growing its own `width` on hover doesn't
+          reflow anything; it just paints over more of the content to its
+          right, which is why `<main>` only needs to reserve space for the
+          narrow resting width (`lg:pl-16`), not the expanded one.
 
-          The reveal is pure CSS off a `group`, no state: an invisible strip
-          pinned to the left edge is the hover target, and the wrapper is
-          `pointer-events-none` so the column the rail will occupy doesn't
-          swallow clicks meant for the content underneath while it's hidden
-          (the strip and the rail re-enable pointer events for themselves).
+          No JS state needed at all: `hover:w-56` expands it, and
+          `focus-within:w-56` does the same for a keyboard user tabbing
+          into a link — no `group` wrapper required since the hover/focus
+          target and the element being resized are the same node here.
 
-          `group-focus-within` matters as much as `group-hover` — a keyboard
-          user never generates a hover, so without it tabbing would move
-          focus into a rail that stays off-screen and the nav would be
-          unreachable without a mouse.
+          The labels don't need separate icon-only vs. icon+label markup
+          either. `NavList` always renders both; at the resting `w-16` the
+          label simply overflows past the link's own box and gets clipped
+          by this element's `overflow-hidden` before it can spill into the
+          page, and at `w-56` there's room for it to render normally. One
+          `NavList`, two widths, CSS does the rest.
 
           Below `lg` none of this renders: phones and tablets get the
           hamburger drawer instead. */}
-      <div className="group pointer-events-none fixed bottom-0 left-0 top-14 z-20 hidden w-56 lg:block">
-        <div className="pointer-events-auto absolute inset-y-0 left-0 w-10" aria-hidden="true" />
-        <aside className="pointer-events-auto flex h-full w-56 -translate-x-full flex-col border-r border-line bg-panel transition-transform duration-200 ease-out group-focus-within:translate-x-0 group-hover:translate-x-0">
-          <NavList items={activeItems} />
-        </aside>
-      </div>
+      <aside className="group fixed bottom-0 left-0 top-14 z-20 hidden w-16 flex-col overflow-hidden border-r border-line bg-panel transition-[width] duration-200 ease-out hover:w-56 focus-within:w-56 lg:flex">
+        <NavList items={activeItems} fadeLabel />
+      </aside>
 
-      <main>
+      <main className="lg:pl-16">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
         </div>

@@ -515,6 +515,42 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     `panel-edge` shadow value correctly in both directions; hover classes
     confirmed still present and unaffected.
 
+11. **Rail redesigned again — from auto-hide to expand-in-place** — the
+    previous session added a click-to-close handle to the auto-hiding
+    rail; that was rolled back at the start of this one (`git reset
+    --hard 249dba1`, clean history, nothing had been pushed) in favor of
+    a different pattern entirely, shown via reference screenshots of a
+    Vercel-style sidebar: icons permanently visible at rest, no
+    off-canvas state, widening in place on hover to reveal labels.
+    `AppShell.tsx`'s `<aside>` now rests at `w-16` and grows to `w-56` on
+    `hover:`/`focus-within:` via a plain `transition-[width]` — no React
+    state at all, simpler than either of the two previous versions.
+    `<main>` carries a permanent `lg:pl-16` matching the *resting* width;
+    the wider hover state overlays on top rather than pushing content,
+    since the rail is `fixed` and out of document flow.
+    `NavList` gained a `fadeLabel` prop, used only by the rail. It wraps
+    the label in a span that's `opacity-0` until the ancestor `.group`
+    (the aside itself) is hovered/focus-within — this turned out to be
+    necessary, not decorative: overflow-hidden alone left a stray sliver
+    of each label's first letter visible at rest (the label text
+    overflows past 64px regardless of opacity; clipping just cuts off
+    however much of it doesn't fit, and a normal-opacity fragment inside
+    the visible 64px still renders). Fading the label's opacity to 0
+    makes that same fragment fully transparent instead.
+    **On the width-reservation question, worth being explicit about**:
+    this version genuinely reserves 64px of screen width permanently,
+    which the immediately-prior auto-hiding version specifically
+    avoided. That's a real step further than before, not a return to
+    where things started — recorded in `design.md`/`CLAUDE.md` as such.
+    **Verified live**: rests at 64px with labels at `opacity: 0`
+    (confirmed via computed style, not just visually — the very bug
+    being fixed was subtle enough that a screenshot alone wasn't
+    trustworthy); widens to 224px on hover and retracts on mouse-out;
+    Tab-focusing a link widens it and blurring retracts it; `<main>`
+    stays at a constant `padding-left: 64px` regardless of hover state;
+    mobile drawer's own labels (a separate, non-faded `NavList` call)
+    unaffected — confirmed they still render plainly.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -586,6 +622,25 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
   Splitting into two separate calls (click, then a fresh query after)
   reads the settled value correctly. Cost about ten minutes of chasing a
   "still broken" result that wasn't real.
+- **The click-to-close handle from the previous session was solving the
+  underlying request in the wrong shape.** The ask ("show me where nav
+  is, let me close it") had a much simpler answer once a concrete visual
+  reference (screenshots of a Vercel-style expand-on-hover sidebar)
+  arrived: no off-canvas state at all, just a narrow rail that widens in
+  place. Worth remembering generally — an implementation that technically
+  satisfies a description can still be the wrong shape once a reference
+  image suggests a different approach entirely. Not wasted effort though:
+  the auto-hide and close-handle versions are still in git history (just
+  not on `main`), available if a future request calls for something
+  closer to them again.
+- **Opacity and `overflow-hidden` solve different problems and don't
+  substitute for each other.** Clipping hides whatever extends past a
+  boundary; it says nothing about what's rendered *inside* that boundary.
+  A label overflowing a narrow rail needs both: `overflow-hidden` for the
+  part that extends past the edge, `opacity-0` for the part that
+  technically fits within the visible area but was never meant to be
+  seen yet — without the second one, the first letter's leading pixels
+  render as a stray, meaningless fragment.
 - **`CLAUDE.md`'s known-lint-warnings note is incomplete.** It names only
   `react(preserve-manual-memoization)` on
   `SessionPlanner.tsx`/`AttendancePage.tsx`, but the untouched tree also

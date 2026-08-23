@@ -120,32 +120,36 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 
 ## Navigation shell (`AppShell.tsx`)
 
-- **Primary nav on `lg:`+ is an auto-hiding rail** — a fixed `<aside>`
-  below the sticky top bar (`w-56`, icon + text label per item, sharing
-  `NavList` with the mobile drawer so both stay in step). It sits
-  off-canvas (`-translate-x-full`) and slides in when the cursor reaches
-  an invisible `w-10` strip pinned to the left edge, overlaying the
-  content rather than displacing it — `<main>` has **no** left padding
-  and never shifts. The strip is deliberately wider than it looks like it
-  needs to be: it's an invisible target, so it has to be forgiving enough
-  to hit without aiming.
+- **Primary nav on `lg:`+ is an icon rail that expands in place on
+  hover** — a fixed `<aside>` below the sticky top bar, resting at `w-16`
+  (icon only) and growing to `w-56` (icon + label) on `:hover` or
+  `:focus-within`, via a plain `transition-[width]` — no React state, no
+  off-canvas transform. `<main>` carries a permanent `lg:pl-16` matching
+  the *resting* width; the expanded width overlays on top of content
+  rather than pushing it further, so nothing reflows when it grows.
+  `NavList` is shared with the mobile drawer and always renders icon +
+  label together; a `fadeLabel` prop (used only by the rail) wraps the
+  label in a span that's `opacity-0` until an ancestor `.group` — the
+  `<aside>` itself — is hovered/focus-within. This is necessary, not
+  decorative: at the resting 64px the label text still overflows past
+  the link's own box regardless of opacity (`overflow-hidden` on the
+  rail clips it either way), and without also fading it, the sliver that
+  falls *inside* the visible 64px shows as a stray fragment of the first
+  letter instead of a clean icon-only rail.
   Below `lg` none of it renders; the hamburger drawer is the only nav.
-  The reveal is pure CSS off a `group` — no React state. Two details are
-  load-bearing rather than incidental: the wrapper is
-  `pointer-events-none` (with the strip and rail re-enabling it for
-  themselves) so the hidden rail's column doesn't swallow clicks meant
-  for content underneath; and `group-focus-within` sits alongside
-  `group-hover` because a keyboard user never generates a hover, and
-  without it tabbing would move focus into a rail that stays off-screen,
-  making the nav unreachable without a mouse.
-  **On the earlier "there is no permanent sidebar" decision**: the tab
-  strip that rule protected existed so nothing reserved screen width.
-  Auto-hiding keeps that property intact — the rail is a nav *pattern*
-  change, not a reversal of the width concern. It began (2026-08-22) as a
-  persistent rail adapted from a Supabase Studio design brief at explicit
-  instruction, and became auto-hiding the next day, also on request.
-  Note it adopts the pattern but not Studio's much tighter density:
-  Gaffer is used pitch-side on a touch screen, so targets stay at 44px.
+  **On the earlier "there is no permanent sidebar" decision**: this
+  version genuinely does reserve a permanent 64px of screen width, which
+  the immediately-prior auto-hiding version deliberately avoided doing.
+  That's a real, explicit step further than before, taken at direct
+  instruction with the exact reference (a Vercel-style expand-on-hover
+  rail) supplied to build from — recorded as what changed and why, same
+  as every other reversal in this section, not smoothed over. The rail
+  started (2026-08-22) as a persistent icon+label sidebar adapted from a
+  Supabase Studio design brief, became fully auto-hiding the next day,
+  then briefly gained a click-to-close handle (added and then rolled
+  back the same day, before ever being pushed), before landing on this
+  expand-on-hover shape. Targets stay comfortable rather than copying a
+  denser reference verbatim: Gaffer is used pitch-side on a touch screen.
 - **"Gaffer" is always top-left**, unchanged by route — it's the
   consistent brand anchor and doubles as the way back to the coach-level
   Dashboard from any team-scoped page (it links to `/`). Don't swap it
