@@ -637,6 +637,34 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     its header at all, i.e. genuinely unaffected, not just visually
     similar.
 
+15. **Teams page toolbar rebuilt after a Supabase Studio "Projects" list
+    reference screenshot** (`TeamManagement.tsx`) — asked for at review:
+    search, sort, grid/list view toggle, and a "New team" action, styled
+    like the reference's project-list toolbar. Status filtering from
+    that reference was explicitly dropped — teams have no status field.
+    Added: a search input (client-side `name` substring filter over the
+    already-loaded `teams` array — no new fetch), a `<select>` sort
+    control (Name / Player count / Newest first, the last two reading
+    `useTeamSummaries` and `created_at`), a grid/list view toggle
+    (`LayoutGrid`/`List` icon buttons, active state reusing the same
+    `bg-accent/15 text-accent` treatment as nav active state), and a
+    "New team" button that now toggles the existing `CreateTeamForm`
+    into view instead of showing it permanently under the list. Grid
+    mode keeps the existing `TeamCard`; list mode is a new `TeamRow`
+    component. Both share one `useTeamCardState` hook (name/editing/
+    saving/confirm-delete state) rather than duplicating that logic
+    twice, since the edit/delete flow itself didn't change, only the
+    layout on top of it. A no-results empty state (`EmptyState`, reusing
+    the search icon) covers "search matches nothing" as a state distinct
+    from "no teams at all" (still the loading skeleton / a truly empty
+    list falling through with no matching block).
+    **Verified live**: typing a non-matching query shows the empty
+    state and clears correctly; grid↔list toggle re-renders the same
+    team data in both layouts; "New team" opens/closes the form without
+    losing entered text on a stray re-render; confirmed at 375px (mobile
+    hamburger drawer unaffected — this page has no rail) and in both
+    themes. Build and lint clean, no new warnings.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -737,14 +765,15 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
 
 ## Next Steps
 
-- **Awaiting user sign-off, then `git push origin main`.** All six stages
-  are committed locally and the walkthrough is done; the push is the only
-  step left. Vercel auto-deploys from `main`, so pushing IS deploying —
-  that's why it's gated on explicit approval rather than done
-  automatically.
-- Worth knowing before the push: nothing in the repo actually proves the
-  Vercel project is still connected (no `vercel.json`, no `.vercel/`, no
-  workflow file, no production URL recorded anywhere). The
+- **Pushed and live.** All 14 commits through entry 14 above
+  (`32b69f4`..`c355b79`) were pushed to `origin/main` after user sign-off
+  — Vercel auto-deploys from `main`, so that push was the deploy.
+  Entry 15 (Teams page toolbar) landed in a later session and has **not**
+  been pushed yet as of that entry — check `git status`/`git log
+  origin/main..HEAD` before assuming it's live.
+- Worth knowing before any future push: nothing in the repo actually
+  proves the Vercel project is still connected (no `vercel.json`, no
+  `.vercel/`, no workflow file, no production URL recorded anywhere). The
   push-to-deploy path comes from the repo owner's own confirmation. If no
   build fires after pushing, that assumption is where to start looking.
 - Deferred by decision, not forgotten: the OKLCH hue-tied neutral
