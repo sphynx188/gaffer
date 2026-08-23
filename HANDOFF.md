@@ -819,6 +819,11 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     at 08:00 with no 06:00 label, while the grid still extends upward to
     fit it. Build + lint clean, no new warnings.
 
+19. **Removed "Week of" from the Calendar's Week-view heading**
+    (`CalendarGrid.tsx`) — asked for at review. The title now just reads
+    the date range itself (`24 Aug – 30 Aug 2026`), matching Day/Month
+    view's headings, which were never prefixed with "Day"/"Month" either.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the

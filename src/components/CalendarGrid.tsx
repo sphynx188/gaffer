@@ -88,7 +88,7 @@ export function CalendarGrid() {
       ? formatDayLabel(anchorDate)
       : view === 'month'
         ? formatMonthLabel(anchorDate)
-        : `Week of ${formatWeekLabel(weekStart, weekEnd)}`
+        : formatWeekLabel(weekStart, weekEnd)
 
   const step = (direction: 1 | -1) => {
     setAnchorDate((d) => {
