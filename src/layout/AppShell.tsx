@@ -54,44 +54,23 @@ const NAV_ITEMS_TEAM: NavItem[] = [
   { to: '/tactics', label: 'Tactics', icon: Shield },
 ]
 
-const navLinkClass = (direction: 'col' | 'rail') => ({ isActive }: { isActive: boolean }) =>
-  (direction === 'rail'
-    ? 'flex h-11 w-11 items-center justify-center rounded-md transition-colors '
-    : 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ') +
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ' +
   (isActive ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
 
-// direction="col" is the mobile drawer's vertical list, icon + label;
-// direction="rail" is the desktop icon-only sidebar — same items and the
-// same active styling, but no visible label, so each link carries an
-// explicit aria-label (the visible text is what normally names it) on top
-// of the `title` that gives sighted users a hover tooltip. Rail targets are
-// 44px square rather than Studio's much tighter icon rail: Gaffer gets used
-// pitch-side on a touch screen, so the pattern is worth adopting at a
-// comfortable tap size, not at an all-day-desktop-tool density.
-function NavList({
-  items,
-  direction = 'col',
-  onNavigate,
-}: {
-  items: NavItem[]
-  direction?: 'col' | 'rail'
-  onNavigate?: () => void
-}) {
-  const isRail = direction === 'rail'
+// One icon+label list, shared by the mobile drawer and the desktop rail —
+// both are panels that slide in over the content, so they want the same
+// shape. An icon-only variant existed briefly while the rail was a narrow
+// strip; it went away once the rail started showing labels, since there's
+// no longer a second layout to support. Each link keeps `title` for the
+// hover tooltip, and needs no `aria-label` — the visible text names it.
+function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
   return (
-    <nav className={isRail ? 'flex flex-col items-center gap-1 py-3' : 'flex-1 space-y-1 px-3 py-4'}>
+    <nav className="flex-1 space-y-1 px-3 py-4">
       {items.map(({ to, label, icon: Icon, end }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          className={navLinkClass(direction)}
-          onClick={onNavigate}
-          title={label}
-          aria-label={isRail ? label : undefined}
-        >
-          <Icon className={isRail ? 'h-5 w-5 shrink-0' : 'h-4 w-4 shrink-0'} />
-          {!isRail && label}
+        <NavLink key={to} to={to} end={end} className={navLinkClass} onClick={onNavigate} title={label}>
+          <Icon className="h-4 w-4 shrink-0" />
+          {label}
         </NavLink>
       ))}
     </nav>
@@ -271,7 +250,7 @@ export function AppShell() {
           <div className="border-b border-line px-4 py-3">
             <TeamSwitcher />
           </div>
-          <NavList items={activeItems} direction="col" onNavigate={() => setNavOpen(false)} />
+          <NavList items={activeItems} onNavigate={() => setNavOpen(false)} />
           <SignOutFooter email={session?.user.email} />
         </div>
       </div>
@@ -296,10 +275,10 @@ export function AppShell() {
 
           Below `lg` none of this renders: phones and tablets get the
           hamburger drawer instead. */}
-      <div className="group pointer-events-none fixed bottom-0 left-0 top-14 z-20 hidden w-16 lg:block">
-        <div className="pointer-events-auto absolute inset-y-0 left-0 w-4" aria-hidden="true" />
-        <aside className="pointer-events-auto flex h-full w-16 -translate-x-full flex-col border-r border-line bg-panel transition-transform duration-200 ease-out group-focus-within:translate-x-0 group-hover:translate-x-0">
-          <NavList items={activeItems} direction="rail" />
+      <div className="group pointer-events-none fixed bottom-0 left-0 top-14 z-20 hidden w-56 lg:block">
+        <div className="pointer-events-auto absolute inset-y-0 left-0 w-10" aria-hidden="true" />
+        <aside className="pointer-events-auto flex h-full w-56 -translate-x-full flex-col border-r border-line bg-panel transition-transform duration-200 ease-out group-focus-within:translate-x-0 group-hover:translate-x-0">
+          <NavList items={activeItems} />
         </aside>
       </div>
 

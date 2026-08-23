@@ -440,6 +440,22 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    `display: none` and the hamburger is present — mobile and tablet get
    the drawer only, as asked.
 
+8. **Rail shows labels, and the hover target got bigger** — also asked
+   for at review, still nothing pushed. The rail went from a `w-16`
+   icon-only strip to a `w-56` panel with icon + text per item, and the
+   invisible reveal strip from `w-4` to `w-10` (an unmarked target has to
+   be forgiving enough to hit without aiming).
+   Adding labels collapsed the rail's shape into the drawer's, so
+   `NavList`'s `'col' | 'rail'` split and its `navLinkClass(direction)`
+   parameter were removed rather than left as a variant with one caller —
+   both surfaces now render the same list. The per-link `aria-label`
+   added when the rail was icon-only is gone too: visible text names the
+   link, so it was redundant.
+   **Verified live** at 1280, full cycle: hidden by default
+   (`translate: -100%`, `x === -224`) → hovering the 40px strip reveals
+   it (`x === 0`, 224 wide, labels rendered) → moving away hides it again
+   (`x === -224`). `<main>` stays at `padding-left: 0px` throughout.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -482,6 +498,18 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
   it, so Vite fell back to 5174 while the preview harness reported a
   different port again — read the actual server log for the real URL
   rather than trusting the reported one.
+- **Stale HMR CSS will lie to you about the rail.** Mid-session the rail
+  read as stuck open — `translate: 0%` with both `:hover` and
+  `:focus-within` false, which is impossible from the CSS as written. A
+  hard reload put it right, so it was Vite serving stale utility CSS
+  after the width classes changed, not a real bug. Hard-reload before
+  believing any odd rail state.
+- **Read the `translate` property, not `transform`.** Tailwind v4's
+  `-translate-x-full` compiles to the standalone `translate` property, so
+  `getComputedStyle(el).transform` returns `none` whether the rail is
+  open or shut and looks like the class isn't applying. Also allow ~600ms
+  before sampling: the 200ms transition means an immediate read after a
+  hover usually catches the old value and reads as a failure.
 - **Catching a loading state on localhost is harder than it sounds.** A
   fetch against remote Supabase finishes well inside a single tool
   round-trip, so screenshots kept landing on the loaded state. Adding a

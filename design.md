@@ -120,13 +120,15 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 
 ## Navigation shell (`AppShell.tsx`)
 
-- **Primary nav on `lg:`+ is an auto-hiding icon rail** — a fixed
-  `<aside>` below the sticky top bar (`w-16`, icon-only, 44px targets,
-  each link named by an explicit `aria-label` since there's no visible
-  text, plus the `title` tooltip on hover). It sits off-canvas
-  (`-translate-x-full`) and slides in when the cursor reaches an
-  invisible strip pinned to the left edge, overlaying the content rather
-  than displacing it — `<main>` has **no** left padding and never shifts.
+- **Primary nav on `lg:`+ is an auto-hiding rail** — a fixed `<aside>`
+  below the sticky top bar (`w-56`, icon + text label per item, sharing
+  `NavList` with the mobile drawer so both stay in step). It sits
+  off-canvas (`-translate-x-full`) and slides in when the cursor reaches
+  an invisible `w-10` strip pinned to the left edge, overlaying the
+  content rather than displacing it — `<main>` has **no** left padding
+  and never shifts. The strip is deliberately wider than it looks like it
+  needs to be: it's an invisible target, so it has to be forgiving enough
+  to hit without aiming.
   Below `lg` none of it renders; the hamburger drawer is the only nav.
   The reveal is pure CSS off a `group` — no React state. Two details are
   load-bearing rather than incidental: the wrapper is
