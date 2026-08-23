@@ -140,21 +140,36 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 ## Navigation shell (`AppShell.tsx`)
 
 - **Primary nav on `lg:`+ is an icon rail that expands in place on
-  hover** — a fixed `<aside>` below the sticky top bar, resting at `w-16`
-  (icon only) and growing to `w-56` (icon + label) on `:hover` or
-  `:focus-within`, via a plain `transition-[width]` — no React state, no
-  off-canvas transform. `<main>` carries a permanent `lg:pl-16` matching
-  the *resting* width; the expanded width overlays on top of content
-  rather than pushing it further, so nothing reflows when it grows.
+  hover** — a fixed `<aside>` below the sticky top bar, resting at `w-14`
+  (56px, icon only) and growing to `w-52` (208px, icon + label) on
+  `:hover`/`:focus-within` of a wrapping `.group`, via a plain
+  `transition-[width]` — no React state, no off-canvas transform.
+  `<main>` carries a permanent `lg:pl-16` (64px) — 8px *more* than the
+  rail's own resting width, deliberately, so there's a thin sliver of
+  plain background between the rail's border and where content starts
+  rather than the two sitting flush against each other (fixed
+  2026-08-24, see below).
   `NavList` is shared with the mobile drawer and always renders icon +
   label together; a `fadeLabel` prop (used only by the rail) wraps the
-  label in a span that's `opacity-0` until an ancestor `.group` — the
-  `<aside>` itself — is hovered/focus-within. This is necessary, not
-  decorative: at the resting 64px the label text still overflows past
-  the link's own box regardless of opacity (`overflow-hidden` on the
-  rail clips it either way), and without also fading it, the sliver that
-  falls *inside* the visible 64px shows as a stray fragment of the first
-  letter instead of a clean icon-only rail.
+  label in a span that's `opacity-0` until the group is hovered/
+  focus-within. This is necessary, not decorative: at the resting width
+  the label text still overflows past the link's own box regardless of
+  opacity (`overflow-hidden` on the rail clips it either way), and
+  without also fading it, the sliver that falls *inside* the visible
+  width shows as a stray fragment of the first letter instead of a clean
+  icon-only rail.
+  **A `.group` wrapper, not the `<aside>` itself, is the hover/focus
+  target** (changed 2026-08-24) — it also wraps a `pointer-events-none`
+  backdrop (`bg-black/50`, same treatment as the mobile drawer's own
+  backdrop) that fades in with the rail. At narrower desktop/tablet
+  widths the expanded rail doesn't always clear all of `<main>`, and
+  without a backdrop that read as a layout bug — a partial overlap with
+  clipped text sitting right behind the rail's edge, neither clearly
+  covered nor clearly clear. The backdrop makes the overlap read as a
+  deliberate flyout instead. Being `pointer-events-none` keeps it purely
+  visual: it never becomes the hover target itself, so it can't get out
+  of sync with the rail's own expand/collapse state, and clicks on
+  `<main>` pass straight through it once the rail collapses.
   Below `lg` none of it renders; the hamburger drawer is the only nav.
   **On the earlier "there is no permanent sidebar" decision**: this
   version genuinely does reserve a permanent 64px of screen width, which

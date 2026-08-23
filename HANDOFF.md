@@ -710,6 +710,41 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     ones. Not pushed yet — commit is local only, part of the same
     uncommitted-at-time-of-writing change as this entry.
 
+17. **Rail's hover-expand fixed to stop partially overlapping content**
+    (`AppShell.tsx`) — reported at review with a screenshot: at narrower
+    desktop/tablet widths the expanded 224px rail didn't clear all of
+    `<main>`, so the overlap read as a layout bug (clipped text, a
+    floating tooltip visible mid-screen) rather than an intentional
+    flyout. Asked to pick one of two fixes — cover content cleanly, or
+    don't expand far enough to block it — and chose the former, since it
+    preserves the hover-to-reveal-labels behavior rather than removing
+    it. Added a `pointer-events-none` backdrop (`bg-black/50`, matching
+    the mobile drawer's own backdrop) that fades in alongside the rail's
+    width transition. Both live inside a new wrapping `.group` div — the
+    hover/focus target moved from the `<aside>` itself to this wrapper,
+    since the backdrop is a sibling of the aside, not a descendant, and
+    needs to react to the same hover/focus state. The backdrop being
+    `pointer-events-none` is what keeps it from getting out of sync with
+    the rail: it can never itself become the hover target, so the group's
+    hover state is still driven purely by the rail, and clicks on
+    `<main>` pass straight through once the rail's collapsed.
+    Immediate follow-up in the same review: "still want the side rail to
+    be slightly thinner, so its not flush with main screen content" —
+    shrunk the rail one Tailwind step at both ends (resting `w-16`→`w-14`,
+    expanded `w-56`→`w-52`) while leaving `<main>`'s `lg:pl-16` reservation
+    unchanged, so there's now an 8px sliver of plain background between
+    the rail's resting border and where content starts, instead of the
+    two sitting flush against each other.
+    **Verified live**: at 1040px width (narrow enough that the old
+    version showed the reported bug), hovering the rail now dims the
+    rest of the page cleanly with no visible seam or clipped text behind
+    it; moving off collapses both the rail and the backdrop back in
+    sync; clicking a team card behind the collapsed rail still works
+    (backdrop doesn't swallow clicks once faded out). Checked in both
+    themes. Confirmed the mobile drawer is untouched — this only
+    changes the `lg:`+ desktop block. Build + lint clean, no new
+    warnings.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the

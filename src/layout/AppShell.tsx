@@ -304,25 +304,43 @@ export function AppShell() {
           outside document flow — growing its own `width` on hover doesn't
           reflow anything; it just paints over more of the content to its
           right, which is why `<main>` only needs to reserve space for the
-          narrow resting width (`lg:pl-16`), not the expanded one.
+          narrow resting width (`lg:pl-16`), not the expanded one. The rail
+          itself rests at `w-14` (56px), a touch narrower than that 64px
+          reservation, so there's a thin sliver of plain background between
+          the rail's own border and where `<main>`'s content starts —
+          deliberate, so the rail reads as its own floating strip rather
+          than a panel flush against the content next to it.
 
-          No JS state needed at all: `hover:w-56` expands it, and
-          `focus-within:w-56` does the same for a keyboard user tabbing
-          into a link — no `group` wrapper required since the hover/focus
-          target and the element being resized are the same node here.
+          At narrower desktop/tablet widths the expanded rail can cover a
+          large slice of `<main>` without covering all of it —
+          neither "out of the way" nor "clearly in front," just an ugly
+          partial overlap with clipped text behind it. Fixed the same way
+          the mobile drawer already handles the same problem: a `backdrop`
+          sibling dims whatever's behind the rail while it's expanded, so
+          the overlap reads as an intentional flyout rather than a layout
+          glitch. A wrapping `.group` div (not on the `<aside>` itself, like
+          before) covers both the rail and the backdrop so one hover/focus
+          state drives both — the backdrop is `pointer-events-none`, so it
+          never itself becomes the hover target; only the rail's own links
+          can, which keeps the two in sync with no JS state. The wrapper is
+          a plain `<div>`; both children are `fixed`, so it takes up no
+          space of its own and doesn't disturb layout.
 
           The labels don't need separate icon-only vs. icon+label markup
-          either. `NavList` always renders both; at the resting `w-16` the
+          either. `NavList` always renders both; at the resting `w-14` the
           label simply overflows past the link's own box and gets clipped
           by this element's `overflow-hidden` before it can spill into the
-          page, and at `w-56` there's room for it to render normally. One
-          `NavList`, two widths, CSS does the rest.
+          page, and at the expanded `w-52` there's room for it to render
+          normally. One `NavList`, two widths, CSS does the rest.
 
           Below `lg` none of this renders: phones and tablets get the
           hamburger drawer instead. */}
-      <aside className="group fixed bottom-0 left-0 top-14 z-20 hidden w-16 flex-col overflow-hidden border-r border-line bg-panel transition-[width] duration-200 ease-out hover:w-56 focus-within:w-56 lg:flex">
-        <NavList items={activeItems} fadeLabel />
-      </aside>
+      <div className="group hidden lg:block">
+        <aside className="fixed bottom-0 left-0 top-14 z-20 flex w-14 flex-col overflow-hidden border-r border-line bg-panel transition-[width] duration-200 ease-out group-hover:w-52 group-focus-within:w-52">
+          <NavList items={activeItems} fadeLabel />
+        </aside>
+        <div className="pointer-events-none fixed bottom-0 left-14 right-0 top-14 z-10 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100" />
+      </div>
 
       <main className="lg:pl-16">
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
