@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import type { Availability, AvailabilityStatus, Player, SessionWithRelations } from '../store'
 import { Badge } from './ui/Badge'
 import { availabilityTone } from './ui/badgeTones'
+import { Dropdown } from './ui/Dropdown'
 
 const STATUS_OPTIONS: AvailabilityStatus[] = ['unconfirmed', 'present', 'injured', 'away']
 
@@ -126,20 +127,19 @@ function AvailabilityRow({
         </div>
         <div className="w-32">
           <label className="block text-xs font-medium text-ink-muted">Status</label>
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as AvailabilityStatus)
-              setDirty(true)
-            }}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
+          <div className="mt-1">
+            <Dropdown
+              value={status}
+              onChange={(value) => {
+                setStatus(value as AvailabilityStatus)
+                setDirty(true)
+              }}
+              options={STATUS_OPTIONS.map((s) => ({ value: s, label: STATUS_LABEL[s] }))}
+              searchable={false}
+              ariaLabel="Status"
+              triggerClassName="w-full"
+            />
+          </div>
         </div>
         <div className="min-w-32 flex-1">
           <label className="block text-xs font-medium text-ink-muted">Reason (optional)</label>

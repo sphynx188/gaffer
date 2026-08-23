@@ -5,6 +5,7 @@ import type { Player, PlayerPosition, Tactic } from '../../store'
 import { PitchCanvas } from '../design/PitchCanvas'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
+import { Dropdown } from '../ui/Dropdown'
 
 // Tactics are always a full pitch, portrait — unlike drills, there's no
 // size/orientation picker here (the roadmap fixes the Tactic Creator to
@@ -319,18 +320,14 @@ export function TacticBoard() {
                 </label>
                 {saving && <span className="text-xs text-ink-faint">Saving…</span>}
               </div>
-              <select
+              <Dropdown
                 id="tactic-picker"
                 value={selectedTacticId ?? ''}
-                onChange={(e) => setSelectedTacticId(e.target.value)}
-                className="w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-              >
-                {tactics.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedTacticId}
+                options={tactics.map((t) => ({ value: t.id, label: t.name }))}
+                ariaLabel="Tactic"
+                triggerClassName="w-full"
+              />
             </div>
           )}
 

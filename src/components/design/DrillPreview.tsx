@@ -7,6 +7,7 @@ import { PitchCanvas } from './PitchCanvas'
 import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, WITCHES_HAT } from './pitchTheme'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
+import { Dropdown } from '../ui/Dropdown'
 
 // Player A/B tool-icon colors — the same navy/red pair PitchCanvas assigns
 // to whichever two team labels appear first in a phase (pitchTheme.ts's
@@ -483,18 +484,14 @@ export function DrillPreview() {
                 </label>
                 {saving && <span className="text-xs text-ink-faint">Saving…</span>}
               </div>
-              <select
+              <Dropdown
                 id="drill-preview-picker"
                 value={selectedDrillId ?? ''}
-                onChange={(e) => handleSelectDrill(e.target.value)}
-                className="w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-              >
-                {drills.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({pitchLabel(d.pitch_size, d.orientation)})
-                  </option>
-                ))}
-              </select>
+                onChange={handleSelectDrill}
+                options={drills.map((d) => ({ value: d.id, label: `${d.name} (${pitchLabel(d.pitch_size, d.orientation)})` }))}
+                ariaLabel="Drill"
+                triggerClassName="w-56"
+              />
             </div>
           )}
 
@@ -882,35 +879,31 @@ function CreateDrillForm({
         <label htmlFor="new-drill-size" className="block text-xs font-medium text-ink-muted">
           Pitch size
         </label>
-        <select
-          id="new-drill-size"
-          value={pitchSize}
-          onChange={(e) => setPitchSize(e.target.value as PitchSize)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-        >
-          {pitchSizeOptions.map((s) => (
-            <option key={s} value={s}>
-              {PITCH_SIZE_LABELS[s] ?? s}
-            </option>
-          ))}
-        </select>
+        <div className="mt-1">
+          <Dropdown
+            id="new-drill-size"
+            value={pitchSize}
+            onChange={(value) => setPitchSize(value as PitchSize)}
+            options={pitchSizeOptions.map((s) => ({ value: s, label: PITCH_SIZE_LABELS[s] ?? s }))}
+            searchable={false}
+            ariaLabel="Pitch size"
+          />
+        </div>
       </div>
       <div>
         <label htmlFor="new-drill-orientation" className="block text-xs font-medium text-ink-muted">
           Orientation
         </label>
-        <select
-          id="new-drill-orientation"
-          value={orientation}
-          onChange={(e) => setOrientation(e.target.value as PitchOrientation)}
-          className="mt-1 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-        >
-          {pitchOrientationOptions.map((o) => (
-            <option key={o} value={o}>
-              {PITCH_ORIENTATION_LABELS[o] ?? o}
-            </option>
-          ))}
-        </select>
+        <div className="mt-1">
+          <Dropdown
+            id="new-drill-orientation"
+            value={orientation}
+            onChange={(value) => setOrientation(value as PitchOrientation)}
+            options={pitchOrientationOptions.map((o) => ({ value: o, label: PITCH_ORIENTATION_LABELS[o] ?? o }))}
+            searchable={false}
+            ariaLabel="Orientation"
+          />
+        </div>
       </div>
       <button
         type="submit"

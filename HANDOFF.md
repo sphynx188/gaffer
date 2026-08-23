@@ -665,6 +665,51 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     hamburger drawer unaffected — this page has no rail) and in both
     themes. Build and lint clean, no new warnings.
 
+16. **Every dropdown in the app converted to one shared popover
+    component** (`src/components/ui/Dropdown.tsx`, new) — asked for at
+    review after a Vercel/Studio-style org/project-switcher screenshot:
+    make every dropdown look like the team switcher's popover (trigger
+    button, optional search, checkmarked option list, optional footer
+    action), not just the team switcher itself. `Dropdown` generalizes
+    what used to be `TeamSwitcher`'s bespoke `CompactTeamMenu` — same
+    dismissal behavior (click-outside/Escape via a document
+    `pointerdown` listener), same visual language — into a reusable
+    `{value, onChange, options, placeholder, searchable, footer,
+    ariaLabel}` component. Every native `<select>` in the app now uses
+    it: `TeamSwitcher` (both the compact popover and the drawer's 2+-team
+    case), `TeamManagement`'s sort control (entry 15), the drill pickers
+    in `SessionDrillsPanel` and `DrillPreview`, `DrillPreview`'s pitch
+    size/orientation pickers, `AvailabilityPanel`'s status picker, and
+    `TacticBoard`'s tactic picker. Zero `<select>` elements remain
+    anywhere in `src/` (`grep -rn "<select" src` returns nothing but
+    comments referencing the old pattern).
+    The search box is conditional, not universal: it only renders above
+    `SEARCH_THRESHOLD` (6) options unless a caller forces `searchable`
+    either way. A 3-item status or pitch-size picker has nothing worth
+    filtering and a search box there is just friction — but the team
+    switcher forces `searchable` on regardless of team count, to match
+    the reference screenshot exactly even at 0/1 teams.
+    One lint fix needed along the way: the first draft reset the search
+    query inside the same `useEffect` that wires up the dismissal
+    listeners (`setQuery('')` on open), which oxlint's
+    `react(set-state-in-effect)` flagged as a new warning — moved the
+    reset into the trigger's own `onClick` instead, so it only fires on
+    the actual user action that opens the popover rather than as a
+    render-triggered side effect.
+    `design.md`'s Components section documents `Dropdown` as the
+    standing convention — any future single-choice control should reach
+    for it rather than a plain `<select>` or another bespoke popover.
+    **Verified live**: exercised every converted picker in the browser
+    (Teams sort, Dashboard/drawer team switcher — including the
+    always-on search box and "+ New team" footer, Design's drill/pitch
+    size/orientation pickers, Tactics' tactic picker, an availability
+    status picker, and the session drill-attach picker with 8 drills to
+    confirm the search box appears once past the threshold and stays
+    hidden on short lists). Checked both themes; confirmed
+    build + lint clean with no new warnings beyond the two pre-existing
+    ones. Not pushed yet — commit is local only, part of the same
+    uncommitted-at-time-of-writing change as this entry.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the

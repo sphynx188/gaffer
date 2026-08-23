@@ -117,6 +117,25 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
   drills) — not a generic icon+number card.
 - **`Badge`** (`ok`/`warn`/`bad`/`neutral` tone pills) — unchanged shape,
   colors inherit from the tokens above automatically.
+- **`Dropdown`** — the one dropdown pattern for the whole app (2026-08-24,
+  after a Supabase Studio project-switcher reference screenshot). A
+  trigger button (label + `ChevronsUpDown`) opens a popover: an optional
+  search box, a scrollable option list with a `Check` on the selected
+  row, an optional footer action. Native `<select>` is never used
+  anywhere in the app now — it can't be given this look at all, since no
+  browser lets you style a `<select>`'s own popup. Every previous
+  `<select>` (team switcher, Teams page sort, drill/tactic/pitch-size/
+  orientation/availability-status pickers) has been converted; any new
+  single-choice control should reach for `Dropdown` rather than a plain
+  `<select>` or a bespoke popover.
+  The search box only shows above a small option-count threshold (6, see
+  `SEARCH_THRESHOLD` in the component) unless a caller forces it either
+  way via the `searchable` prop — for a 3-item status picker a search box
+  is pure friction with nothing to filter, but the team switcher forces
+  it on regardless of team count to match the reference exactly. The
+  trigger is a plain `<button>`, so it gets the global focus ring for
+  free (see Focus states below) rather than carrying its own focus
+  classes — don't add `focus:ring-2` or similar to a `Dropdown` trigger.
 
 ## Navigation shell (`AppShell.tsx`)
 

@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import type { Drill, PitchOrientation, PitchSize, SessionDrill, SessionWithRelations } from '../store'
 import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../store'
 import { NumberChip } from './ui/NumberChip'
+import { Dropdown } from './ui/Dropdown'
 
 interface AttachmentFormValues {
   planned_duration_minutes: number | null
@@ -123,20 +124,16 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
       <form onSubmit={handleAttach} className="mt-3 flex flex-wrap items-end gap-2 border-t border-line pt-3">
         <div className="min-w-40 flex-1">
           <label className="block text-xs font-medium text-ink-muted">Drill</label>
-          <select
-            value={selectedDrillId}
-            onChange={(e) => setSelectedDrillId(e.target.value)}
-            className="mt-1 w-full rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-          >
-            <option value="">
-              {drills.length === 0 ? 'No drills yet — build one in Design above' : 'Select a drill…'}
-            </option>
-            {drills.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name} ({pitchLabel(d.pitch_size, d.orientation)})
-              </option>
-            ))}
-          </select>
+          <div className="mt-1">
+            <Dropdown
+              value={selectedDrillId}
+              onChange={setSelectedDrillId}
+              options={drills.map((d) => ({ value: d.id, label: `${d.name} (${pitchLabel(d.pitch_size, d.orientation)})` }))}
+              placeholder={drills.length === 0 ? 'No drills yet — build one in Design above' : 'Select a drill…'}
+              ariaLabel="Drill"
+              triggerClassName="w-full"
+            />
+          </div>
         </div>
         <div className="w-28">
           <label className="block text-xs font-medium text-ink-muted">Minutes</label>

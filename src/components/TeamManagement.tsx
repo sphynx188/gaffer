@@ -7,6 +7,7 @@ import { Card } from './ui/Card'
 import { Badge } from './ui/Badge'
 import { Skeleton } from './ui/Skeleton'
 import { EmptyState } from './ui/EmptyState'
+import { Dropdown } from './ui/Dropdown'
 import { useTeamSummaries, type TeamSummary } from '../hooks/useTeamSummaries'
 
 // Phase 1.1 — Team management (US-3, gaffer_mvp_build_steps.md). Real
@@ -109,21 +110,17 @@ export function TeamManagement() {
           />
         </div>
 
-        <label className="sr-only" htmlFor="team-sort">
-          Sort teams by
-        </label>
-        <select
-          id="team-sort"
+        <Dropdown
           value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
-          className="rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-        >
-          {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-            <option key={key} value={key}>
-              Sort: {SORT_LABELS[key]}
-            </option>
-          ))}
-        </select>
+          onChange={(key) => setSortKey(key as SortKey)}
+          options={(Object.keys(SORT_LABELS) as SortKey[]).map((key) => ({
+            value: key,
+            label: `Sort: ${SORT_LABELS[key]}`,
+          }))}
+          searchable={false}
+          ariaLabel="Sort teams by"
+          triggerClassName="w-auto"
+        />
 
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center rounded-md border border-line bg-panel-raised p-0.5">
