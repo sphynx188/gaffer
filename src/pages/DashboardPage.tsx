@@ -142,7 +142,7 @@ export function DashboardPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((team) => (
             <button key={team.id} type="button" onClick={() => handlePickTeam(team.id)} className="text-left">
-              <Card className="transition-colors hover:border-accent/40 hover:bg-accent/5">
+              <Card className="hover:border-accent/40 hover:bg-accent/5">
                 <p className="text-base font-semibold text-ink">{team.name}</p>
               </Card>
             </button>

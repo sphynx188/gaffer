@@ -117,7 +117,7 @@ export function TeamOverviewPage() {
 function StatCard({ label, value, to }: { label: string; value: number; to: string }) {
   return (
     <Link to={to}>
-      <Card className="p-5 transition-colors hover:border-accent/40 hover:bg-accent/5">
+      <Card className="p-5 hover:border-accent/40 hover:bg-accent/5">
         <NumberBadge value={value} label={label} />
       </Card>
     </Link>

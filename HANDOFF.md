@@ -491,6 +491,30 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    actually holds); the mechanism itself is standard, well-established
    CSS behavior once those two facts are true.
 
+10. **The one card that still snapped** — reported at review: the "Test
+    U12 Reds" team card on the Coach Dashboard didn't smooth out with
+    everything else. Cause was the interaction between two things that
+    were each individually correct: this `Card` (and `StatCard` on
+    `TeamOverviewPage`, same shape) carries its own `transition-colors`
+    for its hover tint, and Tailwind utilities in `@layer utilities`
+    completely win over the `@layer base` rule from the previous fix —
+    not merge with it. `transition-colors`' property list doesn't include
+    `box-shadow`, so on these two cards specifically, `panel-edge`'s
+    theme-varying highlight (`inset 0 1px 0 rgba(255,255,255,.05)` dark
+    vs `rgba(0,0,0,.04)` light) was left out of any transition and kept
+    snapping while the border and background around it faded.
+    Fix: removed `transition-colors` from both — it was redundant, since
+    `@layer base` already covers `background-color`/`border-color`/
+    `color` at the same 0.15s, and additionally covers `box-shadow`.
+    One small, accepted trade: Tailwind's default easing is
+    `cubic-bezier(0.4, 0, 0.2, 1)`, `@layer base`'s is
+    `cubic-bezier(0, 0, 0.2, 1)` — close enough at 150ms to be
+    imperceptible, not worth keeping two systems over.
+    **Verified live**: computed `transition-property` on the Dashboard
+    card now includes `box-shadow`; toggling themes updates its
+    `panel-edge` shadow value correctly in both directions; hover classes
+    confirmed still present and unaffected.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
@@ -555,6 +579,13 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
   component's own condition (`isInitialSessionLoad = true`), screenshotting,
   then reverting. If you need to see a loading state again, force the
   branch in the component rather than trying to slow the network.
+- **A `setTimeout` inside the same `javascript_exec` call that triggers
+  the click is not a reliable way to sample post-transition state** — the
+  tool's own round-trip latency can exceed the timeout, so the callback
+  fires but the *result* gets read stale relative to real wall-clock time.
+  Splitting into two separate calls (click, then a fresh query after)
+  reads the settled value correctly. Cost about ten minutes of chasing a
+  "still broken" result that wasn't real.
 - **`CLAUDE.md`'s known-lint-warnings note is incomplete.** It names only
   `react(preserve-manual-memoization)` on
   `SessionPlanner.tsx`/`AttendancePage.tsx`, but the untouched tree also
