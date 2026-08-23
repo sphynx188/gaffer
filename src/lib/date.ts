@@ -80,3 +80,12 @@ export function timeToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
 }
+
+// Inverse of timeToMinutes — used to generate the Calendar grid's y-axis
+// labels at fixed clock marks (see CalendarWeekView/DayView) rather than
+// deriving them from whatever sessions happen to exist.
+export function minutesToTime(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}

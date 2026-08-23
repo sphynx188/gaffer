@@ -745,6 +745,80 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     changes the `lg:`+ desktop block. Build + lint clean, no new
     warnings.
 
+18. **Calendar's time-axis scale was never actually fixed — it silently
+    shrank to fit whatever sessions existed** (`CalendarWeekView.tsx`,
+    `CalendarDayView.tsx`) — reported at review: "the scale is off when
+    sessions are inputted, should be consistent no matter what."
+    Root cause: both views compute `pxPerMin = GRID_HEIGHT_PX /
+    (rangeEndMin - rangeStartMin)`, where the range grows to cover any
+    session outside the default 08:00–20:00 window (an early or late
+    start), but `GRID_HEIGHT_PX` stays a fixed 640px. So a single 06:00
+    or 21:00 session compressed *every* session that week — a 60-minute
+    session could render taller or shorter depending on what else was on
+    the calendar, in either view, independently of each other (a session
+    could even look a different height in Day view vs. Week view for the
+    same reason). Fixed by inverting which side is fixed: `PX_PER_MIN`
+    is now a module-level constant, derived once from the same default
+    08:00–20:00/640px baseline and never recomputed from session data.
+    The grid's rendered height (`gridHeightPx`) is now the derived value
+    instead — `(rangeEndMin - rangeStartMin) * PX_PER_MIN` — so an
+    outlier session makes the grid taller (more to scroll) rather than
+    denser. Both views use the identical constant (same `GRID_HEIGHT_PX`
+    and default-range values), so a session now renders at the same
+    height in Day view, Week view, and regardless of what else is
+    scheduled that week. `layoutDayColumn` (`calendarLayout.ts`) itself
+    needed no change — it already just took `pxPerMin` as a parameter,
+    it's the two views that were computing that parameter wrong.
+    **Verified live**: created a test session at 06:00 (a Supabase test
+    row, deleted after — see below) alongside the existing 18:00/90min
+    and 17:30/60min sessions; confirmed those two rendered at pixel-
+    identical height and position before and after adding the outlier,
+    and that the grid grew taller (a visible 06:00 slot at the top) with
+    a scrollbar rather than compressing anything. Cleaned up the test
+    row directly via the Supabase MCP server (`execute_sql`) since there
+    is no delete-session affordance in the UI at all — worth knowing for
+    next time a session needs removing during testing. Build + lint
+    clean, no new warnings.
+
+    **Follow-up in the same review — this wasn't actually the main
+    complaint.** Clarified: "even when there is no session there are
+    still times listed on the y axis — this stays the same no matter
+    what." The real bug was the y-axis *label set*, not (only) pixel
+    height: both views generated labels from `presentTimes` — the exact
+    start times of whatever sessions existed — falling back to a fixed
+    `['08:00','12:00','16:00','20:00']` only when there were none. So the
+    axis showed neat round marks on an empty day/week and a scattered set
+    of exact session start times (17:30, 18:00, ...) the moment anything
+    was scheduled — a completely different-looking axis depending on
+    whether there was data, which is what "the scale is off when sessions
+    are inputted" actually meant.
+    Fixed by generating labels the same way regardless of data: a fixed
+    2-hour interval starting at 08:00 (`08:00, 10:00, 12:00, ...`,
+    `LABEL_INTERVAL_MIN = 2 * 60`, both views), stepping forward only as
+    far as the range actually extends. An early outlier session still
+    grows the grid upward (per the fix above), it just doesn't get its
+    own label — the label sequence always starts at 08:00 regardless of
+    how early the range now starts. Added `minutesToTime` to `date.ts`
+    (the inverse of the existing `timeToMinutes`) so labels can be
+    generated as plain minute offsets and formatted at render time,
+    instead of manipulating time strings.
+    Also fixed in the same pass, same root complaint: `CalendarDayView`
+    had an early `if (calendarSessions.length === 0) return <EmptyState
+    .../>` *before* rendering the grid at all — so an empty day showed no
+    axis whatsoever, the most literal violation of "there are still times
+    listed." Moved the empty check inside the grid: the time-axis column
+    and the (now dynamically sized) grid always render, with the
+    `EmptyState` absolutely centered over the content column only when
+    there's nothing scheduled. `CalendarWeekView` never had this problem
+    — its axis is shared across the whole week, not per-day, so an empty
+    day column already just sat there blank alongside the axis.
+    **Verified live**: Day view on an empty day now shows the full
+    08:00→18:00+ axis with the "No sessions scheduled" message centered
+    over it, in both themes. Re-added a temporary 06:00 Supabase test
+    session (deleted after) and confirmed the label sequence still starts
+    at 08:00 with no 06:00 label, while the grid still extends upward to
+    fit it. Build + lint clean, no new warnings.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
