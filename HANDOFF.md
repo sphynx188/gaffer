@@ -456,6 +456,41 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    it (`x === 0`, 224 wide, labels rendered) → moving away hides it again
    (`x === -224`). `<main>` stays at `padding-left: 0px` throughout.
 
+9. **Theme toggle no longer flickers** — reported at review. Traced it
+   first, rather than guessing: instrumented the toggle with a
+   `MutationObserver` on `data-theme` and polled `body`'s computed
+   background across the click. Result was a single, clean attribute
+   write with no thrashing, no delayed re-render, no StrictMode
+   double-toggle — the toggle logic itself was never the bug. The real
+   cause was `index.css` having zero `transition` on any color property
+   anywhere, so every `--color-*` token (body, panels, borders, text, the
+   `panel-edge` highlight) swapped in one synchronous instant. That
+   all-at-once hard cut is what read as a flicker.
+   Fix is a `@layer base` rule transitioning
+   `background-color`/`border-color`/`color`/`box-shadow` at 0.15s on
+   `*, ::before, ::after`, plus an unlayered `prefers-reduced-motion:
+   reduce` override (unlayered so nothing can out-rank it, same reasoning
+   as the forced-colors fallback in Stage 4). `@layer base` is the reason
+   this stays surgical rather than a blunt `*` rule: Tailwind's own
+   `transition-colors` utilities live in `@layer utilities`, which always
+   wins over `base` regardless of source order, so anything that already
+   declares its own transition (every button, every nav link) keeps its
+   own property list and timing untouched — verified directly on a rail
+   link, whose computed `transition-property` still reads Tailwind's full
+   list (`color, background-color, border-color, outline-color,
+   text-decoration-color, fill, stroke, --tw-gradient-*`) rather than
+   mine. Only elements with no transition utility at all — the surfaces
+   that were actually snapping — pick up the new one.
+   **Not verified by literal pixel-sampling mid-animation**: polling
+   `getComputedStyle` during the transition only ever caught the
+   already-settled value, since tool round-trip latency (~700ms+ per
+   call) is far coarser than the 150ms transition window. What's
+   verified instead: the transition-property/duration compute correctly
+   on both a plain div (picks up the new rule) and a rail nav link
+   (correctly keeps Tailwind's own, confirming the layer precedence
+   actually holds); the mechanism itself is standard, well-established
+   CSS behavior once those two facts are true.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the

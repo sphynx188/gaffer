@@ -84,6 +84,37 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Toggling `data-theme` swaps every --color-* token at once, and with no
+   transition anywhere every surface on the page — body, panels, borders,
+   text, the panel-edge highlight — recolors in the same synchronous
+   instant. That hard, all-at-once cut is what reads as a flicker rather
+   than a switch. `@layer base` (not unlayered) is what keeps this
+   surgical: Tailwind's own `transition-colors`/`duration-*` utilities live
+   in `@layer utilities`, which always wins over `base` regardless of
+   source order, so any element already carrying its own transition (the
+   focus ring above, every button's hover fade) keeps its own timing
+   untouched — only elements with no transition utility at all (the
+   surfaces actually doing the instant theme snap) pick this up. */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    transition:
+      background-color 0.15s cubic-bezier(0, 0, 0.2, 1),
+      border-color 0.15s cubic-bezier(0, 0, 0.2, 1),
+      color 0.15s cubic-bezier(0, 0, 0.2, 1),
+      box-shadow 0.15s cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition: none !important;
+  }
+}
+
 /* Keyboard focus, app-wide — every plain button/link (Edit, Cancel,
    Delete, nav items, etc.) that doesn't set its own focus style otherwise
    falls back to the browser's default blue ring, which clashes with the
