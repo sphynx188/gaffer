@@ -574,6 +574,50 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     `TeamSwitcher`'s own 2+-team `<select>` branch (unchanged code,
     already relied on before this move) wasn't exercised live here.
 
+13. **Team selector redesigned as a real trigger+popover** — asked for at
+    review with a reference screenshot of a Vercel-style project switcher
+    (bordered pill trigger, opens to a searchless list with a checkmark
+    on the active item and a "+ New" action). `TeamSwitcher`'s `compact`
+    mode (`src/components/TeamSwitcher.tsx`) gained a new
+    `CompactTeamMenu` — a real popover with its own `open` state,
+    dismissed on outside click (`pointerdown` on `document`, checking
+    `containerRef.current.contains`) or Escape, rather than a styled
+    native `<select>`. No existing click-outside pattern existed
+    anywhere else in the codebase to reuse; this one is small and
+    self-contained rather than a new shared utility, since nothing else
+    needs it yet.
+    Skipped the reference's search box on purpose — Gaffer's `Team`
+    table has no realistic path to the list sizes that make searching a
+    project switcher worthwhile, and adding it would be exactly the kind
+    of unrequested "flexibility" the project's own guidelines call out.
+    **Then asked to go further**: the popover should be available at 0
+    and 1 team too, not just 2+. Originally `compact` short-circuited to
+    `null` (0 teams) or plain unclickable text (1 team) before ever
+    reaching the multi-team branch — moved the `compact` check to the
+    very top of `TeamSwitcher` so `CompactTeamMenu` now owns every team
+    count itself: the trigger falls back to "Select team" text when
+    nothing is selected (0 teams — `teams.find(...) ?? teams[0]` both
+    sides undefined), and the panel body swaps between the real list and
+    a plain "No teams yet" line depending on whether `teams.length > 0`.
+    The non-compact drawer block was deliberately left branching on
+    count, unchanged — a bare `<select>` genuinely has nothing useful to
+    render for 0 or 1 option, unlike a popover that can always offer
+    "+ New team".
+    **Verified live** against the real 1-team test account: clicking the
+    header pill opens a panel showing "Test U12 Reds" with a checkmark
+    plus "+ New team" below it (previously just inert text); a click
+    outside the panel closes it (`role="listbox"` element gone from the
+    DOM afterward); Escape closes it the same way; clicking "+ New team"
+    navigates to `/teams` and closes the panel in the same action; the
+    mobile drawer's own `Team` block still renders as plain text,
+    confirming the non-compact path is untouched. The 0-team empty state
+    (`teams.length === 0` inside the panel) was verified by reading the
+    ternary rather than forcing it live — no safe way to zero out the
+    real test account's one team just to look at it, and the branch
+    itself is a one-line conditional with nothing left to go wrong once
+    the surrounding trigger/panel mechanics were already confirmed
+    working against real data.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the

@@ -158,7 +158,15 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 - **Team selector is top-left, as a breadcrumb off "Gaffer"** (desktop
   only, team-scoped routes) — `Gaffer / <team>`, `TeamSwitcher compact`
   after a plain `/` separator glyph. This is the one place a team name
-  appears in the header. **This is the second reversal of the same
+  appears in the header. `compact` is a real trigger+popover (a bordered
+  pill with the current team name and a `ChevronsUpDown` icon, opening a
+  listbox with a checkmark on the active team and a "+ New team" link to
+  `/teams`) rather than a native `<select>`, and — unlike the drawer's
+  own non-compact block, which still branches on team count since a bare
+  `<select>` has nothing useful to show for 0 or 1 option — it renders
+  the same popover at every team count, 0 and 1 included, so a coach
+  without a second team yet still gets a real, discoverable "+ New team"
+  affordance instead of unclickable text or nothing at all. **This is the second reversal of the same
   decision, not the first**: it started top-left, moved to top-right (a
   `TeamSwitcher compact` next to the theme toggle) specifically because
   top-left was competing with "Gaffer" for the same "where am I" role,
