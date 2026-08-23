@@ -155,10 +155,22 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
   Dashboard from any team-scoped page (it links to `/`). Don't swap it
   for anything else on team-scoped routes; that was tried (a team-name +
   back-chevron swap) and reversed.
-- **Team name is top-right** (desktop only, team-scoped routes) — a
-  `TeamSwitcher compact`, next to the theme toggle. This is the one place
-  a team name appears in the header. (A version of this put it top-left
-  next to "Gaffer" instead — also reversed; top-right is current.)
+- **Team selector is top-left, as a breadcrumb off "Gaffer"** (desktop
+  only, team-scoped routes) — `Gaffer / <team>`, `TeamSwitcher compact`
+  after a plain `/` separator glyph. This is the one place a team name
+  appears in the header. **This is the second reversal of the same
+  decision, not the first**: it started top-left, moved to top-right (a
+  `TeamSwitcher compact` next to the theme toggle) specifically because
+  top-left was competing with "Gaffer" for the same "where am I" role,
+  then moved back to top-left on 2026-08-23 at explicit instruction, with
+  a concrete visual reference (a Vercel-style org-switcher breadcrumb) to
+  build from. The competing-anchors concern that motivated the first
+  move is resolved here by the `/` separator itself — visually it reads
+  as *brand, then current scope*, the same breadcrumb grammar the
+  reference uses, rather than two anchors both claiming the same spot.
+  If this starts feeling cramped or ambiguous again, that original
+  concern is why, and top-right is the fallback that's already proven
+  to work.
 - **Theme toggle** is always visible (mobile and desktop), sitting
   leftmost in the top-right cluster. **Sign-out** is desktop-only in that
   same cluster — mobile gets it in the drawer footer instead, since the

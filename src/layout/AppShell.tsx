@@ -213,16 +213,30 @@ export function AppShell() {
         <BackButton />
         <BrandBlock />
 
-        {/* Right cluster — team name (desktop only, team-scoped routes),
-            theme toggle (always visible), sign-out (desktop only — mobile
-            gets it in the drawer footer instead), hamburger (mobile
-            only). */}
-        <div className="ml-auto flex items-center gap-3">
-          {inTeamContext && (
-            <div className="hidden max-w-40 lg:block">
+        {/* Breadcrumb-style team selector — desktop only, team-scoped
+            routes only, same condition the top-right placement used
+            before this moved. This is a deliberate reversal of an
+            earlier decision (see design.md's Navigation shell section):
+            a version of this exact placement was tried, then walked back
+            in favor of top-right, specifically because it was competing
+            with "Gaffer" for the same "where am I" role. Moved back here
+            now at explicit instruction, with a concrete visual reference
+            (an org-switcher breadcrumb) to build from. */}
+        {inTeamContext && (
+          <div className="hidden items-center gap-2 lg:flex">
+            <span className="text-line" aria-hidden="true">
+              /
+            </span>
+            <div className="max-w-40">
               <TeamSwitcher compact />
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Right cluster — theme toggle (always visible), sign-out
+            (desktop only — mobile gets it in the drawer footer instead),
+            hamburger (mobile only). */}
+        <div className="ml-auto flex items-center gap-3">
           <ThemeToggleButton />
           <button
             type="button"

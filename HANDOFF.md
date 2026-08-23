@@ -551,6 +551,29 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     mobile drawer's own labels (a separate, non-faded `NavList` call)
     unaffected — confirmed they still render plainly.
 
+12. **Team selector moved from top-right to top-left, as a breadcrumb off
+    "Gaffer"** — asked for at review, with a reference screenshot of a
+    Vercel-style org-switcher breadcrumb (`logo / org name ⌄`). This is
+    the **second** reversal of the same decision: `design.md` already
+    recorded a prior top-left attempt that was walked back to top-right
+    specifically because it competed with "Gaffer" for the same
+    "where am I" role. Flagged that history before making the change,
+    then proceeded on explicit instruction with a concrete reference —
+    same pattern as the sidebar-rail and focus-ring overrides earlier
+    this session.
+    No new component: `TeamSwitcher compact` (unchanged) now renders
+    after a plain `/` separator glyph directly following `BrandBlock`,
+    instead of in the right-hand cluster next to the theme toggle. Same
+    `inTeamContext` gate as before (team-scoped routes only) and same
+    `lg:`-only visibility — mobile still gets team switching via the
+    drawer's own full `TeamSwitcher`, untouched.
+    **Verified live**: on a team-scoped desktop route, header reads
+    "Gaffer / Test U12 Reds"; on a coach-level route (`/`), just "Gaffer"
+    with nothing after it; at 375px, neither the separator nor the
+    switcher render at all. Only one team exists on the test account, so
+    `TeamSwitcher`'s own 2+-team `<select>` branch (unchanged code,
+    already relied on before this move) wasn't exercised live here.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
