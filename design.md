@@ -120,18 +120,29 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
 
 ## Navigation shell (`AppShell.tsx`)
 
-- **Primary nav on `lg:`+ is a persistent icon rail** — a fixed `<aside>`
-  pinned below the sticky top bar (`w-16`, icon-only, 44px tap targets,
+- **Primary nav on `lg:`+ is an auto-hiding icon rail** — a fixed
+  `<aside>` below the sticky top bar (`w-16`, icon-only, 44px targets,
   each link named by an explicit `aria-label` since there's no visible
-  text, plus the `title` tooltip sighted users get on hover). Content is
-  offset by a matching `lg:pl-16`. Below `lg` the rail isn't rendered at
-  all and the hamburger drawer remains the only nav — unchanged.
-  **This reverses the earlier "there is no permanent sidebar" decision**,
-  which put a horizontal tab strip in the top bar specifically so nothing
-  reserved screen width. Reversed 2026-08-22, adapted from a Supabase
-  Studio design brief at explicit instruction — recorded rather than
-  silently rewritten, since the previous choice was deliberate too. Note
-  the rail adopts the *pattern* but not Studio's much tighter density:
+  text, plus the `title` tooltip on hover). It sits off-canvas
+  (`-translate-x-full`) and slides in when the cursor reaches an
+  invisible strip pinned to the left edge, overlaying the content rather
+  than displacing it — `<main>` has **no** left padding and never shifts.
+  Below `lg` none of it renders; the hamburger drawer is the only nav.
+  The reveal is pure CSS off a `group` — no React state. Two details are
+  load-bearing rather than incidental: the wrapper is
+  `pointer-events-none` (with the strip and rail re-enabling it for
+  themselves) so the hidden rail's column doesn't swallow clicks meant
+  for content underneath; and `group-focus-within` sits alongside
+  `group-hover` because a keyboard user never generates a hover, and
+  without it tabbing would move focus into a rail that stays off-screen,
+  making the nav unreachable without a mouse.
+  **On the earlier "there is no permanent sidebar" decision**: the tab
+  strip that rule protected existed so nothing reserved screen width.
+  Auto-hiding keeps that property intact — the rail is a nav *pattern*
+  change, not a reversal of the width concern. It began (2026-08-22) as a
+  persistent rail adapted from a Supabase Studio design brief at explicit
+  instruction, and became auto-hiding the next day, also on request.
+  Note it adopts the pattern but not Studio's much tighter density:
   Gaffer is used pitch-side on a touch screen, so targets stay at 44px.
 - **"Gaffer" is always top-left**, unchanged by route — it's the
   consistent brand anchor and doubles as the way back to the coach-level

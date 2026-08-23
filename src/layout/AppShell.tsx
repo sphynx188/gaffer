@@ -276,19 +276,34 @@ export function AppShell() {
         </div>
       </div>
 
-      {/* Desktop/tablet primary nav — a persistent icon rail pinned below the
-          top bar. Sits at z-20 so the z-30 sticky header still wins any
-          overlap, and is `fixed` so it stays put while content scrolls.
-          Below `lg` it's absent entirely and the hamburger drawer remains
-          the only nav, which is also how the Supabase Studio rail this was
-          adapted from behaves at phone widths. */}
-      <aside className="fixed bottom-0 left-0 top-14 z-20 hidden w-16 flex-col border-r border-line bg-panel lg:flex">
-        <NavList items={activeItems} direction="rail" />
-      </aside>
+      {/* Desktop primary nav — an icon rail that stays off-canvas until the
+          cursor reaches the left edge, then slides in over the content.
+          Auto-hiding rather than persistent is what keeps this compatible
+          with the concern that ruled out a sidebar here in the first place:
+          nothing permanently reserves screen width, so `<main>` below is
+          full-width and never shifts.
 
-      {/* pl matches the rail's w-16 so content clears it; the inner
-          max-w-6xl then centres within the remaining space. */}
-      <main className="lg:pl-16">
+          The reveal is pure CSS off a `group`, no state: an invisible strip
+          pinned to the left edge is the hover target, and the wrapper is
+          `pointer-events-none` so the column the rail will occupy doesn't
+          swallow clicks meant for the content underneath while it's hidden
+          (the strip and the rail re-enable pointer events for themselves).
+
+          `group-focus-within` matters as much as `group-hover` — a keyboard
+          user never generates a hover, so without it tabbing would move
+          focus into a rail that stays off-screen and the nav would be
+          unreachable without a mouse.
+
+          Below `lg` none of this renders: phones and tablets get the
+          hamburger drawer instead. */}
+      <div className="group pointer-events-none fixed bottom-0 left-0 top-14 z-20 hidden w-16 lg:block">
+        <div className="pointer-events-auto absolute inset-y-0 left-0 w-4" aria-hidden="true" />
+        <aside className="pointer-events-auto flex h-full w-16 -translate-x-full flex-col border-r border-line bg-panel transition-transform duration-200 ease-out group-focus-within:translate-x-0 group-hover:translate-x-0">
+          <NavList items={activeItems} direction="rail" />
+        </aside>
+      </div>
+
+      <main>
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           <Outlet />
         </div>

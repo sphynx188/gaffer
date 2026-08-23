@@ -85,10 +85,13 @@ between two tab sets based on the active route (`TEAM_SCOPED_PATHS` in
 - Team-level (scoped to `selectedTeamId`): Overview, Roster, Sessions,
   Attendance, Design, Drill library
 
-Rendered on `lg:`+ as a persistent icon-only rail (a fixed `<aside>` under
-the sticky top bar) and below `lg` as a hamburger drawer. The rail replaced
-an earlier top-bar tab strip on 2026-08-22 — see DESIGN.md's Navigation
-shell section, which records why that reversal was deliberate.
+Rendered on `lg:`+ as an auto-hiding icon-only rail (a fixed `<aside>`
+under the sticky top bar that stays off-canvas until the cursor hits the
+left edge, overlaying content rather than displacing it), and below `lg` as
+a hamburger drawer. The rail replaced an earlier top-bar tab strip on
+2026-08-22 — see DESIGN.md's Navigation shell section, which records why
+that change was deliberate and why auto-hiding preserves the original
+"nothing reserves screen width" constraint.
 
 ### Data model
 

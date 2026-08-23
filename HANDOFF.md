@@ -415,6 +415,31 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
    Both themes checked; the theme was left back on dark, matching what
    was stored before the walkthrough.
 
+7. **Post-sign-off change — the rail now auto-hides** — asked for at
+   review, before anything was pushed. The rail no longer holds a column
+   open: it sits off-canvas at `-translate-x-full` and slides in when the
+   cursor reaches an invisible `w-4` strip pinned to the left edge,
+   overlaying content instead of displacing it. `<main>`'s `lg:pl-16`
+   is gone, so the page is full-width and never shifts.
+   Worth noting this *resolves* rather than deepens the tension with the
+   old "no permanent sidebar" rule — that rule existed so nothing would
+   reserve screen width, and an auto-hiding rail keeps that true. Both
+   `design.md` and `CLAUDE.md` were updated to say so.
+   Implementation is pure CSS off a `group`, no React state. Two
+   non-obvious bits: the wrapper is `pointer-events-none` (strip and rail
+   re-enable it for themselves) so the hidden rail's column doesn't
+   swallow clicks meant for content underneath, and `group-focus-within`
+   runs alongside `group-hover` because a keyboard user never generates a
+   hover — without it, tabbing would move focus into a rail that stays
+   off-screen and the nav would be unreachable without a mouse.
+   **Verified live** at 1280: hidden by default (`translate: -100%`,
+   `getBoundingClientRect().x === -64`), slides to `x === 0` on left-edge
+   hover, returns off-canvas on leave, and reveals on programmatic focus
+   of a rail link (`:focus-within` true, `translate: 0px`). `<main>`
+   confirmed at `padding-left: 0px`. At 375 the wrapper is
+   `display: none` and the hamburger is present — mobile and tablet get
+   the drawer only, as asked.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the
