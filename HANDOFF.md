@@ -618,6 +618,25 @@ Vercel auto-deploys from `main`, so the push IS the deploy.
     the surrounding trigger/panel mechanics were already confirmed
     working against real data.
 
+14. **Team selector extended to the Dashboard** — asked for at review:
+    show it on the main Dashboard too, right after login, rather than
+    only on team-scoped pages. `AppShell.tsx` gained a
+    `showTeamSelector` boolean (`inTeamContext || pathname === '/'`),
+    replacing the bare `inTeamContext` check the breadcrumb block used —
+    `Teams` and `Calendar`, the other two coach-level routes, were
+    deliberately left alone, since only the Dashboard was asked for.
+    `CompactTeamMenu`'s empty-state trigger text changed from "Select
+    team" to "No team selected" (muted ink, `text-ink-muted`, vs. the
+    normal `text-ink` a real team name gets) — the Dashboard is exactly
+    where a coach would land with nothing chosen yet, so this is a
+    status readout more than an instruction now, and the visual
+    distinction says "this is a state, not a name" at a glance.
+    **Verified live**: the breadcrumb now renders on `/` with the real
+    team name and opens the same working popover there; `/teams`
+    confirmed to still have no `[aria-haspopup="listbox"]` trigger in
+    its header at all, i.e. genuinely unaffected, not just visually
+    similar.
+
 ### What Worked
 
 - **Centralising the skeleton's colour in one primitive** means the

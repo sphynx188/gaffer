@@ -179,6 +179,16 @@ One family, two roles — `--font-sans` (Inter) and `--font-mono`
   If this starts feeling cramped or ambiguous again, that original
   concern is why, and top-right is the fallback that's already proven
   to work.
+  **Also shown on the Dashboard ("/")** as of 2026-08-23, even though
+  it's cross-team by design and isn't in `TEAM_SCOPED_PATHS` — a coach
+  landing there right after logging in still wants to see (or set)
+  which team they're working on, without having to click into a
+  team-scoped page first to discover the switcher exists. `Teams` and
+  `Calendar`, the other two coach-level routes, deliberately weren't
+  extended the same way — only asked for the Dashboard specifically.
+  When nothing is selected, the trigger reads "No team selected" in
+  muted ink rather than a team name, so the empty state reads as
+  informational status, not a broken label.
 - **Theme toggle** is always visible (mobile and desktop), sitting
   leftmost in the top-right cluster. **Sign-out** is desktop-only in that
   same cluster — mobile gets it in the drawer footer instead, since the

@@ -62,7 +62,9 @@ function CompactTeamMenu({
         aria-expanded={open}
         className="flex items-center gap-1.5 rounded-md border border-line bg-panel-raised px-2 py-1 text-sm font-medium text-ink transition-colors hover:border-line-strong"
       >
-        <span className="max-w-28 truncate">{selected?.name ?? 'Select team'}</span>
+        <span className={`max-w-28 truncate ${selected ? '' : 'text-ink-muted'}`}>
+          {selected?.name ?? 'No team selected'}
+        </span>
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
       </button>
 

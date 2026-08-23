@@ -204,6 +204,13 @@ export function AppShell() {
 
   const inTeamContext = TEAM_SCOPED_PATHS.some((p) => location.pathname.startsWith(p))
   const activeItems = inTeamContext ? NAV_ITEMS_TEAM : NAV_ITEMS_COACH
+  // The Dashboard ("/") is cross-team by design (see its own header
+  // comment in DashboardPage.tsx) and isn't in TEAM_SCOPED_PATHS, but a
+  // coach landing there right after logging in still wants to see/set
+  // which team they're working on — the switcher shouldn't be something
+  // you only discover once you've already clicked into a team-scoped
+  // page. Every other coach-level route (Teams, Calendar) stays as-is.
+  const showTeamSelector = inTeamContext || location.pathname === '/'
 
   return (
     <div className="min-h-svh bg-surface">
@@ -214,15 +221,15 @@ export function AppShell() {
         <BrandBlock />
 
         {/* Breadcrumb-style team selector — desktop only, team-scoped
-            routes only, same condition the top-right placement used
-            before this moved. This is a deliberate reversal of an
-            earlier decision (see design.md's Navigation shell section):
-            a version of this exact placement was tried, then walked back
-            in favor of top-right, specifically because it was competing
-            with "Gaffer" for the same "where am I" role. Moved back here
-            now at explicit instruction, with a concrete visual reference
-            (an org-switcher breadcrumb) to build from. */}
-        {inTeamContext && (
+            routes plus the Dashboard (see `showTeamSelector` above).
+            This is a deliberate reversal of an earlier decision (see
+            design.md's Navigation shell section): a version of this
+            exact placement was tried, then walked back in favor of
+            top-right, specifically because it was competing with
+            "Gaffer" for the same "where am I" role. Moved back here at
+            explicit instruction, with a concrete visual reference (an
+            org-switcher breadcrumb) to build from. */}
+        {showTeamSelector && (
           <div className="hidden items-center gap-2 lg:flex">
             <span className="text-line" aria-hidden="true">
               /
