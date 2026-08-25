@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import type Konva from 'konva'
 import { PanelRight, Pause, Play, Wrench, X } from 'lucide-react'
 import { useStore } from '../../../store'
 import type { Drill, EquipmentType, Marking, PhasePoint } from '../../../store'
@@ -13,6 +14,7 @@ import { useKeyframeToggle } from '../timeline/useKeyframeToggle'
 import { useToast } from '../../ui/useToast'
 import { EditorTopBar } from './EditorTopBar'
 import { PropertiesPanel } from './PropertiesPanel'
+import { DrillDetailsDrawer } from './DrillDetailsDrawer'
 import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
 import { markingToolSpec, type MarkingTool } from './markingTools'
 import type { GridSettings } from './GridPanel'
@@ -27,6 +29,11 @@ import { EquipmentIcon } from '../canvas/EquipmentShapes'
 //
 // All the editor's own view state lives here: which tool is armed, what's
 // selected, where the playhead is. None of it belongs in the store.
+
+// How wide a captured thumbnail is, in pixels (rework plan Stage 8.5). A
+// library card shows it at about half this; the full-size stage would be
+// several hundred KB of PNG for no visible gain.
+const THUMBNAIL_WIDTH = 480
 
 function dragIcon(placement: DragPlacement) {
   if (placement.kind === 'ball') return <BallToolIcon />
@@ -45,6 +52,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const setDrillPitch = useStore((s) => s.setDrillPitch)
   const updateKeyframeState = useStore((s) => s.updateKeyframeState)
   const flushDrillSave = useStore((s) => s.flushDrillSave)
+  const uploadDrillThumbnail = useStore((s) => s.uploadDrillThumbnail)
+  const saveState = useStore((s) => s.saveState)
   const showToast = useToast()
 
   const [tool, setTool] = useState<CanvasTool>('select')
@@ -59,6 +68,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [propsOpen, setPropsOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [capturing, setCapturing] = useState(false)
   const [pendingArrowStart, setPendingArrowStart] = useState<PhasePoint | null>(null)
   const [pendingNote, setPendingNote] = useState<PhasePoint | null>(null)
   const [noteText, setNoteText] = useState('')
@@ -98,6 +109,45 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // The autosave debounce is 800ms; leaving the editor inside that window must
   // not lose the last edit.
   useEffect(() => () => void flushDrillSave(), [flushDrillSave])
+
+  // Thumbnails (rework plan Stage 8.5). The Konva stage is the only thing that
+  // can produce a picture of the board, so the capture happens here and the
+  // store only handles the upload.
+  const stageRef = useRef<Konva.Stage | null>(null)
+  const captureThumbnail = async () => {
+    const stage = stageRef.current
+    if (!stage || capturing || stage.width() === 0) return
+    setCapturing(true)
+    const pixelRatio = Math.min(1, THUMBNAIL_WIDTH / stage.width())
+    const dataUrl = stage.toDataURL({ pixelRatio, mimeType: 'image/png' })
+    const url = await uploadDrillThumbnail(drill.id, dataUrl)
+    setCapturing(false)
+    showToast(url ? 'Thumbnail captured' : "Couldn't capture the thumbnail")
+  }
+
+  // Auto-capture, for the coach who never opens Details. "On save" literally:
+  // the drill has to have been edited and settled in this session, which also
+  // sidesteps capturing a stage that hasn't been measured yet on first paint.
+  // What's captured is what's on screen, so it waits for the playhead to be
+  // back at the start — the first keyframe, and where the editor sits by
+  // default. A drill that already has a thumbnail is left alone; re-capturing
+  // is the button's job.
+  const editedRef = useRef(false)
+  const capturedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (saveState === 'dirty' || saveState === 'saving') {
+      editedRef.current = true
+      return
+    }
+    if (saveState !== 'saved' || !editedRef.current) return
+    if (drill.thumbnail_url || capturedFor.current === drill.id) return
+    if (drill.scene.entities.length === 0 || playback.currentTime > 0) return
+    capturedFor.current = drill.id
+    void captureThumbnail()
+    // `captureThumbnail` is recreated every render; depending on it would run
+    // this on every render instead of on the transitions it cares about.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveState, drill.id, drill.thumbnail_url, drill.scene.entities.length, playback.currentTime])
 
   // Drag-to-place, carried over from the phases-era editor. Window listeners
   // for the duration of the drag, then a hit-test against PitchCanvas's own
@@ -306,6 +356,10 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       pitch={drill.pitch}
       onPitchChange={(next) => setDrillPitch(drill.id, next)}
       onStartDrag={startDrag}
+      onOpenDetails={() => {
+        setToolsOpen(false)
+        setDetailsOpen(true)
+      }}
     />
   )
 
@@ -339,6 +393,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
         <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
           <PitchCanvas
+            stageRef={stageRef}
             pitch={drill.pitch}
             frame={frame}
             onionFrames={onion}
@@ -435,6 +490,14 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       <Sheet open={propsOpen} side="right" title="Properties" onClose={() => setPropsOpen(false)}>
         {properties}
       </Sheet>
+
+      <DrillDetailsDrawer
+        drill={drill}
+        open={detailsOpen}
+        onClose={() => setDetailsOpen(false)}
+        onCaptureThumbnail={() => void captureThumbnail()}
+        capturing={capturing}
+      />
 
       {/* Drag ghost — follows the pointer between picking a tool up off the
           rail and dropping it on the pitch. */}

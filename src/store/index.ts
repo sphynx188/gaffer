@@ -21,6 +21,11 @@ export type {
   Marking,
   PitchConfig,
   OverlayKind,
+  DrillCoaching,
+  DrillDifficulty,
+  DrillIntensity,
+  DrillPhaseOfPlay,
+  SessionBlock,
   PhasePoint,
   PhasePlayer,
   PhaseCone,
@@ -47,7 +52,22 @@ export {
   EQUIPMENT_LABELS,
   EQUIPMENT_CORE,
   EQUIPMENT_ADVANCED,
+  DRILL_DIFFICULTIES,
+  DRILL_DIFFICULTY_LABELS,
+  DRILL_INTENSITIES,
+  DRILL_INTENSITY_LABELS,
+  DRILL_PHASES_OF_PLAY,
+  DRILL_PHASE_OF_PLAY_LABELS,
+  SESSION_BLOCKS,
+  SESSION_BLOCK_LABELS,
 } from './types'
 export type { SessionWithRelations, CalendarSession, RecurringSessionInput } from './slices/sessionSlice'
-export type { DrillElementType, NewPhaseMode, NewDrillInput, NewEntityInput, SaveState } from './slices/drillSlice'
+export type {
+  DrillElementType,
+  NewPhaseMode,
+  NewDrillInput,
+  NewEntityInput,
+  DrillUpdateInput,
+  SaveState,
+} from './slices/drillSlice'
 export type { NewTacticInput, TacticUpdateInput } from './slices/tacticSlice'

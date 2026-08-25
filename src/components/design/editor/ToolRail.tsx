@@ -15,9 +15,9 @@ import { PitchPanel } from './PitchPanel'
 //
 // Each tool offers exactly what the data model carries today. Equipment is the
 // three kinds that exist, Markings is arrows and notes, Pitch is the four
-// presets — Stages 6 and 7 widen those panels. Grid & Guides and Drill Details
-// have nothing behind them yet, so they render disabled, the same treatment
-// the plan asks for on the 2D/3D toggle.
+// presets — Stages 6 and 7 widen those panels. Drill Details is the one entry
+// that doesn't open a panel anchored to the rail: it opens the full-height
+// drawer (Stage 8.2), which is too much form to fit beside a tool button.
 
 export type CanvasTool = 'select' | 'player' | 'ball' | 'equipment' | 'marking'
 export type { MarkingTool }
@@ -50,6 +50,7 @@ interface ToolRailProps {
   pitch: PitchConfig
   onPitchChange: (pitch: PitchConfig) => void
   onStartDrag: (placement: DragPlacement) => (event: ReactPointerEvent) => void
+  onOpenDetails: () => void
   // Laid out as a column on desktop and as a wrapping row inside the mobile
   // drawer, where there's width to spare and no rail to anchor a popover to.
   layout: 'rail' | 'drawer'
@@ -172,8 +173,7 @@ export function ToolRail(props: ToolRailProps) {
         <RailButton
           label="Drill details"
           layout={layout}
-          disabled
-          title="Drill details — coming with the metadata stage"
+          onClick={props.onOpenDetails}
           icon={<Sparkles className="h-4 w-4" />}
         />
       </div>
@@ -273,8 +273,6 @@ function RailButton({
   label,
   icon,
   active = false,
-  disabled = false,
-  title,
   layout,
   onClick,
   onPointerDown,
@@ -282,8 +280,6 @@ function RailButton({
   label: string
   icon: ReactNode
   active?: boolean
-  disabled?: boolean
-  title?: string
   layout: 'rail' | 'drawer'
   onClick?: () => void
   onPointerDown?: (event: ReactPointerEvent) => void
@@ -293,12 +289,11 @@ function RailButton({
       type="button"
       onClick={onClick}
       onPointerDown={onPointerDown}
-      disabled={disabled}
       aria-pressed={active}
-      title={title ?? label}
+      title={label}
       // 44px minimum on touch, tightened on desktop where a pointer is precise.
       className={
-        'flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors disabled:opacity-40 ' +
+        'flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors ' +
         (layout === 'rail' ? 'lg:min-h-10 lg:w-10 lg:justify-center lg:px-0 ' : '') +
         (active ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
       }

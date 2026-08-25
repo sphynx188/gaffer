@@ -276,6 +276,88 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 8: drill metadata & the Details drawer
+
+Stage 8 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). A
+drill record was `name + pitch_size + orientation`; everything that makes one
+findable and coachable now has a column, and a four-tab drawer to enter it in.
+
+### What happened, in order
+
+1. **`016_drill_metadata.sql`** — the nineteen columns from §8.1, plus indexes
+   on `category` and `session_block`. Numbered 016, not the plan's 015: that
+   number went to Stage 6's equipment remap, written after the plan was.
+2. **`017_drill_thumbnail_bucket.sql`** — the `drill-thumbnails` bucket §8.5
+   needs. The project had no storage bucket at all before this.
+3. **`types.ts`** — the nineteen fields on `Drill`, a `DrillCoaching` jsonb
+   shape, and four short vocabularies (difficulty, intensity, phase of play,
+   session block) as unions with label tables.
+4. **`drillSlice`** — `DrillUpdateInput` widened; `uploadDrillThumbnail`
+   added, funnelled through `runSupabaseAction` like everything else.
+5. **`editor/DrillDetailsDrawer.tsx`** — Basic info · Pitch · Coaching ·
+   Settings. The Pitch tab is Stage 7's `PitchPanel` reused as-is.
+6. **`editor/equipmentSummary.ts`** — "Cones ×12, Agility poles ×4" read off
+   `scene.entities` (§8.3), with a manual override in `coaching.equipment`.
+7. **The rail's "Drill details" button stopped being disabled** and now opens
+   the drawer; `PitchCanvas` gained a `stageRef` so the stage can be captured.
+
+### What Worked
+
+- **Rendering the drawer server-side to smoke-test it.** Sign-in still blocks a
+  real walkthrough, but `renderToString` over a fully-populated drill and an
+  empty one caught what a type-check can't — that "not recorded" renders as an
+  empty field rather than the string `null`, that only the chips a coach picked
+  come back `aria-pressed`, and that the derived equipment line reads off the
+  board. Bundle it with esbuild as **CJS**, not ESM: `react-dom/server` pulls
+  `util` through a dynamic `require` that an ESM bundle can't satisfy.
+- **Deriving equipment instead of asking for it.** It cannot drift, it costs a
+  coach nothing, and the override is one click away for the things the board
+  can't know about (bibs, a ball bag).
+
+### What Didn't Work / Watch Out For
+
+- **`updateDrill` could roll back unsaved canvas work, and now doesn't.** It
+  merges the server's whole row back into local state; with metadata committing
+  from a drawer open over the same canvas the coach was just dragging cones on,
+  a field blur inside the 800ms autosave window would have discarded the drag.
+  It now applies anything still queued in `pendingSaves` over the response, the
+  same guard `fetchDrills` already had. This was latent before this stage — the
+  top bar's name field could hit it too.
+- **Thumbnail auto-capture is deliberately conservative.** It fires only after
+  a drill has been edited *and* saved in this session, with something on the
+  pitch, no thumbnail yet, and the playhead back at the start. Opening a drill
+  is not enough — capturing on mount races the canvas's own width measurement,
+  and would also write to a drill nobody touched. The eleven existing drills
+  therefore get a thumbnail the first time each is edited, not the first time
+  each is opened. The **Capture current view** button overrides all of it.
+- **The thumbnail bucket is public-read.** A line drawing of cones on grass
+  isn't worth a signed URL, and public read is what lets Stage 9's cards use a
+  plain `<img src>`. Writes are scoped: the object is named `<drill id>.png`,
+  and the policy joins back to the drill row through `is_team_member`.
+- **A stable object path needs a cache-buster.** Re-capturing upserts to the
+  same key, so the stored URL carries `?v=<timestamp>` or the browser keeps
+  showing the old picture.
+- **`category`/`subcategory` are deliberately free text.** The plan doesn't
+  give a taxonomy and inventing one would freeze a coach's own naming into a
+  type. The four fields Stage 9 filters on *are* unions.
+- **`coaching.equipment` is a jsonb field, not a column.** §8.3 asks for an
+  override and §8.1's column list has nowhere to put it — jsonb, no migration.
+- **CLAUDE.md's data-model section is stale** (pre-existing, since Stage 5): it
+  still says nothing in `src/` reads `scene`/`keyframes`. Left alone.
+
+## Next Steps
+
+1. **Stage 9 — library, cards & session integration.** It consumes exactly what
+   this stage stores, including the thumbnails.
+2. **Still outstanding, all needing a signed-in session:** a real walkthrough of
+   the Details drawer (every field round-trips at the database level, but the
+   form has never been typed into), the tap/drag placement gestures, `/tactics`
+   from Stage 3, and the 11-drill read-back that gates migration 014 — still the
+   one written-but-unapplied migration, so the repo and the deployed database
+   deliberately disagree by that file.
+
+---
+
 ## Session log — Drill Creator rework, Stage 7: pitch presets & overlays
 
 Stage 7 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). Four

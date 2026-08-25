@@ -317,6 +317,71 @@ export interface PitchConfig {
   units?: 'm' | 'yd'
 }
 
+// Drill metadata (rework plan Stage 8.1). The four short vocabularies below
+// are unions rather than free text because Stage 9's library filters on them:
+// "a 12-minute technical rondo for 8 players" only works if every technical
+// drill spells `technical` the same way. `category`/`subcategory` are
+// deliberately NOT unions — a coach's own naming for what a drill is about
+// shouldn't be frozen into a type here.
+export const DRILL_DIFFICULTIES = ['beginner', 'intermediate', 'advanced'] as const
+export type DrillDifficulty = (typeof DRILL_DIFFICULTIES)[number]
+
+export const DRILL_INTENSITIES = ['low', 'medium', 'high'] as const
+export type DrillIntensity = (typeof DRILL_INTENSITIES)[number]
+
+export const DRILL_PHASES_OF_PLAY = ['in_possession', 'out_of_possession', 'transition', 'set_piece'] as const
+export type DrillPhaseOfPlay = (typeof DRILL_PHASES_OF_PLAY)[number]
+
+// The five blocks a session is built from — the one metadata field this
+// stage's definition of done names outright.
+export const SESSION_BLOCKS = ['activation', 'technical', 'tactical', 'game', 'recovery'] as const
+export type SessionBlock = (typeof SESSION_BLOCKS)[number]
+
+export const DRILL_DIFFICULTY_LABELS: Record<DrillDifficulty, string> = {
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+}
+
+export const DRILL_INTENSITY_LABELS: Record<DrillIntensity, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+}
+
+export const DRILL_PHASE_OF_PLAY_LABELS: Record<DrillPhaseOfPlay, string> = {
+  in_possession: 'In possession',
+  out_of_possession: 'Out of possession',
+  transition: 'Transition',
+  set_piece: 'Set piece',
+}
+
+export const SESSION_BLOCK_LABELS: Record<SessionBlock, string> = {
+  activation: 'Activation',
+  technical: 'Technical',
+  tactical: 'Tactical',
+  game: 'Game',
+  recovery: 'Recovery',
+}
+
+// The coaching lists, in one jsonb column rather than five more. Nothing
+// filters or sorts on them — they're read as a set with the drill — and jsonb
+// means the set can grow without a migration (CLAUDE.md's data-model note),
+// which `equipment` below already takes advantage of.
+export interface DrillCoaching {
+  setup?: string
+  points?: string[]
+  progressions?: string[]
+  regressions?: string[]
+  mistakes?: string[]
+  /**
+   * Manual override of the equipment summary derived from `scene.entities`
+   * (Stage 8.3). Absent means "use whatever is actually on the board", which
+   * is right for every drill nobody has overridden.
+   */
+  equipment?: string
+}
+
 export interface Drill {
   id: string
   team_id: string | null // null = coach-owned, reusable across every team
@@ -337,6 +402,30 @@ export interface Drill {
   phases: DrillPhase[]
   /** @deprecated use `pitch`; dropped by migration 014. */
   pitch_size: PitchSize
+
+  // Metadata (rework plan Stage 8.1, migration 016). Null throughout means
+  // "not recorded", which is a different thing from an empty string — the
+  // eleven drills that predate the migration carry none of this, and neither
+  // does a drill created and never opened in Details.
+  objective: string | null
+  description: string | null
+  category: string | null
+  subcategory: string | null
+  duration_minutes: number | null
+  players_recommended: number | null
+  min_players: number | null
+  max_players: number | null
+  age_min: string | null
+  age_max: string | null
+  difficulty: DrillDifficulty | null
+  intensity: DrillIntensity | null
+  phase_of_play: DrillPhaseOfPlay | null
+  session_block: SessionBlock | null
+  setup_minutes: number | null
+  learning_outcome: string | null
+  video_url: string | null
+  thumbnail_url: string | null
+  coaching: DrillCoaching
 }
 
 export interface SessionDrill {

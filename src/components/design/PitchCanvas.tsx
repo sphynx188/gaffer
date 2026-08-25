@@ -88,6 +88,11 @@ interface PitchCanvasProps {
   // Staged first point of an in-progress two-click arrow. Only ever rendered.
   pendingArrowStart?: NormalizedPoint | null
   hintText?: string | null
+
+  // Hands the caller the Konva stage itself, which is the only way to get a
+  // picture out of it — `stage.toDataURL()` is what Stage 8.5's thumbnails
+  // are. Read-only by convention: this canvas still owns everything it draws.
+  stageRef?: React.RefObject<Konva.Stage | null>
 }
 
 const DEFAULT_MAX_WIDTH = 420
@@ -225,6 +230,7 @@ export function PitchCanvas({
   onionFrames,
   pendingArrowStart,
   hintText,
+  stageRef,
 }: PitchCanvasProps) {
   const aspectRatio = getPitchAspectRatio(pitch) // width / length
   // The height cap is applied as a width cap, since this is the one place that
@@ -783,6 +789,7 @@ export function PitchCanvas({
     >
       {width > 0 && (
         <Stage
+          ref={stageRef}
           width={width}
           height={height}
           scaleX={view.scale}

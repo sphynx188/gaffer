@@ -1,10 +1,14 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
-import { runSupabaseAction } from '../supabaseAction'
+import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
 import type {
   ArrowKind,
   Drill,
+  DrillCoaching,
+  DrillDifficulty,
+  DrillIntensity,
   DrillPhase,
+  DrillPhaseOfPlay,
   DrillScene,
   EntityKind,
   EntityState,
@@ -16,6 +20,7 @@ import type {
   PitchOrientation,
   PitchSize,
   SceneEntity,
+  SessionBlock,
 } from '../types'
 import type { StoreState } from '../useStore'
 
@@ -41,6 +46,31 @@ export interface DrillUpdateInput {
   pitch_size?: PitchSize
   orientation?: PitchOrientation
   phases?: DrillPhase[]
+
+  // Metadata (rework plan Stage 8.1). These *are* routed through here rather
+  // than the autosave queue, deliberately: they're plain columns a coach types
+  // into a form and commits field by field, not canvas content, so they don't
+  // belong in the undo stack or the drag debounce. Every one of them is
+  // nullable, and `null` is a meaningful patch — clearing a field.
+  objective?: string | null
+  description?: string | null
+  category?: string | null
+  subcategory?: string | null
+  duration_minutes?: number | null
+  players_recommended?: number | null
+  min_players?: number | null
+  max_players?: number | null
+  age_min?: string | null
+  age_max?: string | null
+  difficulty?: DrillDifficulty | null
+  intensity?: DrillIntensity | null
+  phase_of_play?: DrillPhaseOfPlay | null
+  session_block?: SessionBlock | null
+  setup_minutes?: number | null
+  learning_outcome?: string | null
+  video_url?: string | null
+  thumbnail_url?: string | null
+  coaching?: DrillCoaching
 }
 
 // What the top-bar save indicator reads. 'dirty' means committed locally but
@@ -71,6 +101,9 @@ const UNDO_LIMIT = 50
 
 // Plan §2.3 — "a debounced flush (~800 ms idle)".
 const AUTOSAVE_IDLE_MS = 800
+
+// Created by migration 017, public-read, one PNG per drill named by id.
+const THUMBNAIL_BUCKET = 'drill-thumbnails'
 
 // Keyframe times are rounded to the millisecond. Two keyframes are never
 // allowed to share a `t` (addKeyframe and moveKeyframe both refuse), and
@@ -257,6 +290,13 @@ export interface DrillSlice {
   fetchDrills: (teamId: string) => Promise<void>
   createDrill: (input: NewDrillInput) => Promise<Drill | null>
   updateDrill: (id: string, patch: DrillUpdateInput) => Promise<Drill | null>
+
+  // Stores a PNG data URL — `stage.toDataURL()` off the Konva stage (rework
+  // plan Stage 8.5) — in the `drill-thumbnails` bucket and records its public
+  // URL on the drill. One object per drill, named by id and upserted, so a
+  // re-capture replaces the old image rather than accumulating orphans.
+  // Returns the stored URL, or null if either half failed.
+  uploadDrillThumbnail: (drillId: string, dataUrl: string) => Promise<string | null>
 
   // -------------------------------------------------------------------------
   // Entities, keyframes and markings (rework plan Stage 2.1).
@@ -627,13 +667,48 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         () => supabase.from('drill').update(patch).eq('id', id).select(),
         "Couldn't save drill, try again."
       )
-      const drill = data?.[0] ?? null
+      const server = data?.[0] ?? null
+      // The response is the server's whole row, so merging it in as-is would
+      // roll back any content edit still sitting in the autosave queue — which
+      // is routine now that Stage 8's metadata fields commit from a drawer
+      // open over the same canvas the coach was just dragging cones on. Same
+      // guard, and the same reason, as the one fetchDrills applies to a
+      // refetch.
+      const pending = server ? pendingSaves.get(id) : undefined
+      const drill = server && pending ? { ...server, ...pending } : server
       set({
         drillsLoading: false,
         drillsError: error,
         ...(drill ? { drills: get().drills.map((d) => (d.id === id ? drill : d)) } : {}),
       })
       return drill
+    },
+
+    uploadDrillThumbnail: async (drillId, dataUrl) => {
+      const path = `${drillId}.png`
+      const upload = async () => {
+        const blob = await (await fetch(dataUrl)).blob()
+        // Storage errors aren't PostgrestErrors, but they carry the same
+        // `message`, which is all runSupabaseAction reads — funnelling the
+        // call through the one wrapper anyway keeps CLAUDE.md's rule intact
+        // rather than opening a second path to Supabase.
+        const result = await supabase.storage
+          .from(THUMBNAIL_BUCKET)
+          .upload(path, blob, { contentType: 'image/png', upsert: true })
+        return result as unknown as SupabaseCallResult<{ path: string }>
+      }
+      const { error } = await runSupabaseAction(upload, "Couldn't save the drill thumbnail, try again.")
+      if (error) {
+        set({ drillsError: error })
+        return null
+      }
+      const { data: publicData } = supabase.storage.from(THUMBNAIL_BUCKET).getPublicUrl(path)
+      // The object lives at a stable path and is upserted, so without a
+      // cache-buster a re-capture would keep showing the browser's copy of the
+      // old image.
+      const url = `${publicData.publicUrl}?v=${Date.now()}`
+      const updated = await get().updateDrill(drillId, { thumbnail_url: url })
+      return updated ? url : null
     },
 
     addEntity: (drillId, kind, position, extra) => {
