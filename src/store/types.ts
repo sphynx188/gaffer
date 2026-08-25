@@ -178,11 +178,55 @@ export type EntityKind = 'player' | 'ball' | 'equipment'
 export type PlayerDisplay = 'compact' | 'standard' | 'presentation' | 'dot'
 export type BodyShape = 'auto' | 'backpedal' | 'shuffle_left' | 'shuffle_right'
 
-// The scene-era name for EquipmentKind. Starts as exactly the three kinds the
-// phases model had so the backfill maps 1:1; Stage 6 of the rework plan widens
-// it to the full 11-type set. Equipment lives in jsonb, so widening it never
-// needs a migration — the same extensibility EquipmentKind was given.
-export type EquipmentType = 'cone' | 'witches_hat' | 'mannequin'
+// The full equipment set (rework plan Stage 6.1). jsonb, so widening this
+// never needed a schema migration — the same extensibility EquipmentKind was
+// given.
+//
+// Note the one rename this brought with it: the phases-era 'cone' value was
+// *drawn* as an agility pole (see pitchTheme.ts's own comment about keeping
+// the stored value 'cone' for backward compatibility). Now that the set has a
+// real `cone` and a real `pole`, migration 015 remaps the stored values so the
+// names and the shapes finally agree — existing equipment keeps the silhouette
+// it always had.
+export const EQUIPMENT_TYPES = [
+  'cone',
+  'marker',
+  'pole',
+  'mannequin',
+  'mini_goal',
+  'agility_ring',
+  'full_goal',
+  'ladder',
+  'hurdle',
+  'rebounder',
+  'passing_gate',
+] as const
+export type EquipmentType = (typeof EQUIPMENT_TYPES)[number]
+
+export const EQUIPMENT_LABELS: Record<EquipmentType, string> = {
+  cone: 'Cone',
+  marker: 'Flat marker',
+  pole: 'Agility pole',
+  mannequin: 'Mannequin',
+  mini_goal: 'Mini goal',
+  agility_ring: 'Agility ring',
+  full_goal: 'Full goal',
+  ladder: 'Ladder',
+  hurdle: 'Hurdle',
+  rebounder: 'Rebounder',
+  passing_gate: 'Passing gate',
+}
+
+// The Core/Advanced split the target app groups its equipment library by.
+export const EQUIPMENT_CORE: EquipmentType[] = ['cone', 'marker', 'pole', 'mannequin', 'mini_goal']
+export const EQUIPMENT_ADVANCED: EquipmentType[] = [
+  'agility_ring',
+  'full_goal',
+  'ladder',
+  'hurdle',
+  'rebounder',
+  'passing_gate',
+]
 
 // A cast member. Stable id for the entire life of the drill — this is the
 // property phases[] never had, and the one every animation feature needs.
@@ -200,6 +244,10 @@ export interface SceneEntity {
   display?: PlayerDisplay
   // equipment
   equipment?: EquipmentType
+  // Degrees clockwise. Only equipment carries one — a goal or a ladder has an
+  // orientation on the pitch, while a player's heading is per-keyframe and
+  // lives on EntityState.facing instead.
+  rotation?: number
 }
 
 // Where one entity is at one keyframe. `x`/`y` are optional only because a

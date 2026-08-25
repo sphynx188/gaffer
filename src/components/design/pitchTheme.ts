@@ -26,39 +26,30 @@ export const PLAYER = {
   numberText: '#ffffff',
 } as const
 
-// Agility pole — a tall slim shaft on a flat base (the internal `kind`/
-// jsonb value stays 'cone' for backward compatibility with already-saved
-// drills; only the label and rendering changed). Named colors from the
-// phase JSON's optional `cones[].color` field map here; anything
-// unrecognized falls back to yellow, matching the reference pole photo.
-export const CONE = {
+// Equipment palette (rework plan Stage 6.2). The house rule holds: types are
+// told apart by *shape* first, with colour doing only as much work as it has
+// to — a coach glancing at a phone pitch-side reads a silhouette long before
+// they read a hue. Three families of colour and no more:
+//   · EQUIPMENT.marker  — the yellow/orange family a cone, pole or ring wears
+//   · EQUIPMENT.frame   — the blue-grey of anything with a frame or a net
+//   · EQUIPMENT.ground  — the near-black of a base, rung or shadow
+//
+// `named` maps the optional per-entity colour override onto real values, so a
+// coach can bib their cones without any of this leaking hex into components.
+export const EQUIPMENT = {
+  marker: '#eab308',
+  markerDeep: '#f59e0b',
+  frame: '#2563eb',
+  frameDeep: '#1e3a8a',
+  ground: '#18181b',
+  net: 'rgba(255, 255, 255, 0.55)',
   named: {
     orange: '#f59e0b',
     yellow: '#eab308',
     red: '#ef4444',
     blue: '#3b82f6',
+    white: '#fefdf8',
   } as Record<string, string>,
-  fallback: '#eab308',
-  base: '#18181b', // the pole's flat base
-} as const
-
-// Upgrade Phase 2B (UPGRADE_IMPLEMENTATION_PLAN.md) equipment type —
-// distinguished from CONE (the agility pole) by shape, not just color, same
-// "shape distinction over palette" rule PLAYER's comment sets out. Restyled
-// to match a reference photo of a classic flat-base training cone: a
-// tapered body on a flat pill-shaped base, single flat fill color, no
-// stroke/stripe.
-export const WITCHES_HAT = {
-  fill: '#c0392b',
-} as const
-
-// Training mannequin/dummy — rendered as a ring head + mesh-look torso +
-// splayed legs (not a plain circle) so it's never mistaken for a player dot
-// at a glance. Blue, matching the common plastic-dummy training equipment
-// this is meant to depict.
-export const MANNEQUIN = {
-  fill: '#2563eb',
-  stroke: '#1e3a8a',
 } as const
 
 export const BALL = {
@@ -94,3 +85,22 @@ export const SELECTION = {
   marqueeStroke: '#fefdf8',
   marqueeFill: 'rgba(254, 253, 248, 0.12)',
 } as const
+
+// How much room each equipment type needs around its origin, as a multiple of
+// the base unit EquipmentShapes draws at. PitchCanvas uses it for the drag
+// bound and the selection halo, so a full goal doesn't get a halo sized for a
+// cone. Lives here rather than beside the shapes so that file exports only
+// components.
+export const EQUIPMENT_EXTENT: Record<string, number> = {
+  cone: 1.1,
+  marker: 0.9,
+  pole: 1.3,
+  mannequin: 1.5,
+  mini_goal: 1.3,
+  agility_ring: 1.0,
+  full_goal: 1.9,
+  ladder: 2.2,
+  hurdle: 1.2,
+  rebounder: 1.4,
+  passing_gate: 1.4,
+}

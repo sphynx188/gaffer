@@ -276,6 +276,81 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 6: element library & properties
+
+Stage 6 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md).
+Equipment goes from three types to eleven, the markings panel gains the seven
+drawing tools Gaffer never had, and every selected thing finally has properties
+to edit.
+
+### What happened, in order
+
+1. **`EquipmentType` widened to eleven** and `SceneEntity` gained `rotation`.
+   Both jsonb, so no schema migration — but see below for the one data
+   migration this did need.
+2. **`canvas/EquipmentShapes.tsx`** — the eleven silhouettes plus matching SVG
+   icons for the panels, and an `EQUIPMENT` palette in `pitchTheme.ts` cut down
+   to three families (marker / frame / ground).
+3. **`EquipmentPanel`** (Core/Advanced), **`MarkingsPanel`** (the nine tools plus
+   Gaffer's existing Pass and Note, and Clear All), **`GridPanel`**.
+4. **`PitchCanvas`** gained a drawing state machine, a five-metre grid,
+   snap-to-grid, smart guides and equipment rotation.
+5. **`PropertiesPanel`** — the four sections, including the gated Draw Route.
+
+### What Worked
+
+- **Three drawing gestures, not eleven.** Drag-and-release for anything with
+  two ends (arrow, line, circle, rectangle, ruler), tap-per-point for polylines
+  (curve, zone), and a recorded trail for freehand. Draw Route reuses the
+  polyline rule exactly — "tap the last point again to finish" — so there's one
+  gesture to learn rather than two.
+- **Storing rectangles and ellipses as their bounding-box corners** and
+  reconstructing them at render time, rather than as two-point polylines. It's
+  what lets the Konva Transformer from Stage 3 keep working on them unchanged.
+- **Curved arrows are arrows.** Routing `curve` through the same Konva `Arrow`
+  as a straight one with `tension` applied keeps the arrowhead, which is what
+  makes a bent pass read as a pass rather than as a stray line.
+
+### What Didn't Work / Watch Out For
+
+- **The plan's eleven types collide with the old three, and that needed a data
+  migration after all.** The phases-era `'cone'` was *drawn* as an agility pole
+  — pitchTheme.ts said so outright — and the new set has a real `cone` and a
+  real `pole`. Left alone, 17 pieces across 6 drills would have silently
+  changed shape the next time a coach opened them. Migration 015 remaps
+  `cone → pole` and `witches_hat → cone` in `scene.entities`; the same mapping
+  is carried in `canvas/phaseFrame.ts` so the drill library preview, which
+  still reads `phases`, doesn't disagree with the editor. §6.1's "no migration"
+  is true of the *schema*, which is untouched.
+- **Snap-to-grid and smart guides fight each other.** One pulls to a fixed
+  lattice, the other to whatever is already placed. Snap wins when both are on,
+  and the grid panel says so rather than leaving it a mystery.
+- **The ruler measures and keeps nothing.** It isn't one of `Marking`'s kinds
+  and shouldn't be — it's a question a coach asks, not a thing they draw. It
+  shares the drawing machinery and is dropped on release.
+- **Marking colours are named swatches, not a picker.** An arbitrary hex would
+  defeat the shape-over-palette rule the whole equipment library is drawn to,
+  and would put colour authoring outside `pitchTheme.ts`.
+- **`mini_goal` and `full_goal` are the same silhouette at different widths.**
+  That's honest — they *are* the same object at different sizes — but it's the
+  one pair in the library that needs the size difference to tell them apart, so
+  don't shrink the gap between them.
+- **The equipment shapes were built here rather than fanned out to subagents**
+  as the execution note suggests; agents only get spawned when asked for.
+
+## Next Steps
+
+1. **Stage 7 — pitch presets & overlays**, which replaces the four-preset
+   bridge in `PitchCanvas` (`sizeForPreset`) and the matching table in
+   `DrillEditor` with the real ~35-preset set, and generalises
+   `pitchGeometry.ts` to arbitrary metre dimensions.
+2. **Still outstanding, all needing a signed-in session:** the tap/drag
+   placement gestures (Konva ignores synthetic events, so they were verified
+   through their wiring rather than driven), `/tactics` from Stage 3, and the
+   11-drill read-back that gates migration 014.
+
+---
+
 ## Session log — Drill Creator rework, Stage 5: editor shell
 
 Stage 5 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). The

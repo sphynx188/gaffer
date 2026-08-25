@@ -1,18 +1,13 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { Grid3x3, MousePointer2, PenLine, Shapes, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Grid3x3, MousePointer2, PenLine, SlidersHorizontal, Sparkles } from 'lucide-react'
 import type { EquipmentType, PitchOrientation, PitchSize } from '../../../store'
 import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../../store'
-import {
-  ArrowToolIcon,
-  BallToolIcon,
-  ConeToolIcon,
-  MannequinToolIcon,
-  NoteToolIcon,
-  PlayerToolIcon,
-  PLAYER_A_COLOR,
-  PLAYER_B_COLOR,
-  WitchesHatToolIcon,
-} from './toolIcons'
+import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
+import { EquipmentIcon } from '../canvas/EquipmentShapes'
+import { EquipmentPanel } from './EquipmentPanel'
+import { MarkingsPanel } from './MarkingsPanel'
+import type { MarkingTool } from './markingTools'
+import { GridPanel, type GridSettings } from './GridPanel'
 
 // The left rail (rework plan Stage 5.2). One canvas tool is active at a time;
 // the rail's other entries open a panel anchored to it rather than changing
@@ -25,8 +20,8 @@ import {
 // the plan asks for on the 2D/3D toggle.
 
 export type CanvasTool = 'select' | 'player' | 'ball' | 'equipment' | 'marking'
-export type MarkingTool = 'arrow-player' | 'arrow-ball' | 'text'
-export type RailPanel = 'equipment' | 'marking' | 'team' | 'pitch' | null
+export type { MarkingTool }
+export type RailPanel = 'equipment' | 'marking' | 'team' | 'grid' | 'pitch' | null
 
 // What a rail button can be dragged onto the pitch to place, carried over from
 // the phases-era editor: a coach dragging an actual cone onto the pitch reads
@@ -48,6 +43,10 @@ interface ToolRailProps {
   onEquipmentChange: (equipment: EquipmentType) => void
   marking: MarkingTool
   onMarkingChange: (marking: MarkingTool) => void
+  markingCount: number
+  onClearMarkings: () => void
+  grid: GridSettings
+  onGridChange: (grid: GridSettings) => void
   pitchSize: PitchSize
   orientation: PitchOrientation
   onPitchChange: (size: PitchSize, orientation: PitchOrientation) => void
@@ -56,18 +55,6 @@ interface ToolRailProps {
   // drawer, where there's width to spare and no rail to anchor a popover to.
   layout: 'rail' | 'drawer'
 }
-
-const EQUIPMENT_OPTIONS: { value: EquipmentType; label: string; icon: ReactNode }[] = [
-  { value: 'cone', label: 'Agility pole', icon: <ConeToolIcon /> },
-  { value: 'witches_hat', label: "Witches' hat", icon: <WitchesHatToolIcon /> },
-  { value: 'mannequin', label: 'Mannequin', icon: <MannequinToolIcon /> },
-]
-
-const MARKING_OPTIONS: { value: MarkingTool; label: string; icon: ReactNode }[] = [
-  { value: 'arrow-player', label: 'Player run', icon: <ArrowToolIcon kind="player" /> },
-  { value: 'arrow-ball', label: 'Pass', icon: <ArrowToolIcon kind="ball" /> },
-  { value: 'text', label: 'Note', icon: <NoteToolIcon /> },
-]
 
 const PITCH_SIZES: PitchSize[] = ['full', 'three_quarter', 'half', 'quarter']
 const ORIENTATIONS: PitchOrientation[] = ['portrait', 'landscape']
@@ -147,7 +134,7 @@ export function ToolRail(props: ToolRailProps) {
             togglePanel('equipment')
           }}
           onPointerDown={props.onStartDrag({ kind: 'equipment', equipment: props.equipment })}
-          icon={<Shapes className="h-4 w-4" />}
+          icon={<EquipmentIcon type={props.equipment} />}
         />
         <RailButton
           label="Markings"
@@ -173,9 +160,9 @@ export function ToolRail(props: ToolRailProps) {
         />
         <RailButton
           label="Grid & guides"
+          active={props.panel === 'grid'}
           layout={layout}
-          disabled
-          title="Grid & guides — coming with the element library stage"
+          onClick={() => togglePanel('grid')}
           icon={<Grid3x3 className="h-4 w-4" />}
         />
         <RailButton
@@ -197,27 +184,27 @@ export function ToolRail(props: ToolRailProps) {
       {props.panel && (
         <Panel layout={layout}>
           {props.panel === 'equipment' && (
-            <OptionList
-              title="Equipment"
-              options={EQUIPMENT_OPTIONS}
+            <EquipmentPanel
               value={props.equipment}
               onChange={(value) => {
                 props.onEquipmentChange(value)
                 props.onToolChange('equipment')
               }}
+              onStartDrag={(equipment) => props.onStartDrag({ kind: 'equipment', equipment })}
             />
           )}
           {props.panel === 'marking' && (
-            <OptionList
-              title="Markings"
-              options={MARKING_OPTIONS}
+            <MarkingsPanel
               value={props.marking}
               onChange={(value) => {
                 props.onMarkingChange(value)
                 props.onToolChange('marking')
               }}
+              onClearAll={props.onClearMarkings}
+              markingCount={props.markingCount}
             />
           )}
+          {props.panel === 'grid' && <GridPanel settings={props.grid} onChange={props.onGridChange} />}
           {props.panel === 'team' && (
             <OptionList
               title="Team colour"
@@ -259,7 +246,9 @@ function Panel({ layout, children }: { layout: 'rail' | 'drawer'; children: Reac
     return <div className="mt-3 rounded-lg border border-line bg-panel-raised p-3">{children}</div>
   }
   return (
-    <div className="absolute left-full top-0 z-30 ml-2 w-56 rounded-xl border border-line bg-panel p-3">{children}</div>
+    <div className="absolute left-full top-0 z-30 ml-2 max-h-[70vh] w-56 overflow-y-auto rounded-xl border border-line bg-panel p-3">
+      {children}
+    </div>
   )
 }
 

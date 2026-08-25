@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Stage, Tag, Text, Transformer } from 'react-konva'
-import type { PhasePoint, PitchConfig, PitchSize } from '../../store'
+import type { Marking, PhasePoint, PitchConfig, PitchSize } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
-import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, SELECTION, TURF, WITCHES_HAT } from './pitchTheme'
+import { ANNOTATION, ARROW, BALL, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
+import { EquipmentShape } from './canvas/EquipmentShapes'
 import { assignTeamColors, getPitchAspectRatio, getPitchMarkings } from './pitchGeometry'
 
 type PixelPoint = { x: number; y: number }
@@ -65,6 +66,19 @@ interface PitchCanvasProps {
   // points (Stage 3.5). Only markings are transformable; entities move.
   onMarkingsTransform?: (updates: Array<{ id: string; points: PhasePoint[] }>) => void
 
+  // Which marking the armed tool draws, if any (rework plan Stage 6.4).
+  // 'ruler' is the one that isn't a marking: it measures and reports nothing,
+  // so it's handled here and never reaches `onDrawMarking`.
+  drawTool?: DrawTool | null
+  drawStyle?: Marking['style']
+  onDrawMarking?: (marking: Omit<Marking, 'id'>) => void
+
+  // Grid & guides (Stage 6.6). Snap is what makes a cone grid or a rondo box
+  // buildable without every drill looking hand-wobbled.
+  showGrid?: boolean
+  snapToGrid?: boolean
+  smartGuides?: boolean
+
   // Frames to ghost underneath the live one — the keyframes either side of
   // the playhead (rework plan Stage 4.5). Only ever rendered, never
   // interactive; entities only, since ghost arrows and notes are clutter
@@ -83,6 +97,30 @@ const DEFAULT_MAX_WIDTH = 420
 const MIN_SCALE = 1
 const MAX_SCALE = 5
 const ZOOM_STEP = 1.08
+
+// The drawing tools the markings panel arms. Everything but 'ruler' commits a
+// Marking; the ruler only ever reports a distance on screen.
+export type DrawTool = 'arrow' | 'line' | 'curve' | 'circle' | 'rect' | 'freehand' | 'zone' | 'ruler'
+
+// Tools drawn by pressing, dragging and releasing. The rest are polylines
+// built tap by tap, or freehand.
+const DRAG_TOOLS: DrawTool[] = ['arrow', 'line', 'circle', 'rect', 'ruler']
+const POLYLINE_TOOLS: DrawTool[] = ['curve', 'zone']
+
+// Grid spacing in metres. Five is the number a coach already thinks in — a
+// rondo box is 10 or 15 a side — so intersections land where they'd pace them.
+const GRID_STEP_METERS = 5
+
+// How close two entities have to be on one axis for a smart guide to appear
+// and snap them, in normalized units.
+const GUIDE_TOLERANCE = 0.012
+
+// A freehand stroke only records a point once the pointer has moved this far,
+// so a slow hand doesn't produce a thousand-point path.
+const FREEHAND_MIN_STEP = 0.006
+
+// Tapping within this of the last placed point finishes a polyline.
+const POLYLINE_CLOSE_DISTANCE = 0.025
 
 // A marquee smaller than this in either axis is treated as a click on empty
 // pitch (which clears the selection) rather than as a box-select, so a
@@ -189,6 +227,12 @@ export function PitchCanvas({
   onSelectionChange,
   onDeleteSelection,
   onMarkingsTransform,
+  drawTool,
+  drawStyle,
+  onDrawMarking,
+  showGrid = false,
+  snapToGrid = false,
+  smartGuides = false,
   onionFrames,
   pendingArrowStart,
   hintText,
@@ -209,6 +253,14 @@ export function PitchCanvas({
   const pinchDistance = useRef<number | null>(null)
   const transformerRef = useRef<Konva.Transformer>(null)
   const markingNodes = useRef(new Map<string, Konva.Node>())
+  // A drawing in progress: the points collected so far for whichever tool is
+  // armed. Committed on release (drag tools), on a repeat tap (polylines), or
+  // discarded on Escape.
+  const [draft, setDraft] = useState<PhasePoint[] | null>(null)
+  const drawing = useRef(false)
+  // Alignment guides shown while dragging, in normalized coordinates.
+  const [guides, setGuides] = useState<{ x?: number; y?: number }>({})
+
   // Where every entity being dragged sat when the gesture began, so a
   // multi-select drag can move the whole group by the same delta.
   const dragOrigin = useRef<{ anchor: NormalizedPoint; positions: Map<string, NormalizedPoint> } | null>(null)
@@ -239,6 +291,40 @@ export function PitchCanvas({
     y: height > 0 ? clamp01(p.y / height) : 0,
   })
 
+  // Grid intersections, in normalized space. Derived from the pitch's real
+  // metre dimensions rather than from pixels, so the grid means the same thing
+  // on a phone and a laptop.
+  const gridStepX = markings.widthMeters > 0 ? GRID_STEP_METERS / markings.widthMeters : 0
+  const gridStepY = markings.lengthMeters > 0 ? GRID_STEP_METERS / markings.lengthMeters : 0
+
+  const snapped = (point: NormalizedPoint): NormalizedPoint => {
+    if (!snapToGrid || gridStepX <= 0 || gridStepY <= 0) return point
+    return {
+      x: clamp01(Math.round(point.x / gridStepX) * gridStepX),
+      y: clamp01(Math.round(point.y / gridStepY) * gridStepY),
+    }
+  }
+
+  // Nudges a dragged position onto the nearest other entity's axis when it's
+  // already nearly aligned, and reports the guides to draw. Skipped entirely
+  // when snap-to-grid is on — two competing snaps fight each other.
+  const aligned = (point: NormalizedPoint, movingIds: Set<string>): NormalizedPoint => {
+    if (!smartGuides || snapToGrid) {
+      if (guides.x !== undefined || guides.y !== undefined) setGuides({})
+      return point
+    }
+    let x: number | undefined
+    let y: number | undefined
+    for (const entity of entities) {
+      if (movingIds.has(entity.id)) continue
+      if (x === undefined && Math.abs(entity.x - point.x) < GUIDE_TOLERANCE) x = entity.x
+      if (y === undefined && Math.abs(entity.y - point.y) < GUIDE_TOLERANCE) y = entity.y
+      if (x !== undefined && y !== undefined) break
+    }
+    setGuides({ x, y })
+    return { x: x ?? point.x, y: y ?? point.y }
+  }
+
   // Konva hands dragBoundFunc an absolute position, which already includes
   // the Stage's pan/zoom — so the content-space limits have to be pushed
   // through the same transform rather than compared raw.
@@ -249,6 +335,14 @@ export function PitchCanvas({
       x: clamp(pos.x, lowX, Math.max(lowX, (width - radius) * view.scale + view.x)),
       y: clamp(pos.y, lowY, Math.max(lowY, (height - radius) * view.scale + view.y)),
     }
+  }
+
+  // Where a dragged entity actually lands: raw pointer position, then the
+  // grid, then any axis it's already nearly sharing with something else.
+  const placeFor = (entityId: string, event: Konva.KonvaEventObject<DragEvent>): NormalizedPoint => {
+    const raw = fromPx({ x: event.target.x(), y: event.target.y() })
+    const moving = new Set(dragOrigin.current?.positions.keys() ?? [entityId])
+    return aligned(snapped(raw), moving)
   }
 
   const beginEntityDrag = (entityId: string) => {
@@ -393,19 +487,96 @@ export function PitchCanvas({
     pinchDistance.current = null
   }
 
+  // --- drawing (Stage 6.4) -------------------------------------------------
+  //
+  // Three gestures, one per family. Drag tools press-drag-release with a live
+  // preview; polylines collect a point per tap and finish when a tap lands
+  // back on the point just placed; freehand records the pointer's trail.
+
+  const commitDraft = (points: PhasePoint[]) => {
+    setDraft(null)
+    drawing.current = false
+    if (!drawTool || !onDrawMarking || drawTool === 'ruler' || points.length < 2) return
+    onDrawMarking({ kind: drawTool, points, style: drawStyle })
+  }
+
+  const handleDrawPointerDown = (point: NormalizedPoint): boolean => {
+    if (!drawTool) return false
+
+    if (POLYLINE_TOOLS.includes(drawTool)) {
+      const current = draft ?? []
+      const last = current[current.length - 1]
+      // A second tap on the point just placed ends the shape, which is one
+      // rule that works the same with a finger and with a mouse.
+      if (last && Math.hypot(last.x - point.x, last.y - point.y) < POLYLINE_CLOSE_DISTANCE) {
+        commitDraft(current)
+        return true
+      }
+      setDraft([...current, point])
+      return true
+    }
+
+    drawing.current = true
+    setDraft([point, point])
+    return true
+  }
+
+  const handleDrawPointerMove = (point: NormalizedPoint): boolean => {
+    if (!drawTool || !draft) return false
+    if (POLYLINE_TOOLS.includes(drawTool)) {
+      // Rubber-band the segment being aimed, without committing it.
+      setDraft([...draft.slice(0, -1), draft[draft.length - 1]])
+      return false
+    }
+    if (!drawing.current) return false
+    if (drawTool === 'freehand') {
+      const last = draft[draft.length - 1]
+      if (Math.hypot(last.x - point.x, last.y - point.y) < FREEHAND_MIN_STEP) return true
+      setDraft([...draft, point])
+      return true
+    }
+    setDraft([draft[0], point])
+    return true
+  }
+
+  const handleDrawPointerUp = (): boolean => {
+    if (!drawTool || !drawing.current || !draft) return false
+    if (DRAG_TOOLS.includes(drawTool) || drawTool === 'freehand') {
+      if (drawTool === 'ruler') {
+        // Measured, shown, and deliberately not kept.
+        setDraft(null)
+        drawing.current = false
+        return true
+      }
+      commitDraft(draft)
+      return true
+    }
+    return false
+  }
+
   // --- marquee box-select (Stage 3.4) -------------------------------------
 
   const handleStagePointerDown = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    if (!selectable || panning || annotationMode || removeMode) return
+    if (panning) return
     const stage = e.target.getStage()
-    if (!stage || e.target !== stage) return
-    const pointer = stage.getRelativePointerPosition()
-    if (!pointer) return
+    const pointer = stage?.getRelativePointerPosition()
+    if (!stage || !pointer) return
+
+    if (drawTool) {
+      if (handleDrawPointerDown(snapped(fromPx(pointer)))) return
+    }
+    if (!selectable || annotationMode || removeMode) return
+    if (e.target !== stage) return
     marqueeStart.current = pointer
     setMarquee(null)
   }
 
   const handleStagePointerMove = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (drawTool) {
+      const stage = e.target.getStage()
+      const pointer = stage?.getRelativePointerPosition()
+      if (pointer && handleDrawPointerMove(snapped(fromPx(pointer)))) return
+    }
     const start = marqueeStart.current
     if (!start) return
     const stage = e.target.getStage()
@@ -415,6 +586,7 @@ export function PitchCanvas({
   }
 
   const handleStagePointerUp = () => {
+    if (handleDrawPointerUp()) return
     const start = marqueeStart.current
     marqueeStart.current = null
     if (!start || !onSelectionChange) {
@@ -448,6 +620,11 @@ export function PitchCanvas({
       return
     }
     if (e.key === 'Escape') {
+      if (draft) {
+        setDraft(null)
+        drawing.current = false
+        return
+      }
       if (selection.length > 0) onSelectionChange?.([])
       return
     }
@@ -532,6 +709,11 @@ export function PitchCanvas({
     else markingNodes.current.delete(id)
   }
 
+  const gridColumns: number[] = []
+  const gridRows: number[] = []
+  if (showGrid && gridStepX > 0) for (let f = gridStepX; f < 1; f += gridStepX) gridColumns.push(Number(f.toFixed(5)))
+  if (showGrid && gridStepY > 0) for (let f = gridStepY; f < 1; f += gridStepY) gridRows.push(Number(f.toFixed(5)))
+
   const baseUnit = width / 100
   const playerRadius = baseUnit * 3.5
   const coneRadius = baseUnit * 2.4
@@ -554,7 +736,20 @@ export function PitchCanvas({
     PLAYER.fallback
   )
 
-  const interactive = editable || annotationMode || removeMode || selectable
+  // Straight-line distance along the drafted points, in real metres — the same
+  // conversion the timeline's speed readout uses, so the two agree.
+  const rulerMeters = (points: PhasePoint[]): number => {
+    let total = 0
+    for (let i = 1; i < points.length; i++) {
+      total += Math.hypot(
+        (points[i].x - points[i - 1].x) * markings.widthMeters,
+        (points[i].y - points[i - 1].y) * markings.lengthMeters
+      )
+    }
+    return total
+  }
+
+  const interactive = editable || annotationMode || removeMode || selectable || drawTool !== null
   const cursor = panning ? 'grab' : annotationMode ? 'crosshair' : removeMode ? 'pointer' : undefined
 
   const entityHandlers = (entityId: string, radius: number) => ({
@@ -562,13 +757,13 @@ export function PitchCanvas({
     dragBoundFunc: editable ? makeDragBound(radius) : undefined,
     onDragStart: editable ? () => beginEntityDrag(entityId) : undefined,
     onDragMove: editable
-      ? (e: Konva.KonvaEventObject<DragEvent>) =>
-          dragEntityTo(entityId, fromPx({ x: e.target.x(), y: e.target.y() }), false)
+      ? (e: Konva.KonvaEventObject<DragEvent>) => dragEntityTo(entityId, placeFor(entityId, e), false)
       : undefined,
     onDragEnd: editable
       ? (e: Konva.KonvaEventObject<DragEvent>) => {
-          dragEntityTo(entityId, fromPx({ x: e.target.x(), y: e.target.y() }), true)
+          dragEntityTo(entityId, placeFor(entityId, e), true)
           dragOrigin.current = null
+          setGuides({})
         }
       : undefined,
     onClick: interactive ? handleEntityClick(entityId) : undefined,
@@ -663,6 +858,28 @@ export function PitchCanvas({
             {markings.dots.map((d, i) => (
               <Circle key={`dot-${i}`} x={d.x * scaleX} y={d.y * scaleY} radius={lineWidth * 1.5} fill={TURF.line} />
             ))}
+
+            {/* Grid & guides (Stage 6.6). Drawn on the pitch surface rather
+                than in a layer of its own — it's a backdrop, and the two layer
+                slots still free belong to overlays and onion skin. */}
+            {showGrid && gridStepX > 0 && gridColumns.map((fraction) => (
+              <Line
+                key={`grid-x-${fraction}`}
+                points={[fraction * width, 0, fraction * width, height]}
+                stroke={TURF.line}
+                strokeWidth={lineWidth * 0.4}
+                opacity={0.35}
+              />
+            ))}
+            {showGrid && gridStepY > 0 && gridRows.map((fraction) => (
+              <Line
+                key={`grid-y-${fraction}`}
+                points={[0, fraction * height, width, fraction * height]}
+                stroke={TURF.line}
+                strokeWidth={lineWidth * 0.4}
+                opacity={0.35}
+              />
+            ))}
           </Layer>
 
           {/* --- OverlayLayer (thirds, channels, Pep zones) belongs here,
@@ -675,15 +892,20 @@ export function PitchCanvas({
           <Layer listening={interactive}>
             {shapeMarkings.map((marking) => {
               const selected = isSelected(marking.id)
-              if (marking.kind === 'arrow' && marking.points.length >= 2) {
-                const from = toPx(marking.points[0])
-                const to = toPx(marking.points[1])
+              // A curved arrow is still an arrow — it keeps its head, and the
+              // tension is what makes it read as a bent pass rather than a
+              // dog-leg.
+              if ((marking.kind === 'arrow' || marking.kind === 'curve') && marking.points.length >= 2) {
                 const style = ARROW[marking.style?.dash ? 'ball' : 'player']
                 return (
                   <Arrow
                     key={marking.id}
                     {...markingHandlers(marking.id)}
-                    points={[from.x, from.y, to.x, to.y]}
+                    points={marking.points.flatMap((point) => {
+                      const p = toPx(point)
+                      return [p.x, p.y]
+                    })}
+                    tension={marking.kind === 'curve' ? 0.4 : 0}
                     stroke={selected ? SELECTION.halo : marking.style?.stroke ?? style.stroke}
                     fill={selected ? SELECTION.halo : marking.style?.stroke ?? style.stroke}
                     dash={style.dash}
@@ -694,12 +916,54 @@ export function PitchCanvas({
                   />
                 )
               }
-              // Every other marking kind is a polyline over the same points —
-              // Stage 6 introduces the tools that draw curves, zones and
-              // freehand; rendering them as a closed or open line keeps any
-              // that already exist visible rather than silently dropped.
               if (marking.points.length < 2) return null
-              const closed = marking.kind === 'rect' || marking.kind === 'zone' || marking.kind === 'circle'
+              const stroke = selected ? SELECTION.halo : marking.style?.stroke ?? ARROW.player.stroke
+              const strokeWidth = (marking.style?.width ?? 1) * arrowStrokeWidth
+              const dash = marking.style?.dash ? ARROW.ball.dash : undefined
+              const a = toPx(marking.points[0])
+              const b = toPx(marking.points[marking.points.length - 1])
+
+              // A rectangle and an ellipse are stored as the two corners of
+              // their bounding box, so they're reconstructed rather than drawn
+              // as a two-point polyline.
+              if (marking.kind === 'rect') {
+                return (
+                  <Rect
+                    key={marking.id}
+                    {...markingHandlers(marking.id)}
+                    x={Math.min(a.x, b.x)}
+                    y={Math.min(a.y, b.y)}
+                    width={Math.abs(b.x - a.x)}
+                    height={Math.abs(b.y - a.y)}
+                    stroke={stroke}
+                    strokeWidth={strokeWidth}
+                    dash={dash}
+                    fill={marking.style?.fill}
+                  />
+                )
+              }
+              if (marking.kind === 'circle') {
+                return (
+                  <Ellipse
+                    key={marking.id}
+                    {...markingHandlers(marking.id)}
+                    x={(a.x + b.x) / 2}
+                    y={(a.y + b.y) / 2}
+                    radiusX={Math.abs(b.x - a.x) / 2}
+                    radiusY={Math.abs(b.y - a.y) / 2}
+                    stroke={stroke}
+                    strokeWidth={strokeWidth}
+                    dash={dash}
+                    fill={marking.style?.fill}
+                  />
+                )
+              }
+
+              // Lines, curves, freehand strokes and zones are all polylines
+              // over their own points; what differs is whether they close and
+              // how much they're smoothed.
+              const closed = marking.kind === 'zone'
+              const smoothed = marking.kind === 'curve' || marking.kind === 'freehand'
               return (
                 <Line
                   key={marking.id}
@@ -709,91 +973,31 @@ export function PitchCanvas({
                     return [p.x, p.y]
                   })}
                   closed={closed}
-                  fill={closed ? marking.style?.fill : undefined}
-                  stroke={selected ? SELECTION.halo : marking.style?.stroke ?? ARROW.player.stroke}
-                  strokeWidth={(marking.style?.width ?? 1) * arrowStrokeWidth}
-                  dash={marking.style?.dash ? ARROW.ball.dash : undefined}
+                  fill={closed ? marking.style?.fill ?? SELECTION.marqueeFill : undefined}
+                  stroke={stroke}
+                  strokeWidth={strokeWidth}
+                  dash={dash}
+                  tension={smoothed ? 0.4 : 0}
                   hitStrokeWidth={Math.max(arrowStrokeWidth, baseUnit * 4)}
                   lineJoin="round"
+                  lineCap="round"
                 />
               )
             })}
           </Layer>
 
-          {/* --- EquipmentLayer: cones, poles, mannequins. --- */}
+          {/* --- EquipmentLayer: the full equipment library, each piece drawn
+              by EquipmentShapes.tsx around its own origin so this layer only
+              has to position and rotate a Group. --- */}
           <Layer listening={interactive}>
             {equipment.map((item) => {
               const p = toPx(item)
-              const kind = item.equipment ?? 'cone'
-              const selected = isSelected(item.id)
-
-              if (kind === 'witches_hat') {
-                const bodyHeight = coneRadius * 2
-                const baseHeight = coneRadius * 0.45
-                const topWidth = coneRadius * 0.5
-                const bottomWidth = coneRadius * 2
-                const baseWidth = coneRadius * 2.3
-                const totalHeight = bodyHeight + baseHeight
-                const top = -totalHeight / 2
-                const bodyBottom = top + bodyHeight
-                return (
-                  <Group key={item.id} x={p.x} y={p.y} {...entityHandlers(item.id, totalHeight / 2)}>
-                    {selected && <SelectionHalo radius={totalHeight / 2 + haloWidth} strokeWidth={haloWidth} />}
-                    <Line
-                      points={[-topWidth / 2, top, topWidth / 2, top, bottomWidth / 2, bodyBottom, -bottomWidth / 2, bodyBottom]}
-                      closed
-                      fill={item.color ?? WITCHES_HAT.fill}
-                      lineJoin="round"
-                    />
-                    <Rect
-                      x={-baseWidth / 2}
-                      y={bodyBottom}
-                      width={baseWidth}
-                      height={baseHeight}
-                      cornerRadius={baseHeight / 2}
-                      fill={item.color ?? WITCHES_HAT.fill}
-                    />
-                  </Group>
-                )
-              }
-
-              if (kind === 'mannequin') {
-                const bodyWidth = coneRadius * 1.1
-                const bodyHeight = coneRadius * 1.8
-                const headRadius = coneRadius * 0.5
-                const legSpread = coneRadius * 0.7
-                const legLength = coneRadius * 0.65
-                return (
-                  <Group key={item.id} x={p.x} y={p.y} {...entityHandlers(item.id, bodyHeight / 2 + legLength)}>
-                    {selected && <SelectionHalo radius={bodyHeight / 2 + legLength + haloWidth} strokeWidth={haloWidth} />}
-                    <Circle x={0} y={-bodyHeight / 2 - headRadius} radius={headRadius} stroke={MANNEQUIN.stroke} strokeWidth={1.3} />
-                    <Rect
-                      x={-bodyWidth / 2}
-                      y={-bodyHeight / 2}
-                      width={bodyWidth}
-                      height={bodyHeight}
-                      cornerRadius={bodyWidth * 0.15}
-                      fill={item.color ?? MANNEQUIN.fill}
-                      stroke={MANNEQUIN.stroke}
-                      strokeWidth={1}
-                    />
-                    <Line points={[-legSpread / 2, bodyHeight / 2, -legSpread, bodyHeight / 2 + legLength]} stroke={MANNEQUIN.stroke} strokeWidth={1.3} lineCap="round" />
-                    <Line points={[legSpread / 2, bodyHeight / 2, legSpread, bodyHeight / 2 + legLength]} stroke={MANNEQUIN.stroke} strokeWidth={1.3} lineCap="round" />
-                  </Group>
-                )
-              }
-
-              // Agility pole (the stored kind stays 'cone' — see pitchTheme.ts).
-              const poleHeight = coneRadius * 2.4
-              const poleWidth = Math.max(2, coneRadius * 0.35)
-              const baseWidth = coneRadius * 1.3
-              const baseHeight = coneRadius * 0.4
-              const fill = CONE.named[item.color ?? ''] ?? item.color ?? CONE.fallback
+              const type = item.equipment ?? 'cone'
+              const extent = (EQUIPMENT_EXTENT[type] ?? 1) * coneRadius
               return (
-                <Group key={item.id} x={p.x} y={p.y} {...entityHandlers(item.id, poleHeight / 2)}>
-                  {selected && <SelectionHalo radius={poleHeight / 2 + haloWidth} strokeWidth={haloWidth} />}
-                  <Rect x={-poleWidth / 2} y={-poleHeight / 2} width={poleWidth} height={poleHeight} cornerRadius={poleWidth / 2} fill={fill} />
-                  <Ellipse x={0} y={poleHeight / 2 - baseHeight / 2} radiusX={baseWidth / 2} radiusY={baseHeight / 2} fill={CONE.base} />
+                <Group key={item.id} x={p.x} y={p.y} rotation={item.rotation ?? 0} {...entityHandlers(item.id, extent)}>
+                  {isSelected(item.id) && <SelectionHalo radius={extent + haloWidth} strokeWidth={haloWidth} />}
+                  <EquipmentShape type={type} unit={coneRadius} color={EQUIPMENT.named[item.color ?? ''] ?? item.color} />
                 </Group>
               )
             })}
@@ -818,7 +1022,7 @@ export function PitchCanvas({
                         width={coneRadius}
                         height={coneRadius}
                         cornerRadius={coneRadius / 4}
-                        fill={CONE.named[entity.color ?? ''] ?? entity.color ?? CONE.fallback}
+                        fill={EQUIPMENT.named[entity.color ?? ''] ?? entity.color ?? EQUIPMENT.marker}
                       />
                     )
                   }
@@ -940,6 +1144,41 @@ export function PitchCanvas({
                 listening={false}
               />
             )}
+            {/* The shape being drawn, previewed with the same geometry it
+                will be committed with, so nothing jumps on release. */}
+            {draft && draft.length >= 2 && (
+              <Line
+                points={draft.flatMap((point) => {
+                  const p = toPx(point)
+                  return [p.x, p.y]
+                })}
+                closed={drawTool === 'zone' || drawTool === 'rect' || drawTool === 'circle'}
+                stroke={drawStyle?.stroke ?? SELECTION.marqueeStroke}
+                strokeWidth={arrowStrokeWidth}
+                dash={drawTool === 'ruler' ? [6, 4] : drawStyle?.dash ? ARROW.ball.dash : undefined}
+                fill={drawTool === 'zone' ? SELECTION.marqueeFill : undefined}
+                tension={drawTool === 'curve' || drawTool === 'freehand' ? 0.4 : 0}
+                lineJoin="round"
+                lineCap="round"
+                listening={false}
+              />
+            )}
+
+            {/* The ruler reports a real distance and keeps nothing. */}
+            {drawTool === 'ruler' && draft && draft.length >= 2 && (
+              <Label x={toPx(draft[draft.length - 1]).x} y={toPx(draft[draft.length - 1]).y - baseUnit * 4} listening={false}>
+                <Tag fill={ANNOTATION.background} stroke={ANNOTATION.border} strokeWidth={1} cornerRadius={4} />
+                <Text text={`${rulerMeters(draft).toFixed(1)} m`} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
+              </Label>
+            )}
+
+            {guides.x !== undefined && (
+              <Line points={[guides.x * width, 0, guides.x * width, height]} stroke={SELECTION.marqueeStroke} strokeWidth={1} dash={[4, 4]} listening={false} />
+            )}
+            {guides.y !== undefined && (
+              <Line points={[0, guides.y * height, width, guides.y * height]} stroke={SELECTION.marqueeStroke} strokeWidth={1} dash={[4, 4]} listening={false} />
+            )}
+
             {onMarkingsTransform && (
               <Transformer ref={transformerRef} rotateEnabled ignoreStroke shouldOverdrawWholeArea={false} />
             )}

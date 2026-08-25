@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { PanelRight, Pause, Play, Wrench, X } from 'lucide-react'
 import { useStore } from '../../../store'
-import type { Drill, EquipmentType, PhasePoint, PitchOrientation, PitchSize } from '../../../store'
+import type { Drill, EquipmentType, Marking, PhasePoint, PitchOrientation, PitchSize } from '../../../store'
+import { EQUIPMENT_LABELS } from '../../../store'
 import { PitchCanvas, type EntityMove } from '../PitchCanvas'
 import { frameAt } from '../canvas/interpolate'
 import { TimelineBar } from '../timeline/TimelineBar'
@@ -12,8 +13,11 @@ import { useKeyframeToggle } from '../timeline/useKeyframeToggle'
 import { useToast } from '../../ui/useToast'
 import { EditorTopBar } from './EditorTopBar'
 import { PropertiesPanel } from './PropertiesPanel'
-import { ToolRail, type CanvasTool, type DragPlacement, type MarkingTool, type RailPanel } from './ToolRail'
-import { BallToolIcon, ConeToolIcon, MannequinToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR, WitchesHatToolIcon } from './toolIcons'
+import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
+import { markingToolSpec, type MarkingTool } from './markingTools'
+import type { GridSettings } from './GridPanel'
+import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
+import { EquipmentIcon } from '../canvas/EquipmentShapes'
 
 // The drill editor shell (rework plan Stage 5.2): top bar, left tool rail,
 // pitch, contextual right panel, timeline docked at the bottom. Below `lg` the
@@ -29,20 +33,12 @@ import { BallToolIcon, ConeToolIcon, MannequinToolIcon, PlayerToolIcon, PLAYER_A
 // the size picker that feeds it.
 const PRESET_LENGTH_METERS: Record<PitchSize, number> = { full: 105, three_quarter: 79, half: 53, quarter: 35 }
 
-const EQUIPMENT_NOUN: Record<EquipmentType, string> = {
-  cone: 'Pole',
-  witches_hat: "Witches' hat",
-  mannequin: 'Mannequin',
-}
-
 function dragIcon(placement: DragPlacement) {
   if (placement.kind === 'ball') return <BallToolIcon />
   if (placement.kind === 'player') {
     return <PlayerToolIcon color={placement.team === 'B' ? PLAYER_B_COLOR : PLAYER_A_COLOR} />
   }
-  if (placement.equipment === 'witches_hat') return <WitchesHatToolIcon />
-  if (placement.equipment === 'mannequin') return <MannequinToolIcon />
-  return <ConeToolIcon />
+  return <EquipmentIcon type={placement.equipment} />
 }
 
 export function DrillEditor({ drill }: { drill: Drill }) {
@@ -52,6 +48,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const addMarking = useStore((s) => s.addMarking)
   const removeMarking = useStore((s) => s.removeMarking)
   const setDrillPitch = useStore((s) => s.setDrillPitch)
+  const updateKeyframeState = useStore((s) => s.updateKeyframeState)
   const flushDrillSave = useStore((s) => s.flushDrillSave)
   const showToast = useToast()
 
@@ -59,7 +56,9 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [panel, setPanel] = useState<RailPanel>(null)
   const [team, setTeam] = useState('A')
   const [equipment, setEquipment] = useState<EquipmentType>('cone')
-  const [marking, setMarking] = useState<MarkingTool>('arrow-player')
+  const [marking, setMarking] = useState<MarkingTool>('arrow')
+  const [grid, setGrid] = useState<GridSettings>({ showGrid: false, snapToGrid: false, smartGuides: true })
+  const [routeDraft, setRouteDraft] = useState<PhasePoint[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [onionSkin, setOnionSkin] = useState(false)
   const [timelineOpen, setTimelineOpen] = useState(false)
@@ -153,7 +152,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       return
     }
     addEntity(drill.id, 'equipment', position, { equipment: placement.equipment })
-    showToast(`${EQUIPMENT_NOUN[placement.equipment]} added`)
+    showToast(`${EQUIPMENT_LABELS[placement.equipment]} added`)
   }
 
   const startDrag = (placement: DragPlacement) => (event: ReactPointerEvent) => {
@@ -164,6 +163,10 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // Tap-to-place: whatever the rail has armed lands where the pitch was tapped.
   // Arrows take two taps, and a note opens the text form below the pitch.
   const handleCanvasClick = (position: PhasePoint) => {
+    if (routeDraft) {
+      handleRoutePoint(position)
+      return
+    }
     if (tool === 'player' || tool === 'ball') {
       place(tool === 'ball' ? { kind: 'ball' } : { kind: 'player', team }, position)
       return
@@ -178,17 +181,47 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       setNoteText('')
       return
     }
-    if (!pendingArrowStart) {
-      setPendingArrowStart(position)
+    // Everything else the markings panel arms is drawn by the canvas itself
+    // and arrives through onDrawMarking.
+  }
+
+  // A drawn marking, handed back by the canvas once its gesture completes.
+  const handleDrawMarking = (drawn: Omit<Marking, 'id'>) => {
+    addMarking(drill.id, { ...drawn, style: { ...drawn.style, dash: marking === 'pass' } })
+    showToast(`${markingToolSpec(marking).label} added`)
+  }
+
+  // Draw Route (Stage 6.5): tap a run out point by point for the selected
+  // player, from the keyframe the playhead is parked on to the one after it.
+  // The path is stored on the earlier keyframe's state, which is exactly where
+  // frameAt looks for it.
+  const routeEntityId = selectedIds.length === 1 ? selectedIds[0] : null
+  const parkedKeyframe = keyframeToggle.parked
+  const followingKeyframe = parkedKeyframe
+    ? drill.keyframes.some((keyframe) => keyframe.t > parkedKeyframe.t)
+    : false
+
+  const commitRoute = (points: PhasePoint[]) => {
+    if (!parkedKeyframe || !routeEntityId) return
+    const current = parkedKeyframe.states[routeEntityId] ?? {}
+    updateKeyframeState(drill.id, parkedKeyframe.id, {
+      ...parkedKeyframe.states,
+      [routeEntityId]: { ...current, path: points.length > 0 ? points : undefined },
+    })
+  }
+
+  const handleRoutePoint = (position: PhasePoint) => {
+    const points = routeDraft ?? []
+    const last = points[points.length - 1]
+    // Same "tap the last point again to finish" rule the polyline drawing
+    // tools use, so there's one gesture to learn rather than two.
+    if (last && Math.hypot(last.x - position.x, last.y - position.y) < 0.025) {
+      commitRoute(points)
+      setRouteDraft(null)
+      showToast('Route drawn')
       return
     }
-    addMarking(drill.id, {
-      kind: 'arrow',
-      points: [pendingArrowStart, position],
-      style: { dash: marking === 'arrow-ball' },
-    })
-    setPendingArrowStart(null)
-    showToast(marking === 'arrow-ball' ? 'Pass added' : 'Run added')
+    setRouteDraft([...points, position])
   }
 
   const handleSaveNote = (event: FormEvent) => {
@@ -227,6 +260,29 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     if (removed > 0) showToast(removed === 1 ? 'Removed' : `${removed} removed`)
   }
 
+  const clearMarkings = () => {
+    const count = drill.scene.markings.length
+    for (const item of drill.scene.markings) removeMarking(drill.id, item.id)
+    if (count > 0) showToast(`${count} marking${count === 1 ? '' : 's'} cleared`)
+  }
+
+  // Copies a piece of equipment evenly to its right — the two-tap way to build
+  // a cone grid or a line of poles.
+  const duplicateAlongLine = (entityId: string, count: number) => {
+    const source = drill.scene.entities.find((entity) => entity.id === entityId)
+    const at = frame.entities.find((entity) => entity.id === entityId)
+    if (!source || !at) return
+    // Spaced far enough apart to read as separate pieces at phone size, and
+    // stopped at the touchline rather than piling up against it.
+    const gap = 0.08
+    for (let i = 1; i <= count; i++) {
+      const x = at.x + gap * i
+      if (x > 1) break
+      addEntity(drill.id, 'equipment', { x, y: at.y }, { equipment: source.equipment, color: source.color, rotation: source.rotation })
+    }
+    showToast(`${count} more added`)
+  }
+
   const handlePitchChange = (size: PitchSize, orientation: PitchOrientation) => {
     setDrillPitch(drill.id, {
       ...drill.pitch,
@@ -237,15 +293,13 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     })
   }
 
-  const placementHint = pendingArrowStart
-    ? 'Tap the end point'
-    : tool === 'marking' && marking === 'text'
-      ? 'Tap the pitch to place a note'
-      : tool === 'marking'
-        ? "Tap the pitch for the arrow's start point"
-        : tool !== 'select'
-          ? 'Tap the pitch to place, or drag the tool onto it'
-          : null
+  const placementHint = routeDraft
+    ? 'Tap each point of the run, then tap the last one again to finish'
+    : tool === 'marking'
+      ? markingToolSpec(marking).hint || null
+      : tool !== 'select'
+        ? 'Tap the pitch to place, or drag the tool onto it'
+        : null
 
   const rail = (
     <ToolRail
@@ -260,6 +314,10 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       onEquipmentChange={setEquipment}
       marking={marking}
       onMarkingChange={setMarking}
+      markingCount={drill.scene.markings.length}
+      onClearMarkings={clearMarkings}
+      grid={grid}
+      onGridChange={setGrid}
       pitchSize={(drill.pitch.preset as PitchSize) ?? 'full'}
       orientation={drill.pitch.orientation}
       onPitchChange={handlePitchChange}
@@ -272,8 +330,18 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       drill={drill}
       selectedIds={selectedIds}
       currentTime={playback.currentTime}
+      parkedKeyframeId={parkedKeyframe?.id ?? null}
+      hasFollowingKeyframe={followingKeyframe}
+      drawingRoute={routeDraft !== null}
+      onDrawRoute={() => setRouteDraft([])}
+      onClearRoute={() => {
+        setRouteDraft(null)
+        commitRoute([])
+        showToast('Route cleared')
+      }}
       onSeek={playback.seek}
       onRemoveSelection={() => removeSelection(selectedIds)}
+      onDuplicateAlongLine={duplicateAlongLine}
     />
   )
 
@@ -294,8 +362,14 @@ export function DrillEditor({ drill }: { drill: Drill }) {
             maxHeight={Math.max(260, viewportHeight - 260)}
             editable
             onEntitiesMove={handleEntitiesMove}
-            annotationMode={tool !== 'select'}
+            annotationMode={tool !== 'select' || routeDraft !== null}
             onCanvasClick={handleCanvasClick}
+            drawTool={tool === 'marking' && !routeDraft ? markingToolSpec(marking).draw : null}
+            drawStyle={{ dash: marking === 'pass' }}
+            onDrawMarking={handleDrawMarking}
+            showGrid={grid.showGrid}
+            snapToGrid={grid.snapToGrid}
+            smartGuides={grid.smartGuides}
             selectedIds={selectedIds}
             onSelectionChange={tool === 'select' ? setSelectedIds : undefined}
             onDeleteSelection={removeSelection}

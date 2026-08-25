@@ -1,4 +1,4 @@
-import type { DrillPhase, Marking } from '../../../store'
+import type { DrillPhase, EquipmentKind, EquipmentType, Marking } from '../../../store'
 import type { RenderFrame } from './interpolate'
 
 // Deprecated bridge. Stage 3 changed PitchCanvas to render a RenderFrame
@@ -10,6 +10,16 @@ import type { RenderFrame } from './interpolate'
 // Element ids are carried through unchanged, so a caller can map a reported
 // entity or marking id straight back to the phase array it came from. Goes
 // away with the phases column in migration 014.
+// The phases-era equipment names, mapped onto the scene-era ones. The
+// awkward one is 'cone': it was *drawn* as an agility pole, so it maps to
+// 'pole' — exactly what migration 015 did to the stored scene values, kept in
+// step here so the library preview and the editor show the same silhouette.
+const LEGACY_EQUIPMENT: Record<EquipmentKind, EquipmentType> = {
+  cone: 'pole',
+  witches_hat: 'cone',
+  mannequin: 'mannequin',
+}
+
 export function phaseToRenderFrame(phase: DrillPhase): RenderFrame {
   const entities: RenderFrame['entities'] = []
 
@@ -31,7 +41,7 @@ export function phaseToRenderFrame(phase: DrillPhase): RenderFrame {
     entities.push({
       id: cone.id,
       kind: 'equipment',
-      equipment: cone.kind ?? 'cone',
+      equipment: LEGACY_EQUIPMENT[cone.kind ?? 'cone'],
       color: cone.color,
       x: cone.x,
       y: cone.y,

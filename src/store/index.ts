@@ -38,7 +38,16 @@ export type {
   TacticBoard,
   Tactic,
 } from './types'
-export { PLAYER_POSITIONS, PLAYER_POSITION_LABELS, PITCH_SIZE_LABELS, PITCH_ORIENTATION_LABELS } from './types'
+export {
+  PLAYER_POSITIONS,
+  PLAYER_POSITION_LABELS,
+  PITCH_SIZE_LABELS,
+  PITCH_ORIENTATION_LABELS,
+  EQUIPMENT_TYPES,
+  EQUIPMENT_LABELS,
+  EQUIPMENT_CORE,
+  EQUIPMENT_ADVANCED,
+} from './types'
 export type { SessionWithRelations, CalendarSession, RecurringSessionInput } from './slices/sessionSlice'
 export type { DrillElementType, NewPhaseMode, NewDrillInput, NewEntityInput, SaveState } from './slices/drillSlice'
 export type { NewTacticInput, TacticUpdateInput } from './slices/tacticSlice'
