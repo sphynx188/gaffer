@@ -117,13 +117,28 @@ Core tables: `team` → `team_coaches` (membership/role) / `player` (with
 enabled on every table; policies live in `supabase/rls_policies.sql`, built
 on two `security definer` helper functions (`is_team_member`,
 `is_team_owner`) — every new table's RLS should reuse those rather than
-redefining membership checks inline. `drill.phases` is a jsonb array of
-phase objects (players/cones/balls/arrows/annotations, each in
-**normalized 0–1 pitch coordinates** so one drill renders correctly on any
-pitch shape) — typed in full in `src/store/types.ts` (`DrillPhase` and
-friends). Because phase content lives in jsonb, extending it (new element
-`kind` fields, new optional properties) never needs a migration — only real
-columns (like `drill.pitch_format`) do.
+redefining membership checks inline. A drill's content lives in
+`drill.scene` (one cast of `entities` with ids stable for the whole drill,
+plus `markings`) and `drill.keyframes` (each a `t` in seconds and a
+`states` map of entityId → position), alongside `drill.duration_seconds`
+and `drill.pitch` — all jsonb, all in **normalized 0–1 pitch coordinates**
+so one drill renders correctly on any pitch shape, and all typed in full
+in `src/store/types.ts` (`SceneEntity`, `Keyframe`, `Marking`,
+`PitchConfig`). Because that content lives in jsonb, extending it (a new
+equipment type, a new marking kind, a new optional per-entity property)
+never needs a migration — only real columns (like `drill.pitch_format`) do.
+
+`drill.phases` — the older shape, a jsonb array of phase objects each
+carrying its *own* players/cones/balls/arrows/annotations — is **deprecated
+but still authoritative**: migration 013 added the scene/keyframes columns
+and 013b backfilled them from `phases`, but nothing in `src/` reads the new
+columns yet, so the editor still runs on `phases`. Migration 014 (written,
+deliberately not applied) drops it. Until then, don't write new code
+against `phases`, and re-run 013b if drills are created or edited through
+the current editor. The reason for the change, and every stage that depends
+on it, is in [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md)
+§0: a player in phase 1 and the "same" player in phase 2 were unrelated
+objects, so nothing could ever interpolate between two phases.
 
 ### Design canvas (Konva)
 

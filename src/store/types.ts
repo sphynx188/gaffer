@@ -158,14 +158,134 @@ export interface DrillPhase {
   annotations: PhaseAnnotation[]
 }
 
+// ---------------------------------------------------------------------------
+// Entities + keyframes (DRILL_CREATOR_REWORK_PLAN.md Stage 1)
+//
+// Replaces the phases[] model above. The difference that matters: a drill now
+// has ONE cast of entities with ids stable for the whole drill, plus keyframes
+// that say where each of them is at a given time. Under phases[], "the same"
+// player in two phases was two unrelated objects that happened to share an id,
+// which is why nothing could ever tween between phases (see DrillLibrary.tsx's
+// comment on why its preview cuts rather than interpolates). Everything the
+// rework adds downstream — interpolation, onion skin, movement paths, the
+// per-segment speed readout — is undefined without that identity.
+//
+// Coordinates stay normalized 0-1 exactly as phases[] used them, so a drill
+// still renders correctly on any pitch shape.
+// ---------------------------------------------------------------------------
+
+export type EntityKind = 'player' | 'ball' | 'equipment'
+export type PlayerDisplay = 'compact' | 'standard' | 'presentation' | 'dot'
+export type BodyShape = 'auto' | 'backpedal' | 'shuffle_left' | 'shuffle_right'
+
+// The scene-era name for EquipmentKind. Starts as exactly the three kinds the
+// phases model had so the backfill maps 1:1; Stage 6 of the rework plan widens
+// it to the full 11-type set. Equipment lives in jsonb, so widening it never
+// needs a migration — the same extensibility EquipmentKind was given.
+export type EquipmentType = 'cone' | 'witches_hat' | 'mannequin'
+
+// A cast member. Stable id for the entire life of the drill — this is the
+// property phases[] never had, and the one every animation feature needs.
+// Position is deliberately NOT here: where an entity is depends on which
+// keyframe you're asking about (see EntityState).
+export interface SceneEntity {
+  id: string
+  kind: EntityKind
+  // players
+  team?: string // 'A' | 'B' — drives color, as PhasePlayer.team does today
+  number?: number // auto-assigned per team on create
+  label?: string
+  color?: string // per-entity override of the team color
+  goalkeeper?: boolean
+  display?: PlayerDisplay
+  // equipment
+  equipment?: EquipmentType
+}
+
+// Where one entity is at one keyframe. `x`/`y` are optional only because a
+// hidden entity has no position to record — an entity that isn't on the pitch
+// at this keyframe is stored as `{ hidden: true }` alone (the shape migration
+// 013b's rule 3 writes). Every visible state always carries both.
+export interface EntityState {
+  x?: number // normalized 0-1, unchanged convention
+  y?: number
+  facing?: number // degrees; omitted = derive from travel direction
+  bodyShape?: BodyShape
+  path?: PhasePoint[] // custom multi-point route to the NEXT keyframe
+  hidden?: boolean // entity not on the pitch at this keyframe
+}
+
+export interface Keyframe {
+  id: string
+  t: number // seconds from drill start
+  name?: string
+  description?: string
+  states: Record<string, EntityState> // entityId -> state
+}
+
+// Arrows, lines, shapes, zones, freehand, text. Static by default;
+// `keyframeId` binds a marking to one keyframe — which is what lets the
+// migration carry today's per-phase arrows and annotations across losslessly.
+export interface Marking {
+  id: string
+  kind: 'arrow' | 'line' | 'curve' | 'circle' | 'rect' | 'freehand' | 'zone' | 'text'
+  points: PhasePoint[]
+  style?: { stroke?: string; dash?: boolean; fill?: string; width?: number }
+  text?: string
+  keyframeId?: string | null
+}
+
+export interface DrillScene {
+  entities: SceneEntity[]
+  markings: Marking[]
+}
+
+// Pitch overlays (rework plan Stage 7.4) — grid systems drawn over the pitch
+// rather than markings of it.
+export type OverlayKind = 'thirds' | 'channels' | 'lanes' | 'half_spaces' | 'pep_zones' | 'training_grid'
+
+// Real metre dimensions rather than a 4-value size enum, which is what makes
+// the Stage 4 speed readout meaningful. `widthMeters`/`lengthMeters` are the
+// canonical *portrait* authoring (width = the lateral/goal-width axis) with
+// `orientation` applied on top, exactly the convention pitchGeometry.ts
+// already uses — see its header comment on transpose().
+//
+// Stage 7 owns the preset table and populates `preset`, so it's typed as a
+// plain string here rather than a union frozen too early; migration 013b
+// carries the four old pitch_size values through as preset keys. `markings`
+// is optional until Stage 7 decides whether it's derived from the dimensions
+// or stored.
+export interface PitchConfig {
+  preset: string // 'full' | 'rondo_20' | 'guardiola_4v4_3' | 'custom' | …
+  widthMeters: number
+  lengthMeters: number
+  orientation: PitchOrientation
+  markings?: 'full' | 'grid' | 'none'
+  overlays: OverlayKind[]
+  surface?: string
+  units?: 'm' | 'yd'
+}
+
 export interface Drill {
   id: string
   team_id: string | null // null = coach-owned, reusable across every team
   name: string
-  pitch_size: PitchSize
+  scene: DrillScene
+  keyframes: Keyframe[]
+  duration_seconds: number
+  pitch: PitchConfig
   orientation: PitchOrientation
-  phases: DrillPhase[]
   created_at: string
+
+  // Deprecated by migration 013 (scene/keyframes) and dropped by 014 once the
+  // backfill has been read back in the new editor — see
+  // DRILL_CREATOR_REWORK_PLAN.md Stage 1.4. Still the authoritative copy of a
+  // drill's content until then, which is what keeps 013b re-runnable, so
+  // don't write new code against either of them.
+  /** @deprecated use `scene` + `keyframes`; dropped by migration 014. */
+  phases: DrillPhase[]
+  /** @deprecated use `pitch`; dropped by migration 014. */
+  pitch_size: PitchSize
 }
 
 export interface SessionDrill {

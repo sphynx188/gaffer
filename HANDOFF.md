@@ -276,6 +276,105 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 1: entities + keyframes
+
+Executing Stage 1 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md)
+— the data-model change every other stage in that plan depends on. A drill
+stops being a list of independent snapshots (`phases[]`, each carrying its own
+`players/cones/balls/arrows/annotations`) and becomes one cast of entities with
+ids stable for the whole drill, plus keyframes saying where each of them is at
+time `t`. That identity across time is what makes interpolation, onion skin,
+movement paths and the per-segment speed readout expressible at all; none of
+them are definable against `phases[]`.
+
+### What happened, in order
+
+1. **Types (`src/store/types.ts`)** — added `EntityKind`, `PlayerDisplay`,
+   `BodyShape`, `EquipmentType`, `SceneEntity`, `EntityState`, `Keyframe`,
+   `Marking`, `DrillScene`, plus the `PitchConfig` / `OverlayKind` that
+   `Drill.pitch` needs. `Drill` gained `scene` / `keyframes` /
+   `duration_seconds` / `pitch`; `phases` and `pitch_size` stay, marked
+   `@deprecated`, because the plan's own §1.2 says to leave them until the
+   backfill has been eyeballed. Re-exported from `src/store/index.ts`.
+
+   One deviation from the plan's literal type block: `EntityState.x`/`.y` are
+   optional, not required. Its own backfill rule 3 writes `{hidden: true}` with
+   no coordinates for an entity that isn't on the pitch at a given keyframe, so
+   required `x`/`y` would have been a lie about the data.
+
+2. **`013_drill_scene_keyframes.sql`** — the four additive columns, verbatim
+   from the plan. Applied. Nothing existing is touched, so `phases` stays the
+   authoritative copy and the backfill stays re-runnable.
+
+3. **`013b_backfill_scene.sql`** — the plan's six conversion rules as one
+   `WITH … UPDATE`. Dry-run as a `SELECT` first and diffed against the old
+   shape, then applied. All 11 drills round-trip: 14 assertions over the
+   *persisted* columns (every element at the same keyframe with byte-identical
+   coordinates, hidden-vs-present correct both ways, every keyframe's `states`
+   covering the whole cast, keyframe gaps equal to the phase durations they came
+   from, every arrow and annotation carried over with its `keyframeId`, no
+   duplicate entity/marking ids) all return 0.
+
+4. **`014_drop_drill_phases.sql`** — written, **deliberately not applied**. Its
+   gate in the plan is "once a manual read-back of all 11 drills *in the new
+   editor* looks right", and that editor is Stage 5. The file's header names the
+   gate and lists every `src/` reference that has to be stripped in the same
+   change, per the 008/009/010 precedent.
+
+### What Worked
+
+- **Dry-running the backfill as a `SELECT` beat the plan's suggested
+  branch-and-diff.** Because 013/013b only ever write the four new columns,
+  the conversion could be computed, diffed against `phases`, and re-run freely
+  without a Supabase branch — cheaper, and reversible in a way a branch merge
+  isn't.
+- **Checking the real jsonb before writing any SQL.** Three things that would
+  have been silent bugs came out of it: arrow ids repeat across phases (`a1` in
+  two different phases), so markings had to be namespaced `<phaseId>:arrow:<id>`
+  to stay unique in one flat array; 8 of 18 phases have no `duration_seconds`,
+  so the 3s default matters more than it looks; and one player's `number`
+  differs between phases (below).
+- **Preserving today's ordering deliberately.** Entities are emitted equipment
+  → balls → players, matching `PitchCanvas`'s existing draw order, which also
+  keeps each phase's original player order intact so `assignTeamColors` still
+  hands team A and team B the same two colours.
+
+### What Didn't Work / Watch Out For
+
+- **The conversion is lossy in exactly one place.** "Finishing Circuit" carries
+  player id `p1` with number 7 in phase 1 and number 11 in phase 2. An entity
+  has one number for the whole drill by definition, so first occurrence (7)
+  wins. Inherent to the model change, not to the SQL.
+- **`quarter` maps to 35×68 m, which is not today's quarter pitch.** The plan's
+  Stage 7 table says `quarter→35×68`; `pitchGeometry.QUARTER` is currently
+  30×40. Followed the plan, but the three quarter-pitch drills will render at a
+  different aspect ratio once Stage 7 starts reading `pitch`. Marker coordinates
+  are normalized 0–1 and are unaffected. Worth an explicit decision in Stage 7
+  rather than a surprise.
+- **`createDrill` still writes only the old columns**, so any drill created
+  before Stage 2 lands gets default `scene`/`keyframes`/`pitch` while its real
+  content goes to `phases`. That's why 013b is re-runnable — re-run it before
+  applying 014. Fixing `createDrill` is Stage 2's job, not Stage 1's.
+- **`Drill.orientation` and `Drill.pitch.orientation` now duplicate each other.**
+  The backfill keeps them in sync. Stage 7 should decide which one survives;
+  the plan's 1.4 only drops `phases` and `pitch_size`.
+- **The signed-in editor click-through wasn't done** — see Next Steps.
+
+## Next Steps
+
+1. **Open the 11 drills in the current editor and confirm nothing moved** — the
+   one Verify item from Stage 1 left outstanding. The data-level proof is done
+   (the `UPDATE`'s `SET` list names only the four new columns, so `phases` could
+   not have changed, and its derived counts still match the pre-migration
+   snapshot exactly), and the app was confirmed to build, load and log no
+   console errors, but the signed-in walkthrough itself needs a human at the
+   keyboard.
+2. **Stage 2 — store: entity/keyframe actions, undo/redo, autosave.** Nothing
+   in Stage 1 pre-empts it: `drillSlice` is untouched and still phases-based.
+3. **Don't apply 014 until its header's three conditions are all true.**
+
+---
+
 ## Session log — design rework: skeletons, icon rail, focus ring
 
 Executing `rework-plan-gaffer-2026-08-22.md` (the Supabase Studio design
