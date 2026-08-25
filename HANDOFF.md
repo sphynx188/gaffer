@@ -276,6 +276,112 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 2: store actions, undo/redo, autosave
+
+Stage 2 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md).
+`drillSlice`'s old contract — local mutation, then the caller fires exactly one
+`updateDrill` — was right in spirit but doesn't survive a timeline: dragging a
+player while a playhead scrubs would have fired dozens of full-document writes.
+This replaces it with a committed-mutation model, a bounded undo stack and a
+debounced autosave.
+
+### What happened, in order
+
+1. **Entity/keyframe/marking actions** — `addEntity` (auto-numbering per team),
+   `updateEntity`, `removeEntity` (clears the entity out of every keyframe's
+   `states` too), `setEntityPosition`, `addKeyframe`, `updateKeyframeState`,
+   `moveKeyframe`, `deleteKeyframe`, `clearKeyframes`, `balanceTiming`,
+   `addMarking` / `updateMarking` / `removeMarking`, `setDrillPitch`,
+   `setDuration`. Everything except `setEntityPosition` is a *committed*
+   mutation: undo snapshot, mark dirty, schedule the write.
+
+2. **Undo/redo** — `{scene, keyframes, duration_seconds, pitch}` snapshots,
+   bounded at 50 per drill, held in the slice closure rather than in reactive
+   state (nothing renders a stack, and 50 snapshots per drill would be compared
+   on every store update for nothing). Every stack mutation is accompanied by a
+   `set`, so `useStore((s) => s.canUndo(drillId))` stays reactive.
+
+3. **Autosave** — 800 ms idle debounce sitting *above* `runSupabaseAction`,
+   never inside it. One `saveState: 'saved' | 'dirty' | 'saving' | 'error'`
+   field. `flushDrillSave()` forces a write for unmount/route change;
+   `beforeunload` is wired in the slice itself, the only place that both knows
+   `saveState` and outlives every editor mount.
+
+4. **`createDrill` seeds the new shape** — one keyframe at `t: 0` (the direct
+   translation of the old "a drill always keeps at least one phase" invariant;
+   without it `addEntity` has nowhere to record a position) and a `pitch`
+   derived with the same four-value table migration 013b used.
+
+### What Worked
+
+- **Verifying the store directly in the browser instead of waiting for Stage
+  5's editor.** Both of the plan's Verify steps name UI that doesn't exist yet,
+  but the slice is drivable from the console via a dynamic
+  `import('/src/store/index.ts')`, and counting at the `fetch` boundary counts
+  exactly what a DevTools Network panel would. Results: a 5.8-second drag
+  produced **0** PATCHes during the drag and **1** in total; 60 committed edits
+  gave **exactly 50** undo steps (159→110, oldest ten evicted), 50 redos back
+  to 160, and a new edit correctly abandoned the redo branch.
+- **The browser throttling background timers to ~1s/tick made the drag test
+  stronger, not weaker.** Every gap between dragmoves was longer than the 800 ms
+  debounce, so a debounce wrongly scheduled from `dragmove` would have fired
+  several times over. It fired once, at commit.
+- **Simulating offline by rejecting `fetch` rather than by unplugging
+  anything.** `dirty` → `error`, local value kept, and the queued payload
+  retried intact once the network came back.
+
+### What Didn't Work / Watch Out For
+
+- **Four signatures deviate from the plan's literal text**, each forced by the
+  spec itself:
+  - `setEntityPosition(…, commit?)` — the hot path is "local-only", but the undo
+    snapshot has to be captured at drag *start* or Ctrl+Z steps back to a point
+    part-way through the gesture. The flag is the smallest way to say "this call
+    is the drag-end one" without inventing `beginEdit`/`commitEdit`.
+  - `updateKeyframeState(drillId, keyframeId, states)` — "recapture current
+    positions" needs a source, and the playhead deliberately isn't in this store
+    (plan §4.1). The caller owns the frame.
+  - `addKeyframe(drillId, t, states?)` — defaults to the keyframe holding at `t`
+    under step semantics. Stage 4 should pass a `frameAt` result once Stage 3
+    lands; **without that, a keyframe added mid-segment will visibly snap** once
+    interpolation exists. Deliberately not solved here — duplicating
+    `interpolate.ts` in the slice would give it two sources of truth.
+  - `undo(drillId)` / `canUndo(drillId)` — the plan's own text makes the stacks
+    per drill.
+- **The `phases` block is still in the slice**, marked deprecated and untouched.
+  Removing it means rewriting `DrillPreview` (Stage 5); the plan puts the
+  editor's break at Stage 3, not here, so the build stays green and the old
+  editor keeps working. It is *not* part of the undo stack or the autosave
+  queue — don't wire anything new to it.
+- **No action sets a keyframe's `name`/`description`.** Stage 4.3 needs one
+  ("keyframe properties: index, time, name, description"); Stage 2's action list
+  doesn't include it, so it isn't here. Stage 4 should add
+  `updateKeyframe(drillId, keyframeId, patch)`.
+- **`setDuration` deliberately leaves keyframes past the new end where they
+  are.** Silently dragging a coach's keyframes is worse than leaving one out of
+  reach, and `balanceTiming` is the tool for redistributing. Stage 4's duration
+  control should decide whether to prompt.
+- **Two keyframes may never share a `t`** — `addKeyframe` and `moveKeyframe`
+  both refuse, and times are rounded to the millisecond so float noise can't
+  sneak a near-duplicate past the guard. Stage 3's interpolator can therefore
+  assume every segment has non-zero length.
+- **Undo history survives a refetch of the same drill.** It's pruned only for
+  drills that vanish from the fetched list, because every screen refetches on
+  mount and clearing on each one would lose undo just by glancing at the
+  library.
+
+## Next Steps
+
+1. **Stage 3 — canvas: frame interpolation, selection, transform.** `frameAt`
+   is the piece Stage 2 deliberately left a hole for (see `addKeyframe` above).
+2. **Nothing calls the new actions yet.** The editor still runs on `phases`;
+   Stages 3–5 move it over.
+3. **Still outstanding from Stage 1:** open the 11 drills in the current editor
+   and confirm nothing moved, and don't apply migration 014 until its header's
+   three conditions hold.
+
+---
+
 ## Session log — Drill Creator rework, Stage 1: entities + keyframes
 
 Executing Stage 1 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md)
