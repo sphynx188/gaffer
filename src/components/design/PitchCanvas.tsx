@@ -24,6 +24,10 @@ interface PitchCanvasProps {
   // it was handed before.
   frame: RenderFrame | null
   maxWidth?: number
+  // Caps the rendered height as well as the width. A tall pitch preset in a
+  // wide column would otherwise run past the bottom of the viewport and push
+  // whatever is docked under it — the timeline — out of reach.
+  maxHeight?: number
   className?: string
 
   // When true, entities become draggable Konva nodes. `onEntitiesMove` fires
@@ -172,6 +176,7 @@ export function PitchCanvas({
   pitch,
   frame,
   maxWidth = DEFAULT_MAX_WIDTH,
+  maxHeight,
   className,
   editable = false,
   onEntitiesMove,
@@ -188,9 +193,12 @@ export function PitchCanvas({
   pendingArrowStart,
   hintText,
 }: PitchCanvasProps) {
-  const { containerRef, width } = useMeasuredWidth(maxWidth)
   const size = sizeForPreset(pitch.preset)
   const aspectRatio = getPitchAspectRatio(size, pitch.orientation) // width / length
+  // The height cap is applied as a width cap, since this is the one place that
+  // knows the aspect ratio the two are related by.
+  const effectiveMaxWidth = maxHeight ? Math.min(maxWidth, maxHeight * aspectRatio) : maxWidth
+  const { containerRef, width } = useMeasuredWidth(effectiveMaxWidth)
   const height = width / aspectRatio
   const markings = getPitchMarkings(size, pitch.orientation)
 
@@ -580,7 +588,7 @@ export function PitchCanvas({
       ref={containerRef}
       data-pitch-canvas
       className={className}
-      style={{ width: '100%', maxWidth, position: 'relative' }}
+      style={{ width: '100%', maxWidth: effectiveMaxWidth, position: 'relative' }}
       // Focusable so arrow-key nudge, Escape, Delete and space-to-pan reach
       // this canvas without a window-level listener that would fire while the
       // coach is typing in a form field somewhere else on the page.

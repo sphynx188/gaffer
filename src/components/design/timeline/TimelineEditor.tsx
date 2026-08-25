@@ -32,7 +32,7 @@ const VERDICT_CLASS: Record<SpeedVerdict, string> = {
 }
 
 const ACTION =
-  'flex h-8 items-center gap-1.5 rounded-md border border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-muted'
+  'flex h-11 lg:h-8 items-center gap-1.5 rounded-md border border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-muted'
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
@@ -162,14 +162,14 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
               key={keyframe.id}
               type="button"
               onPointerDown={beginKeyframeDrag(keyframe.id, keyframe.t)}
-              className="absolute bottom-1 h-3 w-3 -translate-x-1/2 rotate-45 rounded-[2px] border transition-colors"
+              className="absolute bottom-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full transition-colors"
               style={{ left: `${percentOf(at)}%` }}
               title={`${keyframe.name ? keyframe.name + ' · ' : ''}${keyframe.t}s — drag to retime`}
               aria-label={`Keyframe at ${keyframe.t} seconds`}
             >
               <span
                 className={
-                  'block h-full w-full rounded-[2px] ' + (isParked ? 'bg-accent' : 'bg-ink-muted')
+                  'block h-3 w-3 rotate-45 rounded-[2px] ' + (isParked ? 'bg-accent' : 'bg-ink-muted')
                 }
               />
             </button>
@@ -190,7 +190,7 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
           type="button"
           onClick={toggle}
           disabled={!frame}
-          className="flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+          className="flex h-11 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-semibold lg:h-8 text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
         >
           {label}
           {dirty && <span className="h-1.5 w-1.5 rounded-full bg-white" title="The pitch differs from this keyframe" />}
@@ -242,7 +242,7 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.currentTarget.blur()
           }}
-          className="h-8 w-20 rounded-md border border-line bg-panel px-2 text-sm tabular-nums text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
+          className="h-11 w-20 rounded-md border border-line bg-panel px-2 text-sm lg:h-8 tabular-nums text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
         <span className="text-xs text-ink-muted">s</span>
       </div>

@@ -23,9 +23,9 @@ interface TimelineBarProps {
   className?: string
 }
 
-const CONTROL = 'flex h-8 w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted'
-const TOGGLE_ON = 'flex h-8 items-center gap-1.5 rounded-md border border-accent bg-accent px-2 text-xs font-medium text-white transition-colors'
-const TOGGLE_OFF = 'flex h-8 items-center gap-1.5 rounded-md border border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink'
+const CONTROL = 'flex h-11 w-11 lg:h-8 lg:w-8 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted'
+const TOGGLE_ON = 'flex h-11 lg:h-8 items-center gap-1.5 rounded-md border border-accent bg-accent px-2 text-xs font-medium text-white transition-colors'
+const TOGGLE_OFF = 'flex h-11 lg:h-8 items-center gap-1.5 rounded-md border border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink'
 
 export function TimelineBar({
   playback,
@@ -75,7 +75,7 @@ export function TimelineBar({
         </button>
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+          className="flex h-11 w-11 items-center justify-center rounded-md bg-accent lg:h-8 lg:w-8 text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
           onClick={playback.togglePlay}
           disabled={duration <= 0}
           title={playback.playing ? 'Pause (space)' : 'Play (space)'}
@@ -101,7 +101,7 @@ export function TimelineBar({
       <button
         type="button"
         onClick={playback.cycleSpeed}
-        className="h-8 rounded-md border border-line px-2 font-mono text-xs tabular-nums text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+        className="h-11 rounded-md border border-line px-2 font-mono lg:h-8 text-xs tabular-nums text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
         title="Playback speed"
       >
         {playback.speed}×

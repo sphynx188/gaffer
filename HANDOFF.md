@@ -276,6 +276,90 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 5: editor shell
+
+Stage 5 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). The
+917-line `DrillPreview` is gone, replaced by a routed editor: top bar, left
+tool rail, pitch, contextual right panel, timeline docked at the bottom — and
+below `lg`, a drawer, a sheet and a floating dock. This is the stage where
+everything Stages 1-4 built becomes something a coach can actually touch.
+
+### What happened, in order
+
+1. **Routing** — `/design` is now the drill picker; `/design/:drillId` is the
+   editor. Deep-linking to a drill was impossible before and Stages 9 and 10
+   need it.
+2. **`design/editor/`** — `DrillEditor` (layout plus all the editor's view
+   state), `EditorTopBar`, `ToolRail`, `PropertiesPanel`, with `toolIcons` and
+   `CreateDrillForm` carried over from the old editor rather than rewritten.
+3. **`ui/Toast`** — the minimal toast §5.5 asks for, split into a context/hook
+   file and a provider so `react/only-export-components` stays quiet.
+4. **`DrillPreview.tsx` deleted.** The plan's own table marks it "Replaced",
+   and this change is what made it dead.
+
+### What Worked
+
+- **Giving every rail tool exactly today's capability rather than a
+  placeholder.** Equipment offers the three kinds that exist, Markings offers
+  arrows and notes, Pitch offers the four presets — Stages 6 and 7 widen those
+  panels rather than building them from nothing. Grid & Guides and Drill
+  Details have no data behind them at all, so they render *disabled*, which is
+  the treatment the plan itself specifies for the 2D/3D toggle; Export gets it
+  too.
+- **Capping the canvas by height, not just width.** A tall preset in a wide
+  column ran to ~900px and pushed the docked timeline below the fold. The cap
+  belongs in `PitchCanvas` because it's the only place that knows the aspect
+  ratio relating the two — a `maxHeight` prop, applied as a width cap.
+- **Verifying the properties panel branch by branch.** All five states check
+  out: keyframe list when nothing is selected, player (team/number/label),
+  equipment, multi-select, and marking.
+
+### What Didn't Work / Watch Out For
+
+- **`TEAM_SCOPED_PATHS` needed no edit**, contrary to the plan's decision note.
+  It matches with `startsWith('/design')`, so `/design/:drillId` was already
+  covered and the team-level nav keeps showing inside the editor.
+- **Drag-to-place only writes into a keyframe the playhead is parked on.**
+  Between keyframes there's no single frame to write to, and silently editing
+  the nearest one would move markers the coach can't see; the editor says so
+  in a toast instead. Whether scrubbing off a keyframe should instead stage a
+  transient frame — which is what would make Stage 4's dirty dot light up — is
+  a real design question Stage 6 will have to answer.
+- **Details sits in the rail only.** §5.2 lists it in both the top bar and the
+  rail; two disabled buttons for one future drawer reads worse than one.
+- **44px targets hold below `lg`; desktop uses 32-40px.** Stage 4's timeline
+  controls were 32px throughout, which fails the touch bar now that the
+  timeline is docked in the shell, so they're `h-11 lg:h-8`. The one
+  deliberate exception is the keyframe diamonds, widened from 12px to a 24px
+  hit area rather than 44px — two keyframes a few seconds apart would be
+  impossible to hit apart otherwise, and a track handle is direct manipulation
+  rather than a tap target.
+- **Tailwind can't see a class built from a template string.** The mobile
+  sheet's `${side}-0` never reached the stylesheet; both sides are written out
+  in full now. Worth remembering for any other side-parameterised component.
+- **Konva ignores synthetically dispatched pointer events**, so tap-to-place
+  couldn't be driven from the console the way the timeline could. The wiring is
+  verified — tool arming, the placement hint, and one placement that did land
+  through to the store with an undo entry — but the tap gesture itself wants a
+  human once signed in.
+
+## Next Steps
+
+1. **Walk the editor signed in** — place a player, drag one from the rail,
+   draw an arrow, and confirm the toasts. The layout is verified at 390, 800
+   and 1440 with no horizontal scroll, but the placement gestures were only
+   verified through their wiring.
+2. **Stage 1's migration 014 is now unblocked in principle** — the new editor
+   exists, so "read all 11 drills back in the new editor" can finally be done.
+   Do that walkthrough before applying it, and remember `DrillLibrary` still
+   reads `phases` until Stage 9.
+3. **Stage 6 — element library & per-entity properties**, which widens the
+   Equipment and Markings panels, fills in the rest of the entity properties,
+   and adds `GridPanel`.
+4. **Still outstanding:** `/tactics` signed-in check from Stage 3.
+
+---
+
 ## Session log — Drill Creator rework, Stage 4: timeline & playback
 
 Stage 4 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md) — the

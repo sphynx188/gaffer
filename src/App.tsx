@@ -10,6 +10,7 @@ import { RosterPage } from './pages/RosterPage'
 import { SessionsPage } from './pages/SessionsPage'
 import { AttendancePage } from './pages/AttendancePage'
 import { DesignPage } from './pages/DesignPage'
+import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
 import { TeamSettingsPage } from './pages/TeamSettingsPage'
 import { CalendarPage } from './pages/CalendarPage'
@@ -71,6 +72,7 @@ function App() {
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="design" element={<DesignPage />} />
+          <Route path="design/:drillId" element={<DrillEditorPage />} />
           <Route path="drills" element={<DrillLibraryPage />} />
           <Route path="tactics" element={<TacticsPage />} />
           <Route path="teams" element={<TeamSettingsPage />} />
