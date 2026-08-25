@@ -1,0 +1,106 @@
+// The onboarding walkthrough's content (rework plan Stage 11.1) — an 8–10 step
+// coach-mark tour over the drill editor. Kept as plain data, separate from the
+// component that renders it, so the copy can be read and edited without
+// touching positioning/overlay logic.
+//
+// Each `anchor` matches a `data-onboarding-anchor` attribute placed on the
+// element being introduced — ToolRail's buttons, PitchCanvas, TimelineBar, the
+// properties panel, and the drill-name field in EditorTopBar. `placement` is
+// only a preference: OnboardingTour falls back to whatever side actually fits
+// the viewport.
+//
+// `openTools`/`openProperties` mark the steps whose anchor lives inside a
+// mobile-only sheet (ToolRail's drawer, the properties sheet) rather than
+// always being on screen — DrillEditor uses these to open the right sheet
+// before measuring where to draw the callout. On desktop both sheets are
+// irrelevant (the rail and properties panel are always visible there), so
+// these flags are simply ignored above the `lg` breakpoint.
+export interface TourStep {
+  id: string
+  anchor: string
+  title: string
+  body: string
+  placement: 'top' | 'bottom' | 'left' | 'right'
+  openTools?: boolean
+  openProperties?: boolean
+}
+
+export const TOUR_STEPS: TourStep[] = [
+  {
+    id: 'name',
+    anchor: 'topbar-name',
+    title: 'Name your drill',
+    body: 'Tap the name at any time to rename it. Everything else here is autosaved as you go — there is no separate save button.',
+    placement: 'bottom',
+  },
+  {
+    id: 'select',
+    anchor: 'tool-select',
+    title: 'Select & move',
+    body: 'Drag a player, ball or piece of equipment to reposition it. Drag a box around several to move them together.',
+    placement: 'right',
+    openTools: true,
+  },
+  {
+    id: 'player',
+    anchor: 'tool-player',
+    title: 'Add players',
+    body: 'Tap the pitch to place a player, or drag this straight onto it. Switch the team colour from the swatch below.',
+    placement: 'right',
+    openTools: true,
+  },
+  {
+    id: 'equipment',
+    anchor: 'tool-equipment',
+    title: 'Cones, poles & goals',
+    body: 'Eleven pieces of kit live here, from a single cone to a full goal — tap to open the library and pick one.',
+    placement: 'right',
+    openTools: true,
+  },
+  {
+    id: 'marking',
+    anchor: 'tool-marking',
+    title: 'Arrows & markings',
+    body: 'Draw runs, passes, zones and notes on the pitch — everything from a straight arrow to a freehand note.',
+    placement: 'right',
+    openTools: true,
+  },
+  {
+    id: 'pitch-canvas',
+    anchor: 'pitch-canvas',
+    title: 'The pitch',
+    body: 'This is the board. Pinch or scroll to zoom, and hold space to pan — useful once a drill gets busy.',
+    placement: 'top',
+  },
+  {
+    id: 'pitch-panel',
+    anchor: 'rail-pitch',
+    title: 'Pitch size & overlays',
+    body: 'Pick from real pitch and grid formats, from a full 105×68m pitch down to a tight rondo box, plus zone overlays.',
+    placement: 'right',
+    openTools: true,
+  },
+  {
+    id: 'timeline',
+    anchor: 'timeline-bar',
+    title: 'Keyframes & playback',
+    body: 'A drill is a timeline, not a single snapshot. Add a keyframe wherever the picture should change, then play it back to see it move.',
+    placement: 'top',
+  },
+  {
+    id: 'properties',
+    anchor: 'properties-panel',
+    title: 'Selection details',
+    body: 'Select something on the pitch to change its appearance, facing or movement path here. Nothing selected shows your keyframes instead.',
+    placement: 'left',
+    openProperties: true,
+  },
+  {
+    id: 'details',
+    anchor: 'rail-details',
+    title: 'Drill details',
+    body: 'Objective, coaching points, level and player count all live here — this is what makes a drill findable later in the library.',
+    placement: 'right',
+    openTools: true,
+  },
+]

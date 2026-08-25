@@ -93,6 +93,7 @@ export function ToolRail(props: ToolRailProps) {
       >
         <RailButton
           label="Select"
+          anchor="tool-select"
           active={props.tool === 'select'}
           layout={layout}
           onClick={() => {
@@ -103,6 +104,7 @@ export function ToolRail(props: ToolRailProps) {
         />
         <RailButton
           label="Player"
+          anchor="tool-player"
           active={props.tool === 'player'}
           layout={layout}
           onClick={() => {
@@ -125,6 +127,7 @@ export function ToolRail(props: ToolRailProps) {
         />
         <RailButton
           label="Equipment"
+          anchor="tool-equipment"
           active={props.tool === 'equipment'}
           layout={layout}
           onClick={() => {
@@ -136,6 +139,7 @@ export function ToolRail(props: ToolRailProps) {
         />
         <RailButton
           label="Markings"
+          anchor="tool-marking"
           active={props.tool === 'marking'}
           layout={layout}
           onClick={() => {
@@ -165,6 +169,7 @@ export function ToolRail(props: ToolRailProps) {
         />
         <RailButton
           label="Pitch"
+          anchor="rail-pitch"
           active={props.panel === 'pitch'}
           layout={layout}
           onClick={() => togglePanel('pitch')}
@@ -172,6 +177,7 @@ export function ToolRail(props: ToolRailProps) {
         />
         <RailButton
           label="Drill details"
+          anchor="rail-details"
           layout={layout}
           onClick={props.onOpenDetails}
           icon={<Sparkles className="h-4 w-4" />}
@@ -276,6 +282,7 @@ function RailButton({
   layout,
   onClick,
   onPointerDown,
+  anchor,
 }: {
   label: string
   icon: ReactNode
@@ -283,10 +290,13 @@ function RailButton({
   layout: 'rail' | 'drawer'
   onClick?: () => void
   onPointerDown?: (event: ReactPointerEvent) => void
+  // Rework plan Stage 11.1 — matched against a TourStep's `anchor`.
+  anchor?: string
 }) {
   return (
     <button
       type="button"
+      data-onboarding-anchor={anchor}
       onClick={onClick}
       onPointerDown={onPointerDown}
       aria-pressed={active}

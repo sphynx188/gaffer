@@ -276,6 +276,132 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 11: onboarding, and the 3D decision
+
+Stage 11 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). Two
+items: an onboarding tour, and an explicit decision on 3D. Only the tour was
+built — see below for why 3D wasn't.
+
+### The 3D decision: deferred, not skipped
+
+The plan's own text recommends this and asks for the decision to be made
+explicitly rather than silently dropped, so: **3D is deferred.** Nothing
+changed here — no `three`/`@react-three/fiber` dependency, no camera rig, no
+rigged models. The 2D/3D toggle in `EditorTopBar` stays disabled, same as it's
+been since Stage 5.
+
+Why, restated from the plan with nothing new added: the 2D view is what a
+coach actually reads pitch-side, on a phone, which is what this app is built
+for. 3D means a second full renderer — a pitch mesh, run/backpedal/shuffle
+animation clips, goalkeeper ball physics, a camera rig with lens control, an
+environment system — plus real bundle-size cost on a PWA. Teloframe itself
+gates 3D export behind a paid tier, which is a signal about how load-bearing
+their own team considers it. None of this is a one-way door: `scene`/
+`keyframes` from Stage 1 is renderer-agnostic by construction, so 3D — if it
+ever happens — slots in later without touching a single stored drill. This
+call should be revisited only with a concrete reason (a coach asking for it),
+not on a schedule.
+
+### What happened, in order
+
+1. **`data-onboarding-anchor` attributes**, added retroactively — Stages 5–7
+   didn't carry them, so this was the retrofit the plan warned about, not the
+   cheap version. Six live in `ToolRail` (select, player, equipment, marking,
+   pitch, drill-details — each on `RailButton` via a new `anchor` prop),
+   one each on `EditorTopBar`'s name field, `PitchCanvas` (via a new optional
+   `onboardingAnchor` prop — every other caller, DrillLibrary/the Coach's
+   Card/the share page, leaves it unset), `TimelineBar`'s root, and the
+   properties panel's two wrapping `<div>`s in `DrillEditor`.
+2. **`editor/onboarding/tourSteps.ts`** — ten steps, plain data.
+3. **`editor/onboarding/useOnboardingTour.ts`** — open/step state, a
+   `localStorage` "seen" flag (`gaffer-onboarding-drill-editor-seen`) that
+   auto-starts the tour once per browser, `restart()` for the replay button.
+4. **`editor/onboarding/OnboardingTour.tsx`** — the coach-mark overlay: a CSS
+   spotlight ring (the standard `box-shadow: 0 0 0 9999px` cutout trick, no
+   SVG mask needed), a positioned tooltip that flips sides and clamps to stay
+   on screen, Escape/backdrop-click to skip.
+5. **`EditorTopBar`** — a help-icon button that calls `tour.restart()`
+   ("replayable from the editor").
+6. **`DrillEditor`** — mounts the tour and, on mobile only, opens whichever
+   sheet (tools drawer / properties sheet) a step's anchor lives inside
+   before the tour tries to measure it.
+
+### What Worked
+
+- **Verifying against the real DOM shape rather than trusting the code
+  read.** `ToolRail` and the properties panel each render TWICE at any given
+  moment — once for the desktop-persistent layout, once inside the
+  always-mounted mobile sheet (see Sheet's own "always mounted,
+  transform-animated" doc comment) — hidden from each other by opposite
+  Tailwind breakpoint classes, not by `display: none` toggling on open/close.
+  A plain `querySelector` on `data-onboarding-anchor` would silently grab
+  whichever copy comes first in source order, which is wrong exactly half
+  the time. Built and live-tested `findVisibleAnchor` against a fixture
+  reproducing that exact duplicate-DOM shape (real dev server, real Tailwind
+  classes, both the "desktop visible" and "mobile sheet open" cases) before
+  trusting it — confirmed it always measures the actually-on-screen copy,
+  confirmed Next/Back/Escape/Done all reach the right state, confirmed the
+  spotlight ring's pixel position matches the anchor's `getBoundingClientRect`
+  exactly (6px padding, 12px tooltip gap).
+- **`useState(() => !hasSeenTour())` instead of an effect.** This app has no
+  server render (plain Vite + client React), so there's no hydration
+  mismatch to guard against, and seeding state lazily from `localStorage` is
+  both simpler and one render cheaper than the effect-plus-`setState`
+  version it replaced — which oxlint's `set-state-in-effect` rule flagged
+  immediately as exactly the pattern it exists to catch.
+
+### What Didn't Work / Watch Out For
+
+- **I deleted a committed file by accident while building the verification
+  harness, then restored it.** Needed a temporary local dev-server config
+  outside this repo's tracked files to drive the fixture above; the first
+  attempt landed a scratch `.claude/launch.json` at the wrong directory
+  level, and clearing it with `rm -rf .claude` from the wrong `cwd` deleted
+  gaffer's own pre-existing, git-tracked `.claude/launch.json` (a real dev
+  server config, port 5173) without checking `git status` first — the exact
+  mistake CLAUDE.md's own safety protocol exists to prevent. Caught it
+  immediately via `git status` showing the file as deleted, restored with
+  `git checkout HEAD -- .claude/launch.json`, confirmed the restored content
+  matches history. Recorded here rather than smoothed over, per the file's
+  own convention for anything that went sideways mid-session — nothing was
+  lost, but it should not have happened.
+- **Both duplicate-DOM copies have a non-null `offsetParent` more often than
+  expected.** The check that disambiguates them (`offsetParent === null` for
+  a `display: none` ancestor) does NOT distinguish "mobile sheet open" from
+  "mobile sheet closed" — Sheet never sets `display: none`, only a
+  `translateX` transform, so a closed sheet's copy still measures as
+  "visible" by that test and its (off-screen) rect would be used if nothing
+  else intervened. This is exactly why `DrillEditor` has to open the right
+  sheet BEFORE a step needing it is shown, rather than relying on the tour to
+  discover the correct copy on its own — the offsetParent check only tells
+  desktop-copy from mobile-copy apart, not open from closed.
+- **The sheet-opening effect is gated to `window.innerWidth < 1024` and only
+  fires on `tour.step`/`tour.open` changes, not on resize.** Rotating a
+  device or resizing the window mid-tour, mid-step, in a way that crosses the
+  `lg` breakpoint is a known, accepted gap — the spotlight would briefly
+  target whichever copy is visible without necessarily having the right
+  sheet open. Narrow enough (rotating a tablet mid-walkthrough) that it
+  wasn't worth the extra state to close for a stage scoped as "close to
+  mechanical."
+- **`settleMs` (250ms) is a fixed constant, not measured.** Sheet's own CSS
+  transition is `duration-200`; 250ms is simply "longer than that," not
+  derived from it. If Sheet's transition duration ever changes, this constant
+  doesn't follow it automatically.
+
+## Next Steps
+
+1. **Nothing else is planned in DRILL_CREATOR_REWORK_PLAN.md** — Stages 1–11
+   (onboarding half) are all done. 3D remains an explicit, revisitable "no."
+2. **Still outstanding, all needing a signed-in session** — unchanged from
+   Stage 10's list, plus the tour itself has never been seen by a real coach:
+   the share link in a private window, a real browser print of the card,
+   Export/GIF end to end, typing into the Details drawer (Stage 8), the
+   library's filters against real data (Stage 9), tap/drag placement, and the
+   11-drill read-back that gates migration 014 — still the one
+   written-but-unapplied migration.
+
+---
+
 ## Session log — Drill Creator rework, Stage 10: export & share
 
 Stage 10 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). A

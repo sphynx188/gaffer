@@ -93,6 +93,12 @@ interface PitchCanvasProps {
   // picture out of it — `stage.toDataURL()` is what Stage 8.5's thumbnails
   // are. Read-only by convention: this canvas still owns everything it draws.
   stageRef?: React.RefObject<Konva.Stage | null>
+
+  // Matched against a TourStep's `anchor` (rework plan Stage 11.1). Optional
+  // and unset by every caller except the editor — DrillLibrary, the Coach's
+  // Card and the share page all render a PitchCanvas too, and none of them
+  // run the onboarding tour.
+  onboardingAnchor?: string
 }
 
 const DEFAULT_MAX_WIDTH = 420
@@ -231,6 +237,7 @@ export function PitchCanvas({
   pendingArrowStart,
   hintText,
   stageRef,
+  onboardingAnchor,
 }: PitchCanvasProps) {
   const aspectRatio = getPitchAspectRatio(pitch) // width / length
   // The height cap is applied as a width cap, since this is the one place that
@@ -778,6 +785,7 @@ export function PitchCanvas({
     <div
       ref={containerRef}
       data-pitch-canvas
+      data-onboarding-anchor={onboardingAnchor}
       className={className}
       style={{ width: '100%', maxWidth: effectiveMaxWidth, position: 'relative' }}
       // Focusable so arrow-key nudge, Escape, Delete and space-to-pan reach

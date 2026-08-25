@@ -47,6 +47,7 @@ export function TimelineBar({
 
   return (
     <div
+      data-onboarding-anchor="timeline-bar"
       className={
         'flex flex-wrap items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 ' + (className ?? '')
       }

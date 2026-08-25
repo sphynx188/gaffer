@@ -23,6 +23,8 @@ import { markingToolSpec, type MarkingTool } from './markingTools'
 import type { GridSettings } from './GridPanel'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
+import { OnboardingTour } from './onboarding/OnboardingTour'
+import { useOnboardingTour } from './onboarding/useOnboardingTour'
 
 // The drill editor shell (rework plan Stage 5.2): top bar, left tool rail,
 // pitch, contextual right panel, timeline docked at the bottom. Below `lg` the
@@ -79,6 +81,32 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [pendingNote, setPendingNote] = useState<PhasePoint | null>(null)
   const [noteText, setNoteText] = useState('')
   const [drag, setDrag] = useState<{ placement: DragPlacement; x: number; y: number } | null>(null)
+
+  // The onboarding walkthrough (rework plan Stage 11.1) — auto-opens once on
+  // a coach's first visit to this editor, replayable afterwards from the top
+  // bar's help button.
+  const tour = useOnboardingTour()
+
+  // Several tour steps point at the rail or the properties panel, which below
+  // `lg` only exist on screen inside their own sheet — the sheet is always
+  // mounted (see Sheet's own doc comment) but sits translated off-canvas until
+  // opened. Only ever touched here on mobile: on desktop, both panels are
+  // permanently visible, and setting either sheet's `open` flag there would
+  // actually HIDE the desktop rail — the `!toolsOpen && rail` guard below
+  // exists to swap it out for the drawer, not to layer both.
+  useEffect(() => {
+    if (!tour.open || typeof window === 'undefined') return
+    if (window.innerWidth >= 1024) return
+    setToolsOpen(Boolean(tour.step.openTools))
+    setPropsOpen(Boolean(tour.step.openProperties))
+  }, [tour.open, tour.step])
+
+  // Closing or finishing the tour must not leave a sheet stranded open.
+  useEffect(() => {
+    if (tour.open) return
+    setToolsOpen(false)
+    setPropsOpen(false)
+  }, [tour.open])
 
   // Keeps the pitch inside the viewport so the docked timeline stays reachable
   // without scrolling past a full-height canvas. The reserve covers the top
@@ -434,7 +462,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <EditorTopBar drill={drill} onExport={() => setExportOpen(true)} />
+      <EditorTopBar drill={drill} onExport={() => setExportOpen(true)} onReplayTour={tour.restart} />
 
       <div className="flex min-w-0 gap-3">
         {/* Rail — desktop only; below lg it lives in the drawer. */}
@@ -443,6 +471,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
           <PitchCanvas
             stageRef={stageRef}
+            onboardingAnchor="pitch-canvas"
             pitch={drill.pitch}
             frame={frame}
             onionFrames={onion}
@@ -500,7 +529,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         </div>
 
         {/* Properties — desktop only; below lg it's the right-hand sheet. */}
-        <div className="hidden w-64 shrink-0 rounded-xl border border-line bg-panel p-3 lg:block">{properties}</div>
+        <div data-onboarding-anchor="properties-panel" className="hidden w-64 shrink-0 rounded-xl border border-line bg-panel p-3 lg:block">{properties}</div>
       </div>
 
       <TimelineBar
@@ -537,7 +566,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         {rail}
       </Sheet>
       <Sheet open={propsOpen} side="right" title="Properties" onClose={() => setPropsOpen(false)}>
-        {properties}
+        <div data-onboarding-anchor="properties-panel">{properties}</div>
       </Sheet>
 
       <DrillDetailsDrawer
@@ -556,6 +585,18 @@ export function DrillEditor({ drill }: { drill: Drill }) {
           gifProgress={gifProgress}
         />
       </ExportDrawer>
+
+      {tour.open && (
+        <OnboardingTour
+          step={tour.step}
+          stepIndex={tour.stepIndex}
+          stepCount={tour.stepCount}
+          onNext={tour.next}
+          onBack={tour.back}
+          onSkip={tour.skip}
+          settleMs={tour.step.openTools || tour.step.openProperties ? 250 : 0}
+        />
+      )}
 
       {/* Drag ghost — follows the pointer between picking a tool up off the
           rail and dropping it on the pitch. */}

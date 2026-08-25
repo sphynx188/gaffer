@@ -1,12 +1,15 @@
-import { Box, ChevronLeft, Download, Redo2, Undo2 } from 'lucide-react'
+import { Box, ChevronLeft, Download, HelpCircle, Redo2, Undo2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../../../store'
 import type { Drill, SaveState } from '../../../store'
 
 // Back, the drill's name, undo/redo, and what the autosave is doing
 // (rework plan Stage 5.2). Export opens the export & share drawer as of Stage
-// 10; the 2D/3D toggle stays disabled, since the plan asks for it to be
-// present-but-disabled until Stage 11 decides whether 3D happens at all.
+// 10. The help icon replays the onboarding tour (Stage 11.1's "replayable
+// from the editor") — it auto-opens once on a coach's first visit and this is
+// the only way back into it after that. The 2D/3D toggle stays disabled:
+// Stage 11 decided to defer 3D rather than build it (see HANDOFF.md), so
+// there is nothing yet for this button to open.
 
 const SAVE_LABEL: Record<SaveState, string> = {
   saved: 'Saved',
@@ -25,7 +28,15 @@ const SAVE_TONE: Record<SaveState, string> = {
 const ICON_BUTTON =
   'flex h-11 w-11 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted lg:h-9 lg:w-9'
 
-export function EditorTopBar({ drill, onExport }: { drill: Drill; onExport: () => void }) {
+export function EditorTopBar({
+  drill,
+  onExport,
+  onReplayTour,
+}: {
+  drill: Drill
+  onExport: () => void
+  onReplayTour: () => void
+}) {
   const updateDrill = useStore((s) => s.updateDrill)
   const saveState = useStore((s) => s.saveState)
   const undo = useStore((s) => s.undo)
@@ -53,6 +64,7 @@ export function EditorTopBar({ drill, onExport }: { drill: Drill; onExport: () =
 
       <input
         key={drill.id}
+        data-onboarding-anchor="topbar-name"
         aria-label="Drill name"
         defaultValue={drill.name}
         onBlur={(e) => commitName(e.currentTarget)}
@@ -93,6 +105,15 @@ export function EditorTopBar({ drill, onExport }: { drill: Drill; onExport: () =
       </button>
       <button type="button" disabled className={ICON_BUTTON} aria-label="3D view" title="3D view — not built yet">
         <Box className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={onReplayTour}
+        className={ICON_BUTTON}
+        aria-label="Replay the walkthrough"
+        title="Replay the walkthrough"
+      >
+        <HelpCircle className="h-4 w-4" />
       </button>
     </div>
   )
