@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Stage, Tag, Text, Transformer } from 'react-konva'
-import type { Marking, PhasePoint, PitchConfig, PitchSize } from '../../store'
+import type { Marking, PhasePoint, PitchConfig } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
 import { ANNOTATION, ARROW, BALL, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
 import { EquipmentShape } from './canvas/EquipmentShapes'
-import { assignTeamColors, getPitchAspectRatio, getPitchMarkings } from './pitchGeometry'
+import { assignTeamColors, getPitchAspectRatio, getPitchMarkings, getPitchOverlays } from './pitchGeometry'
 
 type PixelPoint = { x: number; y: number }
 type NormalizedPoint = { x: number; y: number }
@@ -142,17 +142,6 @@ function clamp01(n: number) {
   return clamp(n, 0, 1)
 }
 
-// Stage 3 renders a PitchConfig, but pitchGeometry still hand-authors its
-// markings per PitchSize — generalising it to arbitrary metre dimensions is
-// Stage 7.2. Until then the preset key maps straight back, which it can
-// because migration 013b carried the four old pitch_size values across as
-// preset keys. Stage 7 deletes this bridge along with the switch it feeds.
-const BRIDGED_PRESETS: readonly string[] = ['full', 'three_quarter', 'half', 'quarter']
-
-function sizeForPreset(preset: string): PitchSize {
-  return BRIDGED_PRESETS.includes(preset) ? (preset as PitchSize) : 'full'
-}
-
 // Measures the wrapping div's available width via ResizeObserver so the
 // Konva Stage — which needs explicit pixel width/height, unlike a CSS
 // element — stays responsive across phone/tablet/laptop viewports without
@@ -237,14 +226,15 @@ export function PitchCanvas({
   pendingArrowStart,
   hintText,
 }: PitchCanvasProps) {
-  const size = sizeForPreset(pitch.preset)
-  const aspectRatio = getPitchAspectRatio(size, pitch.orientation) // width / length
+  const aspectRatio = getPitchAspectRatio(pitch) // width / length
   // The height cap is applied as a width cap, since this is the one place that
   // knows the aspect ratio the two are related by.
   const effectiveMaxWidth = maxHeight ? Math.min(maxWidth, maxHeight * aspectRatio) : maxWidth
   const { containerRef, width } = useMeasuredWidth(effectiveMaxWidth)
   const height = width / aspectRatio
-  const markings = getPitchMarkings(size, pitch.orientation)
+  const markings = getPitchMarkings(pitch)
+  const overlays = getPitchOverlays(pitch)
+  const overlayOpacity = pitch.overlayOpacity ?? 0.4
 
   const [view, setView] = useState<StageView>(RESET_VIEW)
   const [spaceHeld, setSpaceHeld] = useState(false)
@@ -882,9 +872,34 @@ export function PitchCanvas({
             ))}
           </Layer>
 
-          {/* --- OverlayLayer (thirds, channels, Pep zones) belongs here,
-              between the pitch and its markings. Stage 7 adds it; an empty
-              Konva layer is a real canvas, so it isn't created yet. --- */}
+          {/* --- OverlayLayer: thirds, channels, half-spaces, Pep zones and
+              the training grid — grid systems drawn over the pitch rather than
+              markings of it, so they sit above the turf and under everything a
+              coach places. Only mounted when there's an overlay on. --- */}
+          {(overlays.lines.length > 0 || overlays.rects.length > 0) && (
+            <Layer listening={false} opacity={overlayOpacity}>
+              {overlays.rects.map((r, i) => (
+                <Rect
+                  key={`overlay-rect-${i}`}
+                  x={r.x * scaleX}
+                  y={r.y * scaleY}
+                  width={r.w * scaleX}
+                  height={r.h * scaleY}
+                  fill={TURF.line}
+                  opacity={0.35}
+                />
+              ))}
+              {overlays.lines.map((l, i) => (
+                <Line
+                  key={`overlay-line-${i}`}
+                  points={[l.x1 * scaleX, l.y1 * scaleY, l.x2 * scaleX, l.y2 * scaleY]}
+                  stroke={TURF.line}
+                  strokeWidth={lineWidth * 0.8}
+                  dash={l.dashed ? [lineWidth * 3, lineWidth * 2] : undefined}
+                />
+              ))}
+            </Layer>
+          )}
 
           {/* --- MarkingsLayer: arrows and drawn shapes, under the elements
               they connect. Text notes are the exception and render above the

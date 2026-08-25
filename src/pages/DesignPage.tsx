@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { PenTool } from 'lucide-react'
 import { useStore } from '../store'
 import type { Drill } from '../store'
-import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../store'
+import { formatDimensions, presetLabel } from '../components/design/canvas/pitchPresets'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -14,10 +14,11 @@ import { CreateDrillForm } from '../components/design/editor/CreateDrillForm'
 // in the editor at `/design/:drillId`, or create one and land straight in it.
 const SKELETON_ROWS = [0, 1, 2]
 
+// Preset name plus real dimensions, the same label the drill library and the
+// session picker show (rework plan Stage 7.6).
 function pitchLabel(drill: Drill): string {
-  const size = PITCH_SIZE_LABELS[drill.pitch_size] ?? drill.pitch_size
-  const orientation = PITCH_ORIENTATION_LABELS[drill.pitch.orientation] ?? drill.pitch.orientation
-  return `${size} · ${orientation}`
+  const { pitch } = drill
+  return `${presetLabel(pitch.preset)} · ${formatDimensions(pitch.lengthMeters, pitch.widthMeters, pitch.units ?? 'm')}`
 }
 
 export function DesignPage() {

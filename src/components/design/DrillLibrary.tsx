@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LibraryBig, Pause, Play } from 'lucide-react'
 import { useStore } from '../../store'
-import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
+import { formatDimensions, presetLabel } from './canvas/pitchPresets'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
 import { PitchCanvas } from './PitchCanvas'
@@ -64,12 +64,11 @@ export function DrillLibrary() {
     const q = query.trim().toLowerCase()
     if (!q) return drills
     return drills.filter((d) => {
-      const size = PITCH_SIZE_LABELS[d.pitch_size] ?? d.pitch_size
-      const orientation = PITCH_ORIENTATION_LABELS[d.orientation] ?? d.orientation
+      const preset = presetLabel(d.pitch.preset)
       return (
         d.name.toLowerCase().includes(q) ||
-        size.toLowerCase().includes(q) ||
-        orientation.toLowerCase().includes(q)
+        preset.toLowerCase().includes(q) ||
+        d.pitch.orientation.toLowerCase().includes(q)
       )
     })
   }, [drills, query])
@@ -155,8 +154,8 @@ export function DrillLibrary() {
                   >
                     <p className="text-sm font-medium text-ink">{drill.name}</p>
                     <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-xs text-ink-muted">
-                      {PITCH_SIZE_LABELS[drill.pitch_size] ?? drill.pitch_size} ·{' '}
-                      {PITCH_ORIENTATION_LABELS[drill.orientation] ?? drill.orientation}
+                      {presetLabel(drill.pitch.preset)} ·{' '}
+                      {formatDimensions(drill.pitch.lengthMeters, drill.pitch.widthMeters, drill.pitch.units ?? 'm')}
                     </span>
                   </button>
                 </li>

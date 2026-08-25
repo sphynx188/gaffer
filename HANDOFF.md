@@ -276,6 +276,85 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 7: pitch presets & overlays
+
+Stage 7 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). Four
+pitch sizes become thirty-five presets keyed to real metre dimensions, and
+`pitchGeometry.ts` stops switching over hand-authored constants and starts
+deriving markings from whatever width and length it's handed.
+
+### What happened, in order
+
+1. **`canvas/pitchPresets.ts`** — the five families from §1 of the plan, each
+   preset carrying real dimensions and the metadata the panel needs.
+2. **`pitchGeometry.ts` generalised** — one `getPitchMarkings(config)` deriving
+   boundary, boxes, halfway line and centre circle from the dimensions, plus
+   `getPitchOverlays(config)` for the six overlays. The metres-based authoring
+   and `transpose()` carry over untouched.
+3. **`editor/PitchPanel.tsx`** — family tabs, preset cards with a mini plan
+   view and real dimensions, m/yd toggle, portrait switch, custom size, and
+   the overlays with an opacity slider.
+4. **The `OverlayLayer` slot Stage 3 marked is now filled**, sitting above the
+   turf and under everything a coach places.
+5. **`SessionDrillsPanel` and `DrillLibrary`** label drills by preset name plus
+   dimensions rather than "half pitch · portrait".
+
+### What Worked
+
+- **Verifying the invariant numerically rather than by eye.** 398 assertions
+  over all 35 presets × 2 orientations: worst scale skew 2.17e-16, which is
+  floating-point noise — pixels per metre are equal on both axes everywhere,
+  which is the whole reason a centre circle stays circular. Also checked that
+  every marking sits inside its pitch and that transposition swaps the two axes
+  and nothing else. Worth re-running if `pitchGeometry` is ever touched again;
+  it bundles standalone with esbuild because it imports only types.
+- **Letting presets carry a `goalEnds` hint.** §7.2's rule on its own would
+  have put two penalty boxes on the 53×68 "Attacking half" — four live drills
+  use that space, and a half pitch has one goal. The hint lives in the preset
+  table, so `PitchConfig` — the shape that's actually stored — stays exactly as
+  the plan specifies, and a custom size still derives.
+
+### What Didn't Work / Watch Out For
+
+- **The centre circle has to scale with the pitch.** Holding it at the
+  regulation 9.15m and merely clamping it to fit gave futsal a circle covering
+  ninety per cent of the court, and denied 5v5 one entirely. It scales with the
+  boxes now, which is both more honest and what made the small-sided family
+  read as a progression. The numeric test passed *before* this fix — it only
+  checked the circle was unclipped — so this one needed looking at.
+- **`overlayOpacity` is a new optional field on `PitchConfig`.** §7.4 asks for
+  an opacity slider and §7.1's interface has nowhere to put the value. jsonb,
+  so no migration.
+- **The four legacy preset keys are resolved but not offered.** Drills saved
+  before this stage still say `full` / `three_quarter` / `half` / `quarter`;
+  `findPreset` maps them so they render and label correctly, but the panel
+  offers `attacking_half` and `final_third` instead, which are the same spaces
+  under the names a coach would use. Nothing rewrites the stored key until a
+  coach picks a new preset.
+- **Quarter-pitch drills changed proportion, as flagged back in Stage 1.** The
+  plan's own mapping made `quarter` 35×68 while the phases-era geometry drew it
+  30×40. Three drills are affected; their markers are normalized 0-1 and sit
+  where they always did.
+- **Seven rondo presets had no dimensions in the plan's table** (4v1 tight,
+  transfer, diamond, hexagon, end-zone, 4-zone box, 5-channel corridor).
+  They're filled in with realistic coaching sizes rather than left out.
+- **`markings: 'full' | 'grid' | 'none'` stays optional** on `PitchConfig`,
+  against §7.1's interface. Migration 013b never wrote the field, so requiring
+  it would describe data that doesn't exist; omitted means "derive from the
+  dimensions", which is §7.2's rule anyway.
+
+## Next Steps
+
+1. **Stage 8 — drill metadata & the Details drawer.** It claims migration 015
+   in the plan's text; that number is taken by Stage 6's equipment remap, so
+   it wants 016.
+2. **Still outstanding, all needing a signed-in session:** the tap/drag
+   placement gestures, `/tactics` from Stage 3, and the 11-drill read-back that
+   gates migration 014 — which remains the one written-but-unapplied migration,
+   so the repo and the deployed database deliberately disagree by that file.
+
+---
+
 ## Session log — Drill Creator rework, Stage 6: element library & properties
 
 Stage 6 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md).

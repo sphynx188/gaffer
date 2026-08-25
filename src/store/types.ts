@@ -310,6 +310,9 @@ export interface PitchConfig {
   orientation: PitchOrientation
   markings?: 'full' | 'grid' | 'none'
   overlays: OverlayKind[]
+  // 0-1. The plan's interface has nowhere to put the value its overlay
+  // opacity slider produces, so it lives here — jsonb, no migration.
+  overlayOpacity?: number
   surface?: string
   units?: 'm' | 'yd'
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { PanelRight, Pause, Play, Wrench, X } from 'lucide-react'
 import { useStore } from '../../../store'
-import type { Drill, EquipmentType, Marking, PhasePoint, PitchOrientation, PitchSize } from '../../../store'
+import type { Drill, EquipmentType, Marking, PhasePoint } from '../../../store'
 import { EQUIPMENT_LABELS } from '../../../store'
 import { PitchCanvas, type EntityMove } from '../PitchCanvas'
 import { frameAt } from '../canvas/interpolate'
@@ -27,11 +27,6 @@ import { EquipmentIcon } from '../canvas/EquipmentShapes'
 //
 // All the editor's own view state lives here: which tool is armed, what's
 // selected, where the playhead is. None of it belongs in the store.
-
-// Metre dimensions for the four presets the app carries today, matching what
-// migration 013b wrote. Stage 7 owns the real preset table and this goes with
-// the size picker that feeds it.
-const PRESET_LENGTH_METERS: Record<PitchSize, number> = { full: 105, three_quarter: 79, half: 53, quarter: 35 }
 
 function dragIcon(placement: DragPlacement) {
   if (placement.kind === 'ball') return <BallToolIcon />
@@ -283,16 +278,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     showToast(`${count} more added`)
   }
 
-  const handlePitchChange = (size: PitchSize, orientation: PitchOrientation) => {
-    setDrillPitch(drill.id, {
-      ...drill.pitch,
-      preset: size,
-      widthMeters: 68,
-      lengthMeters: PRESET_LENGTH_METERS[size],
-      orientation,
-    })
-  }
-
   const placementHint = routeDraft
     ? 'Tap each point of the run, then tap the last one again to finish'
     : tool === 'marking'
@@ -318,9 +303,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       onClearMarkings={clearMarkings}
       grid={grid}
       onGridChange={setGrid}
-      pitchSize={(drill.pitch.preset as PitchSize) ?? 'full'}
-      orientation={drill.pitch.orientation}
-      onPitchChange={handlePitchChange}
+      pitch={drill.pitch}
+      onPitchChange={(next) => setDrillPitch(drill.id, next)}
       onStartDrag={startDrag}
     />
   )

@@ -1,13 +1,13 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { Grid3x3, MousePointer2, PenLine, SlidersHorizontal, Sparkles } from 'lucide-react'
-import type { EquipmentType, PitchOrientation, PitchSize } from '../../../store'
-import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../../store'
+import type { EquipmentType, PitchConfig } from '../../../store'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
 import { EquipmentPanel } from './EquipmentPanel'
 import { MarkingsPanel } from './MarkingsPanel'
 import type { MarkingTool } from './markingTools'
 import { GridPanel, type GridSettings } from './GridPanel'
+import { PitchPanel } from './PitchPanel'
 
 // The left rail (rework plan Stage 5.2). One canvas tool is active at a time;
 // the rail's other entries open a panel anchored to it rather than changing
@@ -47,17 +47,14 @@ interface ToolRailProps {
   onClearMarkings: () => void
   grid: GridSettings
   onGridChange: (grid: GridSettings) => void
-  pitchSize: PitchSize
-  orientation: PitchOrientation
-  onPitchChange: (size: PitchSize, orientation: PitchOrientation) => void
+  pitch: PitchConfig
+  onPitchChange: (pitch: PitchConfig) => void
   onStartDrag: (placement: DragPlacement) => (event: ReactPointerEvent) => void
   // Laid out as a column on desktop and as a wrapping row inside the mobile
   // drawer, where there's width to spare and no rail to anchor a popover to.
   layout: 'rail' | 'drawer'
 }
 
-const PITCH_SIZES: PitchSize[] = ['full', 'three_quarter', 'half', 'quarter']
-const ORIENTATIONS: PitchOrientation[] = ['portrait', 'landscape']
 
 export function ToolRail(props: ToolRailProps) {
   const { layout } = props
@@ -216,22 +213,7 @@ export function ToolRail(props: ToolRailProps) {
               onChange={props.onTeamChange}
             />
           )}
-          {props.panel === 'pitch' && (
-            <div className="space-y-3">
-              <OptionList
-                title="Pitch size"
-                options={PITCH_SIZES.map((size) => ({ value: size, label: PITCH_SIZE_LABELS[size] ?? size }))}
-                value={props.pitchSize}
-                onChange={(value) => props.onPitchChange(value, props.orientation)}
-              />
-              <OptionList
-                title="Orientation"
-                options={ORIENTATIONS.map((o) => ({ value: o, label: PITCH_ORIENTATION_LABELS[o] ?? o }))}
-                value={props.orientation}
-                onChange={(value) => props.onPitchChange(props.pitchSize, value)}
-              />
-            </div>
-          )}
+          {props.panel === 'pitch' && <PitchPanel pitch={props.pitch} onChange={props.onPitchChange} />}
         </Panel>
       )}
     </div>

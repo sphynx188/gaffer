@@ -1,4 +1,5 @@
-import type { PitchOrientation, PitchSize } from '../../store'
+import type { PitchConfig } from '../../store'
+import { findPreset } from './canvas/pitchPresets'
 
 // Static pitch markings for Phase 2a (gaffer_mvp_build_steps.md), extended
 // in the Upgrade Phase 2A (UPGRADE_IMPLEMENTATION_PLAN.md) to 4 sizes x 2
@@ -62,118 +63,121 @@ export interface PitchMarkings extends PitchDimensions {
   dots: MetersPoint[]
 }
 
-const FULL: PitchMarkings = (() => {
-  const widthMeters = 68
-  const lengthMeters = 105
-  const penaltyBoxWidth = 40.32
-  const penaltyBoxDepth = 16.5
-  const sixYardWidth = 18.32
-  const sixYardDepth = 5.5
-  const centerCircleRadius = 9.15
-  const penaltySpotDistance = 11
+// Regulation dimensions, in metres. Everything below is derived from these
+// plus the pitch's own width and length, rather than from a hand-authored
+// constant per size — which is what lets ~35 presets share one implementation
+// (rework plan Stage 7.2).
+const PENALTY_BOX_WIDTH = 40.32
+const PENALTY_BOX_DEPTH = 16.5
+const SIX_YARD_WIDTH = 18.32
+const SIX_YARD_DEPTH = 5.5
+const CENTER_CIRCLE_RADIUS = 9.15
+const PENALTY_SPOT_DISTANCE = 11
+const GOAL_WIDTH = 7.32
 
-  const penaltyBoxX = (widthMeters - penaltyBoxWidth) / 2
-  const sixYardX = (widthMeters - sixYardWidth) / 2
+// A space smaller than this in either axis can't carry regulation markings
+// without them swallowing the pitch, so it gets a training grid instead.
+const MIN_MARKED_WIDTH = PENALTY_BOX_WIDTH + 4
+const MIN_MARKED_LENGTH = PENALTY_BOX_DEPTH * 2
 
-  return {
-    widthMeters,
-    lengthMeters,
-    rects: [
-      { x: 0, y: 0, w: widthMeters, h: lengthMeters }, // outer boundary
-      { x: penaltyBoxX, y: 0, w: penaltyBoxWidth, h: penaltyBoxDepth }, // penalty box, top
-      { x: sixYardX, y: 0, w: sixYardWidth, h: sixYardDepth }, // six-yard box, top
-      { x: penaltyBoxX, y: lengthMeters - penaltyBoxDepth, w: penaltyBoxWidth, h: penaltyBoxDepth }, // penalty box, bottom
-      { x: sixYardX, y: lengthMeters - sixYardDepth, w: sixYardWidth, h: sixYardDepth }, // six-yard box, bottom
-    ],
-    lines: [
-      { x1: 0, y1: lengthMeters / 2, x2: widthMeters, y2: lengthMeters / 2 }, // halfway line
-    ],
-    circles: [{ cx: widthMeters / 2, cy: lengthMeters / 2, r: centerCircleRadius }],
-    dots: [
-      { x: widthMeters / 2, y: lengthMeters / 2 }, // center spot
-      { x: widthMeters / 2, y: penaltySpotDistance }, // penalty spot, top
-      { x: widthMeters / 2, y: lengthMeters - penaltySpotDistance }, // penalty spot, bottom
-    ],
+// Boxes are scaled down rather than dropped when a pitch is narrower than a
+// regulation one — a 5v5 pitch still has a penalty area, just a smaller one.
+// Capped at the regulation size so a wide pitch doesn't get an absurd one.
+function boxScale(widthMeters: number): number {
+  return Math.min(1, widthMeters / (PENALTY_BOX_WIDTH + 4))
+}
+
+// How many goal ends to mark. A preset says so directly where it matters — a
+// half pitch is long enough for boxes at both ends but only has one goal — and
+// otherwise it comes from whether the length can hold two boxes and a centre
+// circle between them.
+function goalEndsFor(config: PitchConfig, lengthMeters: number, depth: number): 0 | 1 | 2 {
+  const preset = findPreset(config.preset)
+  if (preset?.goalEnds !== undefined) return preset.goalEnds
+  if (lengthMeters >= depth * 2 + CENTER_CIRCLE_RADIUS * 2) return 2
+  if (lengthMeters >= depth * 2) return 1
+  return 0
+}
+
+// Which style of markings a pitch gets. An explicit choice on the config wins;
+// otherwise it's "full markings when the pitch is big enough for a penalty
+// box, a plain boundary and a grid otherwise".
+function markingStyle(config: PitchConfig): 'full' | 'grid' | 'none' {
+  if (config.markings) return config.markings
+  const preset = findPreset(config.preset)
+  if (preset?.markings) return preset.markings
+  return config.widthMeters >= MIN_MARKED_WIDTH && config.lengthMeters >= MIN_MARKED_LENGTH ? 'full' : 'grid'
+}
+
+// Regulation markings, scaled to the pitch: boundary, a penalty and six-yard
+// box at each marked end, the halfway line, and a centre circle where there's
+// room for one.
+function fullMarkings(config: PitchConfig): PitchMarkings {
+  const { widthMeters, lengthMeters } = config
+  const scale = boxScale(widthMeters)
+  const boxWidth = PENALTY_BOX_WIDTH * scale
+  const boxDepth = PENALTY_BOX_DEPTH * scale
+  const sixWidth = SIX_YARD_WIDTH * scale
+  const sixDepth = SIX_YARD_DEPTH * scale
+  const spot = PENALTY_SPOT_DISTANCE * scale
+  const boxX = (widthMeters - boxWidth) / 2
+  const sixX = (widthMeters - sixWidth) / 2
+  const ends = goalEndsFor(config, lengthMeters, boxDepth)
+
+  const rects: MetersRect[] = [{ x: 0, y: 0, w: widthMeters, h: lengthMeters }]
+  const lines: MetersLine[] = []
+  const circles: MetersCircle[] = []
+  const dots: MetersPoint[] = []
+
+  if (ends >= 1) {
+    rects.push({ x: boxX, y: 0, w: boxWidth, h: boxDepth })
+    rects.push({ x: sixX, y: 0, w: sixWidth, h: sixDepth })
+    dots.push({ x: widthMeters / 2, y: spot })
   }
-})()
-
-// Full width, 3/4 length, cropped from one end — keeps the near-end penalty
-// box/six-yard box plus the halfway line and center circle (both comfortably
-// within a 78.75m length), drops the far-end boxes entirely. Models a coach
-// wanting "most of the pitch, focused on one attacking end."
-const THREE_QUARTER: PitchMarkings = (() => {
-  const widthMeters = 68
-  const lengthMeters = 105 * 0.75 // 78.75
-  const penaltyBoxWidth = 40.32
-  const penaltyBoxDepth = 16.5
-  const sixYardWidth = 18.32
-  const sixYardDepth = 5.5
-  const centerCircleRadius = 9.15
-  const penaltySpotDistance = 11
-  const halfwayY = 105 / 2 // 52.5 — the real pitch's halfway line, well within 78.75
-
-  const penaltyBoxX = (widthMeters - penaltyBoxWidth) / 2
-  const sixYardX = (widthMeters - sixYardWidth) / 2
-
-  return {
-    widthMeters,
-    lengthMeters,
-    rects: [
-      { x: 0, y: 0, w: widthMeters, h: lengthMeters },
-      { x: penaltyBoxX, y: 0, w: penaltyBoxWidth, h: penaltyBoxDepth },
-      { x: sixYardX, y: 0, w: sixYardWidth, h: sixYardDepth },
-    ],
-    lines: [{ x1: 0, y1: halfwayY, x2: widthMeters, y2: halfwayY }],
-    circles: [{ cx: widthMeters / 2, cy: halfwayY, r: centerCircleRadius }],
-    dots: [
-      { x: widthMeters / 2, y: halfwayY },
-      { x: widthMeters / 2, y: penaltySpotDistance },
-    ],
+  if (ends >= 2) {
+    rects.push({ x: boxX, y: lengthMeters - boxDepth, w: boxWidth, h: boxDepth })
+    rects.push({ x: sixX, y: lengthMeters - sixDepth, w: sixWidth, h: sixDepth })
+    dots.push({ x: widthMeters / 2, y: lengthMeters - spot })
   }
-})()
 
-// Full width, half length, cropped from one end at exactly the real
-// halfway line — near-end penalty/six-yard box plus a halfway line running
-// along the far edge. No center circle: at this length it would render
-// clipped against the boundary, which reads worse than just omitting it
-// (same simplification the old small-sided/quarter markings already made).
-const HALF: PitchMarkings = (() => {
-  const widthMeters = 68
-  const lengthMeters = 105 / 2 // 52.5
-  const penaltyBoxWidth = 40.32
-  const penaltyBoxDepth = 16.5
-  const sixYardWidth = 18.32
-  const sixYardDepth = 5.5
-  const penaltySpotDistance = 11
+  // With one goal the far edge *is* the halfway line, which is what a coach
+  // means by "attacking half". With two it runs through the middle.
+  const halfwayY = ends === 1 ? lengthMeters : lengthMeters / 2
+  lines.push({ x1: 0, y1: halfwayY, x2: widthMeters, y2: halfwayY })
 
-  const penaltyBoxX = (widthMeters - penaltyBoxWidth) / 2
-  const sixYardX = (widthMeters - sixYardWidth) / 2
-
-  return {
-    widthMeters,
-    lengthMeters,
-    rects: [
-      { x: 0, y: 0, w: widthMeters, h: lengthMeters },
-      { x: penaltyBoxX, y: 0, w: penaltyBoxWidth, h: penaltyBoxDepth },
-      { x: sixYardX, y: 0, w: sixYardWidth, h: sixYardDepth },
-    ],
-    lines: [{ x1: 0, y1: lengthMeters, x2: widthMeters, y2: lengthMeters }], // halfway line, on the far edge
-    circles: [],
-    dots: [{ x: widthMeters / 2, y: penaltySpotDistance }],
+  // Scaled with the boxes rather than held at the regulation 9.15m: a futsal
+  // court is 20m wide, and a regulation circle on it would swallow the pitch.
+  // Still only drawn where it fits and stays clear of the boxes — a clipped
+  // circle reads worse than no circle at all.
+  const radius = CENTER_CIRCLE_RADIUS * scale
+  const roomLengthways = halfwayY - radius >= boxDepth && halfwayY + radius <= lengthMeters
+  if (ends === 2 && radius > 1 && roomLengthways) {
+    circles.push({ cx: widthMeters / 2, cy: halfwayY, r: radius })
+    dots.push({ x: widthMeters / 2, y: halfwayY })
   }
-})()
 
-// Nominal dimensions, not a regulation size — small drill/possession-grid
-// spaces vary a lot in practice. Rendered as a boundary + a possession grid
-// (thirds x thirds) plus thickened goal-mouth hints at top/bottom center.
-const QUARTER: PitchMarkings = (() => {
-  const widthMeters = 30
-  const lengthMeters = 40
-  const goalWidth = 6
+  // A marked end with no room for a box still gets a goal mouth, so the
+  // direction of play is never ambiguous.
+  if (ends === 0) {
+    lines.push(goalMouth(widthMeters, 0))
+    lines.push(goalMouth(widthMeters, lengthMeters))
+  }
 
+  return { widthMeters, lengthMeters, rects, lines, circles, dots }
+}
+
+function goalMouth(widthMeters: number, y: number): MetersLine {
+  const goal = Math.min(GOAL_WIDTH, widthMeters * 0.4)
+  return { x1: (widthMeters - goal) / 2, y1: y, x2: (widthMeters + goal) / 2, y2: y, strokeWidthScale: 3 }
+}
+
+// A training space: boundary, a thirds-by-thirds possession grid, and goal
+// mouths top and bottom. The same treatment the phases-era "quarter pitch"
+// had, now applied to every space too small to mark properly.
+function gridMarkings(config: PitchConfig): PitchMarkings {
+  const { widthMeters, lengthMeters } = config
   const thirdX = widthMeters / 3
   const thirdY = lengthMeters / 3
-
   return {
     widthMeters,
     lengthMeters,
@@ -183,31 +187,22 @@ const QUARTER: PitchMarkings = (() => {
       { x1: thirdX * 2, y1: 0, x2: thirdX * 2, y2: lengthMeters, dashed: true },
       { x1: 0, y1: thirdY, x2: widthMeters, y2: thirdY, dashed: true },
       { x1: 0, y1: thirdY * 2, x2: widthMeters, y2: thirdY * 2, dashed: true },
-      // goal-mouth hints
-      { x1: (widthMeters - goalWidth) / 2, y1: 0, x2: (widthMeters + goalWidth) / 2, y2: 0, strokeWidthScale: 3 },
-      {
-        x1: (widthMeters - goalWidth) / 2,
-        y1: lengthMeters,
-        x2: (widthMeters + goalWidth) / 2,
-        y2: lengthMeters,
-        strokeWidthScale: 3,
-      },
+      goalMouth(widthMeters, 0),
+      goalMouth(widthMeters, lengthMeters),
     ],
     circles: [],
     dots: [],
   }
-})()
+}
 
-function getCanonicalMarkings(size: PitchSize): PitchMarkings {
-  switch (size) {
-    case 'full':
-      return FULL
-    case 'three_quarter':
-      return THREE_QUARTER
-    case 'half':
-      return HALF
-    case 'quarter':
-      return QUARTER
+function bareMarkings(config: PitchConfig): PitchMarkings {
+  return {
+    widthMeters: config.widthMeters,
+    lengthMeters: config.lengthMeters,
+    rects: [{ x: 0, y: 0, w: config.widthMeters, h: config.lengthMeters }],
+    lines: [],
+    circles: [],
+    dots: [],
   }
 }
 
@@ -225,14 +220,102 @@ function transpose(markings: PitchMarkings): PitchMarkings {
   }
 }
 
-export function getPitchMarkings(size: PitchSize, orientation: PitchOrientation): PitchMarkings {
-  const canonical = getCanonicalMarkings(size)
-  return orientation === 'landscape' ? transpose(canonical) : canonical
+export function getPitchMarkings(config: PitchConfig): PitchMarkings {
+  const style = markingStyle(config)
+  const canonical =
+    style === 'full' ? fullMarkings(config) : style === 'grid' ? gridMarkings(config) : bareMarkings(config)
+  return config.orientation === 'landscape' ? transpose(canonical) : canonical
 }
 
-export function getPitchAspectRatio(size: PitchSize, orientation: PitchOrientation): number {
-  const { widthMeters, lengthMeters } = getPitchMarkings(size, orientation)
+export function getPitchAspectRatio(config: PitchConfig): number {
+  const { widthMeters, lengthMeters } = getPitchMarkings(config)
   return widthMeters / lengthMeters
+}
+
+// --- Overlays (rework plan Stage 7.4) --------------------------------------
+//
+// Grid systems drawn over the pitch rather than markings of it. Rects are
+// filled at the config's overlay opacity; lines are stroked. Authored in the
+// same canonical portrait metres space and transposed alongside the markings.
+
+export interface PitchOverlayGeometry {
+  rects: MetersRect[]
+  lines: MetersLine[]
+}
+
+function overlayGeometry(config: PitchConfig): PitchOverlayGeometry {
+  const { widthMeters: w, lengthMeters: l } = config
+  const rects: MetersRect[] = []
+  const lines: MetersLine[] = []
+
+  const across = (y: number) => lines.push({ x1: 0, y1: y, x2: w, y2: y, dashed: true })
+  const along = (x: number) => lines.push({ x1: x, y1: 0, x2: x, y2: l, dashed: true })
+
+  for (const overlay of config.overlays ?? []) {
+    switch (overlay) {
+      case 'thirds':
+        across(l / 3)
+        across((l * 2) / 3)
+        break
+      case 'lanes':
+        for (let i = 1; i < 5; i++) along((w * i) / 5)
+        break
+      case 'channels': {
+        // The coaching-standard five: two wide channels outside the penalty
+        // box, two half-spaces between it and the six-yard box, and the
+        // central channel. Derived from the real box widths where they fit,
+        // and from even fifths where the pitch is too narrow for them.
+        const scale = boxScale(w)
+        const boxEdge = (w - PENALTY_BOX_WIDTH * scale) / 2
+        const sixEdge = (w - SIX_YARD_WIDTH * scale) / 2
+        if (boxEdge > 0.5 && sixEdge > boxEdge) {
+          along(boxEdge)
+          along(sixEdge)
+          along(w - sixEdge)
+          along(w - boxEdge)
+        } else {
+          for (let i = 1; i < 5; i++) along((w * i) / 5)
+        }
+        break
+      }
+      case 'half_spaces': {
+        // The two corridors between the penalty box and the six-yard box,
+        // shaded rather than outlined — a half-space is an area, not a line.
+        const scale = boxScale(w)
+        const boxEdge = (w - PENALTY_BOX_WIDTH * scale) / 2
+        const sixEdge = (w - SIX_YARD_WIDTH * scale) / 2
+        const band = Math.max(0, sixEdge - boxEdge)
+        if (band > 0.5) {
+          rects.push({ x: boxEdge, y: 0, w: band, h: l })
+          rects.push({ x: w - sixEdge, y: 0, w: band, h: l })
+        }
+        break
+      }
+      case 'pep_zones':
+        // Five channels across, four bands along — the twenty-zone grid.
+        for (let i = 1; i < 5; i++) along((w * i) / 5)
+        for (let i = 1; i < 4; i++) across((l * i) / 4)
+        break
+      case 'training_grid': {
+        // Ten-metre squares, the unit a coach lays a grid out in.
+        const step = 10
+        for (let x = step; x < w - 0.01; x += step) along(x)
+        for (let y = step; y < l - 0.01; y += step) across(y)
+        break
+      }
+    }
+  }
+
+  return { rects, lines }
+}
+
+export function getPitchOverlays(config: PitchConfig): PitchOverlayGeometry {
+  const canonical = overlayGeometry(config)
+  if (config.orientation !== 'landscape') return canonical
+  return {
+    rects: canonical.rects.map((r) => ({ x: r.y, y: r.x, w: r.h, h: r.w })),
+    lines: canonical.lines.map((line) => ({ ...line, x1: line.y1, y1: line.x1, x2: line.y2, y2: line.x2 })),
+  }
 }
 
 // Team labels in a phase are freeform text (see DrillPhase in store/types.ts

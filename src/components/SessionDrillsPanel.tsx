@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useStore } from '../store'
-import type { Drill, PitchOrientation, PitchSize, SessionDrill, SessionWithRelations } from '../store'
-import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../store'
+import type { Drill, SessionDrill, SessionWithRelations } from '../store'
+import { formatDimensions, presetLabel } from './design/canvas/pitchPresets'
 import { NumberChip } from './ui/NumberChip'
 import { Dropdown } from './ui/Dropdown'
 
@@ -10,8 +10,11 @@ interface AttachmentFormValues {
   notes: string | null
 }
 
-function pitchLabel(size: PitchSize, orientation: PitchOrientation): string {
-  return `${PITCH_SIZE_LABELS[size] ?? size} · ${PITCH_ORIENTATION_LABELS[orientation] ?? orientation}`
+// The preset's name plus its real dimensions — more use to a coach picking a
+// drill for a session than "half pitch · portrait" was (rework plan Stage 7.6).
+function pitchLabel(drill: Drill): string {
+  const { pitch } = drill
+  return `${presetLabel(pitch.preset)} · ${formatDimensions(pitch.lengthMeters, pitch.widthMeters, pitch.units ?? 'm')}`
 }
 
 // Phase 2d — Save as reusable / attach to session (US-14, US-15,
@@ -128,7 +131,7 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
             <Dropdown
               value={selectedDrillId}
               onChange={setSelectedDrillId}
-              options={drills.map((d) => ({ value: d.id, label: `${d.name} (${pitchLabel(d.pitch_size, d.orientation)})` }))}
+              options={drills.map((d) => ({ value: d.id, label: `${d.name} (${pitchLabel(d)})` }))}
               placeholder={drills.length === 0 ? 'No drills yet — build one in Design above' : 'Select a drill…'}
               ariaLabel="Drill"
               triggerClassName="w-full"
@@ -219,7 +222,7 @@ function SessionDrillRow({
         <div className="flex items-center gap-2">
           <NumberChip index={position} />
           <p className="text-sm font-medium text-ink">
-            {drill ? `${drill.name} (${pitchLabel(drill.pitch_size, drill.orientation)})` : 'Unknown drill'}
+            {drill ? `${drill.name} (${pitchLabel(drill)})` : 'Unknown drill'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
