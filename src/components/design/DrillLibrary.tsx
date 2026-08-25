@@ -5,6 +5,7 @@ import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
 import { PitchCanvas } from './PitchCanvas'
+import { phaseToRenderFrame } from './canvas/phaseFrame'
 
 // Phase 3.1 — Drill library / browse & search (US-17, gaffer_mvp_build_steps.md).
 // Reuses the exact same `drills` state DrillPreview already fetches via
@@ -186,9 +187,8 @@ export function DrillLibrary() {
                   handles a human clicking between phase tabs. */}
               <PitchCanvas
                 key={previewPhase.id}
-                pitchSize={selectedDrill.pitch_size}
-                orientation={selectedDrill.orientation}
-                phase={previewPhase}
+                pitch={selectedDrill.pitch}
+                frame={phaseToRenderFrame(previewPhase)}
                 maxWidth={340}
               />
 

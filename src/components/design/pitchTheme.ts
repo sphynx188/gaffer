@@ -82,3 +82,15 @@ export const ANNOTATION = {
   border: '#1e293b',
   text: '#1e293b',
 } as const
+
+// Selection affordances (rework plan Stage 3.4/3.5): a halo around selected
+// entities, a highlight on selected markings, and the box-select marquee.
+// Deliberately a light ring rather than a fill — a selected player still has
+// to read as that player's team color first, which is the whole basis of the
+// "shape distinction over palette" rule above.
+export const SELECTION = {
+  halo: '#fefdf8',
+  haloShadow: 'rgba(0, 0, 0, 0.45)',
+  marqueeStroke: '#fefdf8',
+  marqueeFill: 'rgba(254, 253, 248, 0.12)',
+} as const

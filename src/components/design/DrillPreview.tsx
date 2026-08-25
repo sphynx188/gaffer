@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { PenTool, Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
-import type { Drill, DrillElementType, NewDrillInput, NewPhaseMode, PitchOrientation, PitchSize } from '../../store'
+import type { Drill, NewDrillInput, NewPhaseMode, PitchOrientation, PitchSize } from '../../store'
 import { PITCH_ORIENTATION_LABELS, PITCH_SIZE_LABELS } from '../../store'
 import { PitchCanvas } from './PitchCanvas'
+import type { EntityMove } from './PitchCanvas'
+import { phaseElementKind, phaseToRenderFrame } from './canvas/phaseFrame'
 import { ANNOTATION, ARROW, BALL, CONE, MANNEQUIN, PLAYER, WITCHES_HAT } from './pitchTheme'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
@@ -181,6 +183,7 @@ export function DrillPreview() {
 
   const [selectedDrillId, setSelectedDrillId] = useState<string | null>(null)
   const [phaseIndex, setPhaseIndex] = useState(0)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [placementMode, setPlacementMode] = useState<PlacementMode>(null)
   const [pendingNote, setPendingNote] = useState<{ x: number; y: number } | null>(null)
@@ -253,7 +256,15 @@ export function DrillPreview() {
     setPendingArrowStart(null)
   }, [phaseIndex, selectedDrillId])
 
+  // Canvas selection (rework plan Stage 3.4). View state, so it lives here
+  // rather than in the store, and it's per phase — the ids in it only mean
+  // anything against the phase currently on the canvas.
+  useEffect(() => {
+    setSelectedIds([])
+  }, [phaseIndex, selectedDrillId])
+
   const phase = drill?.phases[phaseIndex] ?? null
+  const frame = phase ? phaseToRenderFrame(phase) : null
 
   useEffect(() => {
     setPhaseLabel(phase?.label ?? '')
@@ -285,19 +296,19 @@ export function DrillPreview() {
     setSaving(false)
   }
 
-  // dragmove: local-state-only reposition, no network call — keeps the
-  // canvas responsive while dragging (gaffer_mvp_build_steps.md 2b, step 2).
-  const handleDragMove = (elementType: DrillElementType, elementId: string, position: { x: number; y: number }) => {
-    if (!drill) return
-    setPhaseElementPosition(drill.id, phaseIndex, elementType, elementId, position)
-  }
-
-  // dragend: apply the same local update, then persist via the one shared
-  // write (2b, step 3) — never more than one write per drag.
-  const handleDragEnd = (elementType: DrillElementType, elementId: string, position: { x: number; y: number }) => {
-    if (!drill) return
-    setPhaseElementPosition(drill.id, phaseIndex, elementType, elementId, position)
-    void persistPhases(drill.id)
+  // The canvas reports every entity a gesture moved, so a box-selection drags
+  // as a group. Uncommitted moves (dragmove) are local-state-only, no network
+  // call — that's what keeps the canvas responsive mid-drag
+  // (gaffer_mvp_build_steps.md 2b, step 2). The committed one (dragend, or an
+  // arrow-key nudge) fires the single shared write, so a drag still costs
+  // exactly one Supabase call however many markers it moved.
+  const handleEntitiesMove = (moves: EntityMove[], commit: boolean) => {
+    if (!drill || !phase) return
+    for (const move of moves) {
+      const elementType = phaseElementKind(phase, move.id)
+      if (elementType) setPhaseElementPosition(drill.id, phaseIndex, elementType, move.id, move.position)
+    }
+    if (commit) void persistPhases(drill.id)
   }
 
   // "Duplicate phase" / "Add blank phase" (2c, step 2): inserts immediately
@@ -428,24 +439,37 @@ export function DrillPreview() {
   }
 
   // Click on an existing player/cone/ball while in "remove" mode.
-  const handleElementRemove = (elementType: DrillElementType, elementId: string) => {
-    if (!drill) return
-    removeElement(drill.id, phaseIndex, elementType, elementId)
+  const handleEntityRemove = (entityId: string) => {
+    if (!drill || !phase) return
+    const elementType = phaseElementKind(phase, entityId)
+    if (!elementType) return
+    removeElement(drill.id, phaseIndex, elementType, entityId)
     void persistPhases(drill.id)
   }
 
-  // Click on an existing arrow while in "remove" mode.
-  const handleArrowRemove = (arrowId: string) => {
-    if (!drill) return
-    removeArrow(drill.id, phaseIndex, arrowId)
+  // Arrows and notes are both markings on the canvas now, so removal comes
+  // back through one callback and is routed by which phase array owns the id.
+  const handleMarkingRemove = (markingId: string) => {
+    if (!drill || !phase) return
+    if (phase.arrows.some((a) => a.id === markingId)) removeArrow(drill.id, phaseIndex, markingId)
+    else if (phase.annotations.some((a) => a.id === markingId)) removeAnnotation(drill.id, phaseIndex, markingId)
+    else return
     void persistPhases(drill.id)
   }
 
-  // Click on an existing annotation while in "remove" mode.
-  const handleAnnotationRemove = (annotationId: string) => {
-    if (!drill) return
-    removeAnnotation(drill.id, phaseIndex, annotationId)
-    void persistPhases(drill.id)
+  // Delete/Backspace with a canvas selection (Stage 3.4). Only entities are
+  // removable this way — markings are removed with the existing remove tool.
+  const handleDeleteSelection = (ids: string[]) => {
+    if (!drill || !phase) return
+    let removed = false
+    for (const id of ids) {
+      const elementType = phaseElementKind(phase, id)
+      if (!elementType) continue
+      removeElement(drill.id, phaseIndex, elementType, id)
+      removed = true
+    }
+    setSelectedIds([])
+    if (removed) void persistPhases(drill.id)
   }
 
   const handleSaveNote = async (e: FormEvent) => {
@@ -518,22 +542,22 @@ export function DrillPreview() {
             <EmptyState icon={PenTool} message="No drills yet for this team — create one above." />
           )}
 
-          {drill && phase && (
+          {drill && frame && (
             <>
               <PitchCanvas
-                pitchSize={drill.pitch_size}
-                orientation={drill.orientation}
-                phase={phase}
+                pitch={drill.pitch}
+                frame={frame}
                 maxWidth={960}
                 editable
-                onElementDragMove={handleDragMove}
-                onElementDragEnd={handleDragEnd}
+                onEntitiesMove={handleEntitiesMove}
                 annotationMode={placementMode !== null && placementMode !== 'remove'}
                 onCanvasClick={handleCanvasClick}
                 removeMode={placementMode === 'remove'}
-                onElementClick={handleElementRemove}
-                onAnnotationClick={handleAnnotationRemove}
-                onArrowClick={handleArrowRemove}
+                onEntityClick={handleEntityRemove}
+                onMarkingClick={handleMarkingRemove}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                onDeleteSelection={handleDeleteSelection}
                 pendingArrowStart={pendingArrowStart}
                 hintText={placementHint}
               />

@@ -276,6 +276,105 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 3: interpolation, selection, transform
+
+Stage 3 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md) — the
+stage that turns the entities+keyframes data into something on screen.
+`frameAt(scene, keyframes, t)` is the seam: a pure function resolves a drill to
+placed shapes, and `PitchCanvas` renders that frame exactly as it rendered a
+phase before, so the rule CLAUDE.md states about the canvas never touching
+Supabase survives the rework intact.
+
+### What happened, in order
+
+1. **`canvas/interpolate.ts`** — written and verified on its own before the
+   canvas was touched, as the plan advises. Bracketing with clamping at both
+   ends, linear lerp, centripetal Catmull-Rom over a custom `path` with
+   arc-length reparameterisation, `facing` from explicit value → travel vector
+   → `bodyShape` offset, `hidden` entities omitted.
+
+2. **`PitchCanvas`** — `frame: RenderFrame | null` and `pitch: PitchConfig`
+   replace `phase`/`pitchSize`/`orientation`. Split into named Konva layers.
+   Selection, multi-select drag, arrow-key nudge, a Transformer for markings,
+   and wheel/pinch zoom with space-drag pan and a Fit reset.
+
+3. **Every caller adapted in the same change** — `TacticBoard` (which the plan
+   names), plus `DrillPreview` and `DrillLibrary`, which hand the canvas a
+   `DrillPhase` and would otherwise have broken the build that Stage 3's own
+   Verify requires. `canvas/phaseFrame.ts` is the bridge; it dies with the
+   phases column in migration 014.
+
+### What Worked
+
+- **Testing `frameAt` as a plain Node module.** It imports only *types* from
+  the store, so esbuild strips every runtime import and it runs standalone —
+  44 assertions covering clamping, appearing/leaving entities, marking
+  binding, all four `bodyShape` cases, path endpoints, monotonicity, degenerate
+  inputs and purity. Worth knowing for Stage 4: `speeds.ts` will be testable
+  the same way.
+- **Arc-length reparameterisation was the right call.** Sampling the spline by
+  raw parameter would have made a marker sprint through tightly-spaced
+  waypoints and crawl through wide ones. Measured over a three-waypoint route,
+  equal time steps cover distances within a 1.12 ratio; the straight-line case
+  is exactly 1.0000. Stage 4's speed readout depends on this — it would
+  otherwise report a number the animation doesn't move at.
+- **Driving the real canvas with real pointer events.** Box-select then drag
+  moved all three selected entities by an identical delta (0.2264, 0.165) with
+  unselected ones untouched, in 3 move calls with exactly 1 commit — which is
+  also a live confirmation that Stage 2's dragmove/dragend split holds through
+  the canvas.
+
+### What Didn't Work / Watch Out For
+
+- **`frameAt` filters markings by the governing keyframe.** The plan's
+  signature doesn't mention it, but without it every phase's arrows would draw
+  at once — a visible regression against today's per-phase arrows, and the
+  reason Stage 1 gave markings a `keyframeId` at all. Static markings (no
+  `keyframeId`) always draw. Verified: `a1+n1+z1` at t=0, `z1` alone at t=5.
+- **Five layers, not seven.** `OverlayLayer` (Stage 7) and `OnionSkinLayer`
+  (Stage 4.5) have nothing to draw yet and an empty Konva layer is a real
+  canvas. Both slots are marked in place in the JSX so they drop in without
+  restructuring, and five plus those two is exactly the seven-layer ceiling.
+- **Text markings render in the EntityLayer, not the MarkingsLayer.** Teloframe
+  puts markings under entities, but Gaffer's notes have always read on top and
+  moving them under players is a regression. This is the one place the layer
+  split isn't strictly by kind — and it's what keeps the count at five.
+- **`pitch.preset` is bridged back to a `PitchSize`.** `pitchGeometry` still
+  hand-authors markings per size; generalising it to metre dimensions is Stage
+  7.2. Doing it now would have changed the quarter pitch's aspect ratio
+  (35×68 vs today's 30×40) and broken "no regression". The bridge is ~6 lines
+  and Stage 7 deletes it.
+- **Selection is wired into `DrillPreview`**, which is throwaway — Stage 5
+  replaces that component. It's there because "the editor" is where the plan
+  puts selection state, and because the DoD's "box-select + drag moves a
+  group" isn't demonstrable otherwise.
+- **`facing` is computed but nothing renders it yet.** It's part of the
+  `RenderFrame` contract Stage 4/6 read; the Faces UI is Stage 6.
+- **No memoisation inside `frameAt`.** Stage 4 will call it 60x/sec. Measured
+  cost is a few hundred float ops per pathed entity per frame, and a
+  cache-invalidation bug in the correctness core would be far worse than that.
+  If profiling ever says otherwise, key a WeakMap on the `path` array — it's
+  stable, because the store is immutable.
+- **`/tactics` wasn't clicked through** — see Next Steps.
+
+## Next Steps
+
+1. **Open `/tactics` signed in and confirm no regression** — the one Verify
+   item left outstanding. The adapter's exact output was rendered through the
+   same canvas and looks right (full pitch portrait, one team colour, name
+   labels, solid and dashed arrows, note on top), and `phaseToRenderFrame` was
+   checked lossless against a real stored drill phase, but the signed-in
+   click-through needs a human at the keyboard.
+2. **Stage 4 — timeline & playback.** `frameAt` is ready for it; onion skin is
+   two more calls at low opacity, and the OnionSkinLayer slot is marked.
+3. **Stage 4 should pass `frameAt`'s result into `addKeyframe(drillId, t,
+   states)`**, closing the gap Stage 2 left deliberately open.
+4. **Still outstanding from Stage 1:** open the 11 drills in the editor and
+   confirm nothing moved; don't apply migration 014 until its header's three
+   conditions hold.
+
+---
+
 ## Session log — Drill Creator rework, Stage 2: store actions, undo/redo, autosave
 
 Stage 2 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md).

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Shield } from 'lucide-react'
 import { useStore } from '../../store'
-import type { Player, PlayerPosition, Tactic } from '../../store'
+import type { Marking, PitchConfig, Player, PlayerPosition, Tactic } from '../../store'
 import { PitchCanvas } from '../design/PitchCanvas'
+import type { EntityMove } from '../design/PitchCanvas'
+import type { RenderFrame } from '../design/canvas/interpolate'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
 import { Dropdown } from '../ui/Dropdown'
@@ -10,9 +12,17 @@ import { Dropdown } from '../ui/Dropdown'
 // Tactics are always a full pitch, portrait — unlike drills, there's no
 // size/orientation picker here (the roadmap fixes the Tactic Creator to
 // "a full football pitch"). No cones/balls/witches-hats/mannequins either:
-// v1 tactics are players + arrows + annotations only.
-const TACTIC_PITCH_SIZE = 'full' as const
-const TACTIC_ORIENTATION = 'portrait' as const
+// v1 tactics are players + arrows + annotations only. The metre dimensions
+// are the ones migration 013b wrote for every full-pitch drill, so a tactic
+// and a full-pitch drill render identically; Stage 7 of the drill-creator
+// rework owns the real preset table.
+const TACTIC_PITCH: PitchConfig = {
+  preset: 'full',
+  widthMeters: 68,
+  lengthMeters: 105,
+  orientation: 'portrait',
+  overlays: [],
+}
 
 // Display-only grouping (no schema change) — winger + striker both bucket
 // into "Attackers", matching the roadmap's 4-group roster panel
@@ -113,29 +123,41 @@ export function TacticBoard() {
     return groups
   }, [players, placedPlayerIds])
 
-  // Adapter (Phase 3.3): map this tactic's board into the exact shape
-  // PitchCanvas already knows how to render (a DrillPhase-like object) —
-  // no changes needed to PitchCanvas itself. `team: 'own'` (a constant, not
-  // per-player) means every placed player gets the same PLAYER color;
-  // tactics don't have an "opposition" concept in v1.
-  const canvasPhase = tactic
+  // Adapter (Phase 3.3, reworked for Stage 3): map this tactic's board into
+  // the RenderFrame shape PitchCanvas renders — no changes needed to the
+  // canvas itself. `team: 'own'` (a constant, not per-player) means every
+  // placed player gets the same PLAYER color; tactics don't have an
+  // "opposition" concept in v1. `facing: 0` because a tactic is a static
+  // diagram: nothing on it is travelling anywhere.
+  const canvasFrame: RenderFrame | null = tactic
     ? {
-        id: tactic.id,
-        players: tactic.board.players.map((tp) => {
+        entities: tactic.board.players.map((tp) => {
           const roster = players.find((p) => p.id === tp.player_id)
           return {
             id: tp.id,
-            x: tp.x,
-            y: tp.y,
+            kind: 'player' as const,
             team: 'own',
             number: roster?.squad_number ?? undefined,
             label: roster?.name,
+            x: tp.x,
+            y: tp.y,
+            facing: 0,
           }
         }),
-        cones: [],
-        balls: [],
-        arrows: tactic.board.arrows,
-        annotations: tactic.board.annotations,
+        markings: [
+          ...tactic.board.arrows.map<Marking>((arrow) => ({
+            id: arrow.id,
+            kind: 'arrow',
+            points: [arrow.from, arrow.to],
+            style: { dash: (arrow.kind ?? 'player') === 'ball' },
+          })),
+          ...tactic.board.annotations.map<Marking>((note) => ({
+            id: note.id,
+            kind: 'text',
+            points: [{ x: note.x, y: note.y }],
+            text: note.text,
+          })),
+        ],
       }
     : null
 
@@ -151,15 +173,13 @@ export function TacticBoard() {
     setSelectedTacticId(created.id)
   }
 
-  const handleDragMove = (_elementType: string, elementId: string, position: { x: number; y: number }) => {
+  // One callback for both dragmove and dragend now, and for however many
+  // entities the canvas reports moving at once — a tactic has no multi-select
+  // UI, so in practice that's always the single player under the pointer.
+  const handleEntitiesMove = (moves: EntityMove[], commit: boolean) => {
     if (!tactic) return
-    setTacticPlayerPosition(tactic.id, elementId, position)
-  }
-
-  const handleDragEnd = (_elementType: string, elementId: string, position: { x: number; y: number }) => {
-    if (!tactic) return
-    setTacticPlayerPosition(tactic.id, elementId, position)
-    void persistBoard(tactic.id)
+    for (const move of moves) setTacticPlayerPosition(tactic.id, move.id, move.position)
+    if (commit) void persistBoard(tactic.id)
   }
 
   const placementHint = pendingPlacePlayerId
@@ -209,21 +229,19 @@ export function TacticBoard() {
     setPendingArrowStart(null)
   }
 
-  const handleElementRemove = (_elementType: string, elementId: string) => {
+  const handleEntityRemove = (entityId: string) => {
     if (!tactic) return
-    removeTacticPlayer(tactic.id, elementId)
+    removeTacticPlayer(tactic.id, entityId)
     void persistBoard(tactic.id)
   }
 
-  const handleArrowRemove = (arrowId: string) => {
+  // Arrows and notes are both markings on the canvas now, so removal comes
+  // back through one callback and is routed by which board array owns the id.
+  const handleMarkingRemove = (markingId: string) => {
     if (!tactic) return
-    removeTacticArrow(tactic.id, arrowId)
-    void persistBoard(tactic.id)
-  }
-
-  const handleAnnotationRemove = (annotationId: string) => {
-    if (!tactic) return
-    removeTacticAnnotation(tactic.id, annotationId)
+    if (tactic.board.arrows.some((a) => a.id === markingId)) removeTacticArrow(tactic.id, markingId)
+    else if (tactic.board.annotations.some((a) => a.id === markingId)) removeTacticAnnotation(tactic.id, markingId)
+    else return
     void persistBoard(tactic.id)
   }
 
@@ -252,22 +270,19 @@ export function TacticBoard() {
           <EmptyState icon={Shield} message="No tactics yet for this team — create one on the right." />
         )}
 
-        {tactic && canvasPhase && (
+        {tactic && canvasFrame && (
           <>
             <PitchCanvas
-              pitchSize={TACTIC_PITCH_SIZE}
-              orientation={TACTIC_ORIENTATION}
-              phase={canvasPhase}
+              pitch={TACTIC_PITCH}
+              frame={canvasFrame}
               maxWidth={960}
               editable
-              onElementDragMove={handleDragMove}
-              onElementDragEnd={handleDragEnd}
+              onEntitiesMove={handleEntitiesMove}
               annotationMode={pendingPlacePlayerId !== null || (placementMode !== null && placementMode !== 'remove')}
               onCanvasClick={handleCanvasClick}
               removeMode={placementMode === 'remove'}
-              onElementClick={handleElementRemove}
-              onAnnotationClick={handleAnnotationRemove}
-              onArrowClick={handleArrowRemove}
+              onEntityClick={handleEntityRemove}
+              onMarkingClick={handleMarkingRemove}
               pendingArrowStart={pendingArrowStart}
               hintText={placementHint}
             />
