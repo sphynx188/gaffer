@@ -276,6 +276,100 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 9: library, cards & session integration
+
+Stage 9 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md).
+Metadata is only worth entering if something consumes it — this is the
+"something": `DrillLibrary.tsx` becomes a filterable card grid with real
+animated playback, and the two places a drill gets picked (`DrillLibrary`
+itself, `SessionDrillsPanel`) get richer than a name.
+
+### What happened, in order
+
+1. **`drillSlice.duplicateDrill`** — whole-drill duplication, the useful unit
+   now that a drill is one cast of entities plus keyframes rather than a list
+   of independent phases (only phases could be duplicated before). Two
+   Supabase calls under the hood: `createDrill` for the structural fields
+   (scene, keyframes, pitch, duration), then `updateDrill` for every Stage 8
+   metadata field — `thumbnail_url` is the one deliberate omission, see below.
+2. **`DrillLibrary.tsx`** rewritten — a card grid (thumbnail, name, category
+   chip, duration, level, intensity, player count, age band) replacing the
+   old name-only list rows, a filter bar (search · age · session block ·
+   players · level · more filters, matching the target editor's own bar), and
+   real interpolated playback (`useTimelinePlayback` + `frameAt`, read-only)
+   replacing the old phase-cut timer. This retires the file's old comment
+   about interpolation being impossible between two phases with unrelated
+   element sets — Stage 1 made every entity's id stable across the whole
+   drill, so it isn't impossible any more.
+3. **`SessionDrillsPanel.tsx`** — the attach picker's Dropdown options now
+   read `12 min · Technical` instead of just the pitch format when Stage 8
+   metadata is present; picking a drill prefills the Minutes field from the
+   drill's own `duration_minutes` (still editable); each attached row gets a
+   small duration/session-block badge line under its name.
+
+### What Worked
+
+- **Every filter narrows the same array the fetch already loaded.** No new
+  network calls — the "this scale doesn't need server-side search" note from
+  build guide 2b still holds at eleven drills and will hold at a few hundred.
+- **Building the age/category filter option lists from the data itself.**
+  `age_min`/`age_max`/`category` are free text (Stage 8 deliberately didn't
+  freeze them into unions), so a fixed dropdown list would either be wrong or
+  need constant hand-maintenance. Deriving the options from what's actually
+  on the eleven drills means the filter is never stale and never invents a
+  band nobody uses.
+- **A fresh `useTimelinePlayback` instance per selected drill**, via a `key`
+  on the panel component that owns it — reusing one instance across
+  selections would carry the previous drill's `currentTime`/`playing` state
+  into a drill with a different duration.
+
+### What Didn't Work / Watch Out For
+
+- **`duplicateDrill` deliberately drops `thumbnail_url`.** The stored URL
+  points at a Storage object keyed by the *source* drill's id
+  (`<drill id>.png` — see Stage 8's bucket). Copying the string would point
+  the duplicate at the source's own image, and since auto-capture only fires
+  when a drill has no thumbnail yet, the duplicate would never get one of its
+  own — it would silently start showing whatever the source's board looks
+  like *now* the next time the source re-captures. Leaving it `null` lets the
+  duplicate pick up a correctly-pathed thumbnail the first time it's edited,
+  same as any other new drill. Verified this by hand against the live
+  database (insert a fully-populated scratch drill, run the same two-step
+  copy `duplicateDrill` performs, confirm every field round-trips except
+  `thumbnail_url`), not just by reading the code.
+- **A player-count or duration filter can't confirm a fit it has no data
+  for.** A drill missing `min_players`/`max_players` never matches a players
+  filter, and one missing `duration_minutes` never matches a duration filter
+  — excluded, not treated as "fits anything". This is the stage's own point
+  restated as code: metadata is what makes a drill findable, so a drill
+  without it stays unfindable by that filter until Details is filled in.
+- **Duration isn't one of the plan's five named primary filters** (search ·
+  age · session block · players · level), but the stage's own definition of
+  done — "a 12-minute technical rondo for 8 players" — needs one to exist
+  somewhere. It lives under "more filters" alongside intensity, phase of play
+  and category rather than crowding the primary bar past five controls.
+- **All eleven live drills still carry no metadata** — the Details drawer
+  built in Stage 8 has never been typed into (sign-in still blocks it), so
+  every filter and card field beyond name/pitch/thumbnail was verified
+  against a synthetic dataset and a live-database round-trip rather than the
+  real library. Filter-combination logic (boundary cases on player-count and
+  duration ranges, age-band derivation, search scope) was checked with a
+  standalone script mirroring the component's exact predicate, not just
+  read over.
+
+## Next Steps
+
+1. **Stage 10 — export & share.** Everything it needs (thumbnails, the
+   richer drill record) is now in place.
+2. **Still outstanding, all needing a signed-in session:** typing into the
+   Details drawer for real (Stage 8), the library's filter bar and animated
+   preview against real data, the tap/drag placement gestures, `/tactics`
+   from Stage 3, and the 11-drill read-back that gates migration 014 — still
+   the one written-but-unapplied migration, so the repo and the deployed
+   database deliberately disagree by that file.
+
+---
+
 ## Session log — Drill Creator rework, Stage 8: drill metadata & the Details drawer
 
 Stage 8 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). A

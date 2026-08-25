@@ -291,6 +291,15 @@ export interface DrillSlice {
   createDrill: (input: NewDrillInput) => Promise<Drill | null>
   updateDrill: (id: string, patch: DrillUpdateInput) => Promise<Drill | null>
 
+  // Whole-drill duplication (rework plan Stage 9.5) — the useful unit now
+  // that a drill is one cast of entities plus keyframes rather than a list of
+  // independent phases. Copies everything a coach would expect to survive a
+  // "duplicate": scene, keyframes, pitch, duration and every Stage 8 metadata
+  // field, following the same "copy everything, mark the name" precedent
+  // addPhase's own 'duplicate' mode already sets for a single phase. The one
+  // deliberate omission is thumbnail_url — see the implementation for why.
+  duplicateDrill: (drillId: string) => Promise<Drill | null>
+
   // Stores a PNG data URL — `stage.toDataURL()` off the Konva stage (rework
   // plan Stage 8.5) — in the `drill-thumbnails` bucket and records its public
   // URL on the drill. One object per drill, named by id and upserted, so a
@@ -682,6 +691,58 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         ...(drill ? { drills: get().drills.map((d) => (d.id === id ? drill : d)) } : {}),
       })
       return drill
+    },
+
+    duplicateDrill: async (drillId) => {
+      const source = get().drills.find((d) => d.id === drillId)
+      if (!source) return null
+      const created = await get().createDrill({
+        team_id: source.team_id,
+        name: `${source.name} (copy)`,
+        pitch_size: source.pitch_size,
+        orientation: source.orientation,
+        scene: source.scene,
+        keyframes: source.keyframes,
+        duration_seconds: source.duration_seconds,
+        pitch: source.pitch,
+        phases: source.phases,
+      })
+      if (!created) return null
+      // Metadata isn't part of NewDrillInput — createDrill's insert exists to
+      // seed structural defaults (a blank phase, a derived pitch) a plain
+      // column patch must never fight with — so it goes through the same
+      // updateDrill path a coach's own edit in Details would use, exactly
+      // like uploadDrillThumbnail does below for the one field it sets.
+      //
+      // thumbnail_url is deliberately left out. It's a rendering of THIS
+      // drill's board, stored at a path keyed by ITS id (`${drillId}.png`,
+      // see uploadDrillThumbnail) — copying the URL string would point the
+      // duplicate at the source's own image file, and since the auto-capture
+      // rule only fires when a drill has none yet, the duplicate would never
+      // get one of its own and would silently start showing the source's
+      // *current* board the next time the source re-captures. Leaving it
+      // null lets the duplicate pick up a correctly-pathed thumbnail the
+      // first time it's edited, the same as any other new drill.
+      return get().updateDrill(created.id, {
+        objective: source.objective,
+        description: source.description,
+        category: source.category,
+        subcategory: source.subcategory,
+        duration_minutes: source.duration_minutes,
+        players_recommended: source.players_recommended,
+        min_players: source.min_players,
+        max_players: source.max_players,
+        age_min: source.age_min,
+        age_max: source.age_max,
+        difficulty: source.difficulty,
+        intensity: source.intensity,
+        phase_of_play: source.phase_of_play,
+        session_block: source.session_block,
+        setup_minutes: source.setup_minutes,
+        learning_outcome: source.learning_outcome,
+        video_url: source.video_url,
+        coaching: source.coaching,
+      })
     },
 
     uploadDrillThumbnail: async (drillId, dataUrl) => {

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useStore } from '../store'
 import type { Drill, SessionDrill, SessionWithRelations } from '../store'
+import { SESSION_BLOCK_LABELS } from '../store'
 import { formatDimensions, presetLabel } from './design/canvas/pitchPresets'
 import { NumberChip } from './ui/NumberChip'
+import { Badge } from './ui/Badge'
 import { Dropdown } from './ui/Dropdown'
 
 interface AttachmentFormValues {
@@ -15,6 +17,19 @@ interface AttachmentFormValues {
 function pitchLabel(drill: Drill): string {
   const { pitch } = drill
   return `${presetLabel(pitch.preset)} · ${formatDimensions(pitch.lengthMeters, pitch.widthMeters, pitch.units ?? 'm')}`
+}
+
+// The richer picker label (rework plan Stage 9.4): a drill's own recorded
+// duration and session-block fit, when Stage 8's Details drawer has them, are
+// more use to a coach slotting a drill into a session than the pitch format
+// was — falls back to `pitchLabel` for the eleven drills that predate that
+// metadata, so the picker never goes from informative to blank.
+function drillPickerLabel(drill: Drill): string {
+  const parts = [
+    drill.duration_minutes != null ? `${drill.duration_minutes} min` : null,
+    drill.session_block ? SESSION_BLOCK_LABELS[drill.session_block] : null,
+  ].filter((part): part is string => part != null)
+  return `${drill.name} (${parts.length > 0 ? parts.join(' · ') : pitchLabel(drill)})`
 }
 
 // Phase 2d — Save as reusable / attach to session (US-14, US-15,
@@ -69,6 +84,16 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
   const [plannedDuration, setPlannedDuration] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  // Picking a drill suggests its own recorded duration as a starting point
+  // for "how long will this take in THIS session" — still just a prefill, so
+  // a coach who knows this particular run will go long or short can still
+  // type over it before attaching (rework plan Stage 9.4).
+  const handleSelectDrill = (id: string) => {
+    setSelectedDrillId(id)
+    const suggested = drillsById.get(id)?.duration_minutes
+    if (!plannedDuration && suggested != null) setPlannedDuration(String(suggested))
+  }
 
   const handleAttach = async (e: FormEvent) => {
     e.preventDefault()
@@ -130,8 +155,8 @@ export function SessionDrillsPanel({ session }: { session: SessionWithRelations 
           <div className="mt-1">
             <Dropdown
               value={selectedDrillId}
-              onChange={setSelectedDrillId}
-              options={drills.map((d) => ({ value: d.id, label: `${d.name} (${pitchLabel(d)})` }))}
+              onChange={handleSelectDrill}
+              options={drills.map((d) => ({ value: d.id, label: drillPickerLabel(d) }))}
               placeholder={drills.length === 0 ? 'No drills yet — build one in Design above' : 'Select a drill…'}
               ariaLabel="Drill"
               triggerClassName="w-full"
@@ -221,9 +246,20 @@ function SessionDrillRow({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <NumberChip index={position} />
-          <p className="text-sm font-medium text-ink">
-            {drill ? `${drill.name} (${pitchLabel(drill)})` : 'Unknown drill'}
-          </p>
+          <div>
+            <p className="text-sm font-medium text-ink">
+              {drill ? `${drill.name} (${pitchLabel(drill)})` : 'Unknown drill'}
+            </p>
+            {/* The drill's own recorded fit, not this attachment's planned
+                minutes below — a quick "does this belong in this block"
+                check while a session is still being built (Stage 9.4). */}
+            {drill && (drill.duration_minutes != null || drill.session_block) && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {drill.duration_minutes != null && <Badge tone="neutral">{drill.duration_minutes} min</Badge>}
+                {drill.session_block && <Badge tone="neutral">{SESSION_BLOCK_LABELS[drill.session_block]}</Badge>}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <button
