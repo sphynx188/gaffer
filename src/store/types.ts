@@ -426,6 +426,16 @@ export interface Drill {
   video_url: string | null
   thumbnail_url: string | null
   coaching: DrillCoaching
+
+  // Public share link (rework plan Stage 10.4, migration 018). Null until a
+  // coach explicitly turns sharing on, and null again the moment they turn it
+  // off — sharing is opt-in per drill and revocable, never a property a drill
+  // has by default. 32 hex characters, 128 bits from `crypto.getRandomValues`.
+  //
+  // A non-null token is the ONLY thing that makes a drill readable by an
+  // unauthenticated caller, and even then only to a reader who presents the
+  // token itself — see the policy in migration 018.
+  share_token: string | null
 }
 
 export interface SessionDrill {

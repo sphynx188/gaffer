@@ -4,10 +4,9 @@ import { useStore } from '../../../store'
 import type { Drill, SaveState } from '../../../store'
 
 // Back, the drill's name, undo/redo, and what the autosave is doing
-// (rework plan Stage 5.2). Export and the 2D/3D toggle are rendered disabled:
-// they belong to Stages 10 and 11, and the plan asks for the 3D toggle to be
-// present-but-disabled from here, so Export follows the same rule rather than
-// appearing out of nowhere later.
+// (rework plan Stage 5.2). Export opens the export & share drawer as of Stage
+// 10; the 2D/3D toggle stays disabled, since the plan asks for it to be
+// present-but-disabled until Stage 11 decides whether 3D happens at all.
 
 const SAVE_LABEL: Record<SaveState, string> = {
   saved: 'Saved',
@@ -26,7 +25,7 @@ const SAVE_TONE: Record<SaveState, string> = {
 const ICON_BUTTON =
   'flex h-11 w-11 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted lg:h-9 lg:w-9'
 
-export function EditorTopBar({ drill }: { drill: Drill }) {
+export function EditorTopBar({ drill, onExport }: { drill: Drill; onExport: () => void }) {
   const updateDrill = useStore((s) => s.updateDrill)
   const saveState = useStore((s) => s.saveState)
   const undo = useStore((s) => s.undo)
@@ -89,7 +88,7 @@ export function EditorTopBar({ drill }: { drill: Drill }) {
       >
         <Redo2 className="h-4 w-4" />
       </button>
-      <button type="button" disabled className={ICON_BUTTON} aria-label="Export" title="Export — coming with the export stage">
+      <button type="button" onClick={onExport} className={ICON_BUTTON} aria-label="Export" title="Export & share">
         <Download className="h-4 w-4" />
       </button>
       <button type="button" disabled className={ICON_BUTTON} aria-label="3D view" title="3D view — not built yet">

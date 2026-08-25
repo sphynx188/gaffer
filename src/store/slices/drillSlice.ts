@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
 import type {
   ArrowKind,
@@ -71,6 +72,10 @@ export interface DrillUpdateInput {
   video_url?: string | null
   thumbnail_url?: string | null
   coaching?: DrillCoaching
+
+  // Written only by enableDrillSharing/disableDrillSharing, never typed into a
+  // form — a share token is minted or revoked, not edited (Stage 10.4).
+  share_token?: string | null
 }
 
 // What the top-bar save indicator reads. 'dirty' means committed locally but
@@ -104,6 +109,15 @@ const AUTOSAVE_IDLE_MS = 800
 
 // Created by migration 017, public-read, one PNG per drill named by id.
 const THUMBNAIL_BUCKET = 'drill-thumbnails'
+
+// 128 bits, per the plan's own warning about guessable-if-short share URLs
+// (Stage 10.4). `crypto.getRandomValues` rather than `Math.random`: this is the
+// only thing standing between a drill and the open internet once a coach opts
+// in, and Math.random is not a CSPRNG in any engine.
+function mintShareToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
 
 // Keyframe times are rounded to the millisecond. Two keyframes are never
 // allowed to share a `t` (addKeyframe and moveKeyframe both refuse), and
@@ -299,6 +313,21 @@ export interface DrillSlice {
   // addPhase's own 'duplicate' mode already sets for a single phase. The one
   // deliberate omission is thumbnail_url — see the implementation for why.
   duplicateDrill: (drillId: string) => Promise<Drill | null>
+
+  // Public share links (rework plan Stage 10.4). Turning sharing on mints a
+  // fresh 128-bit token; turning it off nulls the column, which revokes every
+  // link already handed out — there is no separate revoke, because "stop
+  // sharing" and "invalidate the link" are the same act. Re-enabling mints a
+  // NEW token rather than restoring the old one, so a link a coach thought
+  // they had killed never comes back to life.
+  enableDrillSharing: (drillId: string) => Promise<string | null>
+  disableDrillSharing: (drillId: string) => Promise<boolean>
+
+  // Reads one shared drill as an unauthenticated visitor. Deliberately not
+  // part of `drills` state: this is the public `/d/:token` page's own data,
+  // fetched by a token rather than by team scope, and folding it into the
+  // team-scoped array a signed-in coach edits would be a category error.
+  fetchSharedDrill: (token: string) => Promise<Drill | null>
 
   // Stores a PNG data URL — `stage.toDataURL()` off the Konva stage (rework
   // plan Stage 8.5) — in the `drill-thumbnails` bucket and records its public
@@ -743,6 +772,41 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         video_url: source.video_url,
         coaching: source.coaching,
       })
+    },
+
+    enableDrillSharing: async (drillId) => {
+      const token = mintShareToken()
+      const updated = await get().updateDrill(drillId, { share_token: token })
+      return updated ? token : null
+    },
+
+    disableDrillSharing: async (drillId) => {
+      const updated = await get().updateDrill(drillId, { share_token: null })
+      return updated !== null
+    },
+
+    fetchSharedDrill: async (token) => {
+      // A second, short-lived client rather than the app-wide one, for two
+      // reasons. It carries the `x-share-token` header the RLS policy matches
+      // against (migration 018), which is per-request data and has no business
+      // being pinned onto the client every signed-in coach uses. And it's
+      // created with no persisted auth session, so a coach who happens to be
+      // signed in on the same browser reads this page as a visitor would —
+      // which is the only way the page can be trusted to look the same to the
+      // teammate it was sent to.
+      const client = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { headers: { 'x-share-token': token } },
+      })
+      const { data, error } = await runSupabaseAction<Drill[]>(
+        () => client.from('drill').select('*').eq('share_token', token).limit(1),
+        "Couldn't load this drill."
+      )
+      if (error) {
+        set({ drillsError: error })
+        return null
+      }
+      return data?.[0] ?? null
     },
 
     uploadDrillThumbnail: async (drillId, dataUrl) => {

@@ -12,6 +12,8 @@ import { AttendancePage } from './pages/AttendancePage'
 import { DesignPage } from './pages/DesignPage'
 import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
+import { DrillCardPage } from './pages/DrillCardPage'
+import { SharedDrillPage } from './pages/SharedDrillPage'
 import { TeamSettingsPage } from './pages/TeamSettingsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { TacticsPage } from './pages/TacticsPage'
@@ -23,20 +25,35 @@ import { TacticsPage } from './pages/TacticsPage'
 // active, rendered as a slim top bar on desktop/tablet and a hamburger-
 // triggered drawer on mobile. Every page still reads/writes the same shared
 // Zustand store (src/store) — only the routing/layout differs.
+//
+// The router now sits ABOVE the auth gate rather than inside the signed-in
+// branch (rework plan Stage 10.4). `/d/:token` is a public share page that has
+// to render for a visitor with no account at all, so it can't live behind
+// `useSession`. Everything else still does: `<AuthedApp>` is the old gate,
+// unchanged in behaviour, just moved one level down. OfflineBanner moved up
+// with it and now covers the share page too, which is if anything more
+// correct — the note applied to "every top-level branch" before and still
+// does, there's simply one more branch.
 function App() {
+  return (
+    <BrowserRouter>
+      <OfflineBanner />
+      <Routes>
+        <Route path="/d/:token" element={<SharedDrillPage />} />
+        <Route path="*" element={<AuthedApp />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}
+
+function AuthedApp() {
   const { session, loading, isPasswordRecovery, clearPasswordRecovery } = useSession()
 
-  // Mounted above every branch (loading/login/signed-in) so "you're offline,
-  // nothing you do here is being saved" holds everywhere in the app, not
-  // just once a coach is signed in and looking at a plan.
   if (loading) {
     return (
-      <>
-        <OfflineBanner />
-        <div className="flex min-h-svh items-center justify-center bg-surface">
-          <p className="text-ink-muted">Loading…</p>
-        </div>
-      </>
+      <div className="flex min-h-svh items-center justify-center bg-surface">
+        <p className="text-ink-muted">Loading…</p>
+      </div>
     )
   }
 
@@ -44,43 +61,33 @@ function App() {
   // link already leaves `session` non-null — the coach needs to set a new
   // password before landing in the app, not skip straight past this screen.
   if (isPasswordRecovery) {
-    return (
-      <>
-        <OfflineBanner />
-        <ResetPassword onDone={clearPasswordRecovery} />
-      </>
-    )
+    return <ResetPassword onDone={clearPasswordRecovery} />
   }
 
   if (!session) {
-    return (
-      <>
-        <OfflineBanner />
-        <Login />
-      </>
-    )
+    return <Login />
   }
 
   return (
-    <BrowserRouter>
-      <OfflineBanner />
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="overview" element={<TeamOverviewPage />} />
-          <Route path="roster" element={<RosterPage />} />
-          <Route path="sessions" element={<SessionsPage />} />
-          <Route path="attendance" element={<AttendancePage />} />
-          <Route path="design" element={<DesignPage />} />
-          <Route path="design/:drillId" element={<DrillEditorPage />} />
-          <Route path="drills" element={<DrillLibraryPage />} />
-          <Route path="tactics" element={<TacticsPage />} />
-          <Route path="teams" element={<TeamSettingsPage />} />
-          <Route path="calendar" element={<CalendarPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <Routes>
+      {/* Outside AppShell on purpose: a page whose whole job is to become a
+          sheet of paper has no use for a nav rail (rework plan Stage 10.2). */}
+      <Route path="drills/:drillId/card" element={<DrillCardPage />} />
+      <Route element={<AppShell />}>
+        <Route index element={<DashboardPage />} />
+        <Route path="overview" element={<TeamOverviewPage />} />
+        <Route path="roster" element={<RosterPage />} />
+        <Route path="sessions" element={<SessionsPage />} />
+        <Route path="attendance" element={<AttendancePage />} />
+        <Route path="design" element={<DesignPage />} />
+        <Route path="design/:drillId" element={<DrillEditorPage />} />
+        <Route path="drills" element={<DrillLibraryPage />} />
+        <Route path="tactics" element={<TacticsPage />} />
+        <Route path="teams" element={<TeamSettingsPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
   )
 }
 

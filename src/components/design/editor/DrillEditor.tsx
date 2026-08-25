@@ -15,6 +15,9 @@ import { useToast } from '../../ui/useToast'
 import { EditorTopBar } from './EditorTopBar'
 import { PropertiesPanel } from './PropertiesPanel'
 import { DrillDetailsDrawer } from './DrillDetailsDrawer'
+import { ExportPanel } from './ExportPanel'
+import { downloadBlob, downloadDataUrl } from '../export/exportFile'
+import { recordGif } from '../export/recordGif'
 import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
 import { markingToolSpec, type MarkingTool } from './markingTools'
 import type { GridSettings } from './GridPanel'
@@ -70,6 +73,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [propsOpen, setPropsOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [capturing, setCapturing] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [gifProgress, setGifProgress] = useState<number | null>(null)
   const [pendingArrowStart, setPendingArrowStart] = useState<PhasePoint | null>(null)
   const [pendingNote, setPendingNote] = useState<PhasePoint | null>(null)
   const [noteText, setNoteText] = useState('')
@@ -148,6 +153,50 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     // this on every render instead of on the transitions it cares about.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveState, drill.id, drill.thumbnail_url, drill.scene.entities.length, playback.currentTime])
+
+  // Exports (rework plan Stage 10). Both live here rather than in ExportPanel
+  // for the same reason the thumbnail capture does: the Konva stage is only
+  // reachable from this component.
+  const handleExportPng = (filename: string) => {
+    const stage = stageRef.current
+    if (!stage) return
+    // pixelRatio 2 per the plan — a retina-sharp still that survives being
+    // dropped into a team chat or a session document.
+    void downloadDataUrl(stage.toDataURL({ pixelRatio: 2, mimeType: 'image/png' }), filename)
+    showToast('PNG saved')
+  }
+
+  const handleExportGif = async (filename: string) => {
+    const stage = stageRef.current
+    if (!stage || gifProgress !== null) return
+    if (drill.keyframes.length < 2) {
+      showToast('Add a second keyframe first — there is nothing to animate')
+      return
+    }
+    // Recording drives the playhead, so anything already playing has to stop
+    // or the two would fight over it. Where the coach had it is restored
+    // afterwards, whether the encode succeeded or not.
+    const resumeAt = playback.currentTime
+    playback.pause()
+    setGifProgress(0)
+    try {
+      const blob = await recordGif({
+        stage,
+        durationSeconds: drill.duration_seconds,
+        seek: playback.seek,
+        onProgress: setGifProgress,
+      })
+      if (blob) {
+        downloadBlob(blob, filename)
+        showToast('GIF saved')
+      } else {
+        showToast("Couldn't record the GIF")
+      }
+    } finally {
+      setGifProgress(null)
+      playback.seek(resumeAt)
+    }
+  }
 
   // Drag-to-place, carried over from the phases-era editor. Window listeners
   // for the duration of the drag, then a hit-test against PitchCanvas's own
@@ -385,7 +434,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
-      <EditorTopBar drill={drill} />
+      <EditorTopBar drill={drill} onExport={() => setExportOpen(true)} />
 
       <div className="flex min-w-0 gap-3">
         {/* Rail — desktop only; below lg it lives in the drawer. */}
@@ -499,6 +548,15 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         capturing={capturing}
       />
 
+      <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)}>
+        <ExportPanel
+          drill={drill}
+          onExportPng={handleExportPng}
+          onExportGif={(filename) => void handleExportGif(filename)}
+          gifProgress={gifProgress}
+        />
+      </ExportDrawer>
+
       {/* Drag ghost — follows the pointer between picking a tool up off the
           rail and dropping it on the pitch. */}
       {drag && (
@@ -572,6 +630,59 @@ function Sheet({
           </button>
         </div>
         <div className="p-4">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+// The export drawer, the same always-mounted right-hand shape
+// DrillDetailsDrawer uses — one drawer idiom in the editor, not two.
+function ExportDrawer({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
+
+  return (
+    <div className={`fixed inset-0 z-40 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+      <button
+        type="button"
+        aria-label="Close export"
+        onClick={onClose}
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
+      />
+      <div
+        role="dialog"
+        aria-label="Export and share"
+        className={
+          'absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-panel transition-transform duration-200 ' +
+          (open ? 'translate-x-0' : 'translate-x-full')
+        }
+      >
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
+          <p className="text-sm font-semibold text-ink">Export &amp; share</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close export"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-ink-muted hover:bg-panel-raised"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-4">{children}</div>
       </div>
     </div>
   )

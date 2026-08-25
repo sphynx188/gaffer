@@ -276,6 +276,138 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 10: export & share
+
+Stage 10 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). A
+drill that can't leave the app can't be handed to an assistant coach or pinned
+to a clipboard. Four exits now: PNG, an animated GIF, a printable Coach's Card,
+and a public link that animates.
+
+### ⚠️ Read this first: a pre-existing anon hole, found and closed
+
+`drill_all_members_or_unscoped` in `rls_policies.sql` was created with no `to`
+clause, so it applied to the `public` role — **including `anon`**. Its USING
+clause is `team_id is null or is_team_member(team_id)`; for an unauthenticated
+caller `is_team_member` is false but `team_id is null` is simply TRUE. Every
+coach-owned drill was therefore readable — and, since the policy is `for all`
+with the same WITH CHECK, writable — by anyone holding the anon key, which
+ships in the browser bundle and is not a secret.
+
+**Verified live, not inferred**: inserted a `team_id is null` drill, read it
+back under `set local role anon`, got the row, deleted the probe. Nothing was
+actually exposed — all 11 drills are team-scoped, so the clause never fired —
+but it was latent, armed by the first coach-owned drill anyone creates.
+
+Migration 018 Part 1 adds the `to authenticated` the policy should always have
+had. No app behaviour changes; every caller in `src/` is a signed-in coach.
+Fixed here rather than filed for later because Stage 10.4 adds the project's
+first anon-reachable surface, and "sharing is opt-in per drill" is not true
+while anon can already read drills nobody opted into.
+
+### What happened, in order
+
+1. **`018_drill_share_token.sql`** — Part 1 above, then `share_token` (nullable,
+   partial-unique) and an anon select policy.
+2. **`drillSlice`** — `enableDrillSharing` / `disableDrillSharing` /
+   `fetchSharedDrill`, plus `mintShareToken` (128 bits from
+   `crypto.getRandomValues`, 32 hex chars).
+3. **`export/exportFile.ts`** — filename stem + blob download, shared by PNG
+   and GIF.
+4. **`pages/DrillCardPage.tsx`** — the Coach's Card, a print-styled route at
+   `/drills/:drillId/card`, rendered outside AppShell.
+5. **`pages/SharedDrillPage.tsx`** + **`App.tsx`** — the public `/d/:token`
+   page, and the router hoisted above the auth gate so it renders signed-out.
+6. **`export/QrCode.tsx`**, **`editor/ExportPanel.tsx`**, and the top bar's
+   Export button, disabled since Stage 5, finally wired up.
+7. **`export/recordGif.ts`** — 25fps sampling and client-side GIF encoding.
+
+### What Worked
+
+- **Verifying the RLS policy by hand, five ways**, as the plan's own execution
+  note demands ("an RLS mistake here is a data-exposure bug, not a rendering
+  bug"). With three probe drills — one shared, one shared with a different
+  token, one coach-owned and unshared — an anon caller sees: exactly one drill
+  with the right token; nothing with a wrong token; **nothing with no header at
+  all**; not the unshared coach-owned drill; and no non-SELECT policy exists
+  for `anon`. Probes deleted, back to 11 drills.
+- **Measuring the print layout at real A4 instead of eyeballing it.** The card
+  was server-rendered against a maximal fixture (every field filled, four long
+  lists) with react-konva stubbed, then measured in a browser at 794x1123 with
+  the `@page` margins applied. First attempt: **1.55 pages** — the plan says
+  one. Diagram-beside-facts plus two-column text sections brought it to 830px
+  of the 1017px available, comfortably one page, 0px horizontal overflow. A
+  minimal drill renders zero empty sections and no `null` strings.
+- **Screenshotting the result anyway.** Same lesson as Stage 7: the numbers
+  said "fits", but only looking confirmed the two columns balance and nothing
+  collides.
+
+### What Didn't Work / Watch Out For
+
+- **The share policy is tighter than the plan's wording, deliberately.** The
+  plan asks for "a public-select policy scoped to non-null tokens". Scoped to
+  non-null *alone*, `select * from drill` as anon returns **every** shared
+  drill — so anyone holding one share link could enumerate all the others,
+  which is not what "opt-in per drill" is meant to buy. The policy adds
+  `share_token = current_setting('request.headers')::json->>'x-share-token'`,
+  so a reader gets exactly the drill they have a link for. Confirmed the GUC
+  round-trips a custom header, and that a missing header yields null → the
+  comparison is null, not true → no rows. **It fails closed.**
+- **`fetchSharedDrill` builds its own session-less Supabase client.** It has to
+  carry the `x-share-token` header (per-request data that has no business
+  pinned to the app-wide client), and creating it with `persistSession: false`
+  means a signed-in coach previewing their own link sees what the recipient
+  sees. A share page that only works for its author is worse than none.
+- **GIF only; no MP4.** The plan pairs GIF with "MP4 via WebCodecs + mp4-muxer
+  where supported, with a GIF fallback". Only the fallback is built. It works
+  everywhere, the MP4 path would need it anyway, and — the deciding factor —
+  the codec-config edge cases are exactly what can't be verified without a real
+  browser session, which sign-in still blocks. The plan ranks this whole item
+  last and most deferrable.
+- **The GIF drives the LIVE stage, not an offscreen one.** The plan says
+  offscreen; that would mean reimplementing every shape `PitchCanvas` draws
+  (~800 lines) against imperative Konva and keeping two renderers in step
+  forever. Seeking the playhead and grabbing `stage.toCanvas()` is one function
+  and cannot drift from what the coach sees. **Two `requestAnimationFrame`s
+  per frame, not one** — a single rAF intermittently captures the previous
+  frame, which shows up as the whole animation lagging one step behind.
+- **`gifenc`, not the plan's `gif.js`.** Same job; gif.js needs a separate
+  worker script copied into the build output and is long unmaintained.
+  A substitution inside the dependency the plan already sanctions.
+- **`qrcode-generator` is a third new dependency**, which the plan doesn't
+  explicitly sanction. The plan does ask for a QR code, and a QR encoder is
+  Reed-Solomon over GF(256) plus mask-penalty scoring — not something to
+  hand-roll and then be unable to scan-test. Its output is rendered as our own
+  SVG off `isDark(row, col)`, so no hardcoded colours leak in from the library.
+- **The QR is the one place that ignores the theme tokens.** A QR code is read
+  by a camera; scanners need dark modules on a light quiet zone, so inverting
+  it in dark mode would look consistent and scan badly. Documented in the
+  component.
+- **`DrillCard` is exported from `DrillCardPage.tsx`** purely so the print
+  layout can be rendered against a fixture with no store behind it. Zustand v5
+  hands React `getInitialState` as the SSR snapshot and copies it onto the
+  bound hook by reference, so a seeded store can't be made visible to
+  `renderToString` from outside — exporting the presentational half was the
+  clean way through.
+- **Everything here is still unexercised by a real signed-in coach.** The RLS
+  is verified at the database level and the layouts are measured, but nobody
+  has clicked Export, printed a card from a browser's own print dialog, or
+  opened a share link in a private window. That last one is the plan's own
+  Verify step and remains outstanding.
+
+## Next Steps
+
+1. **Stage 11 — onboarding, and the explicit 3D decision.** The plan
+   recommends shipping 1–10 and then deciding on 3D with the editor in hand,
+   which is now the position we're in.
+2. **Still outstanding, all needing a signed-in session:** the share link in a
+   private window (Stage 10's Verify), a real browser print of the card,
+   Export/GIF end to end, typing into the Details drawer (Stage 8), the
+   library's filters against real data (Stage 9), tap/drag placement, and the
+   11-drill read-back that gates migration 014 — still the one
+   written-but-unapplied migration.
+
+---
+
 ## Session log — Drill Creator rework, Stage 9: library, cards & session integration
 
 Stage 9 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md).
