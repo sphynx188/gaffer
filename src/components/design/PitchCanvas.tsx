@@ -61,6 +61,12 @@ interface PitchCanvasProps {
   // points (Stage 3.5). Only markings are transformable; entities move.
   onMarkingsTransform?: (updates: Array<{ id: string; points: PhasePoint[] }>) => void
 
+  // Frames to ghost underneath the live one — the keyframes either side of
+  // the playhead (rework plan Stage 4.5). Only ever rendered, never
+  // interactive; entities only, since ghost arrows and notes are clutter
+  // rather than information about movement.
+  onionFrames?: RenderFrame[]
+
   // Staged first point of an in-progress two-click arrow. Only ever rendered.
   pendingArrowStart?: NormalizedPoint | null
   hintText?: string | null
@@ -78,6 +84,10 @@ const ZOOM_STEP = 1.08
 // pitch (which clears the selection) rather than as a box-select, so a
 // slightly shaky tap doesn't select nothing and look broken.
 const MARQUEE_THRESHOLD_PX = 4
+
+// Onion-skin ghosts sit far enough back to read as "not now" without
+// disappearing against the turf.
+const ONION_OPACITY = 0.28
 
 // Nothing in this component may hold a hex value — see pitchTheme.ts.
 const EMPTY_SELECTION: string[] = []
@@ -174,6 +184,7 @@ export function PitchCanvas({
   onSelectionChange,
   onDeleteSelection,
   onMarkingsTransform,
+  onionFrames,
   pendingArrowStart,
   hintText,
 }: PitchCanvasProps) {
@@ -780,13 +791,55 @@ export function PitchCanvas({
             })}
           </Layer>
 
+          {/* --- OnionSkinLayer: the keyframes either side of the playhead,
+              ghosted beneath the live entities so a coach can see where a run
+              came from and where it's going. Simplified silhouettes rather
+              than the full shapes — a ghost only has to say "something of this
+              kind was here", and at this opacity the detail is noise. --- */}
+          {onionFrames && onionFrames.length > 0 && (
+            <Layer listening={false} opacity={ONION_OPACITY}>
+              {onionFrames.flatMap((ghost, index) =>
+                ghost.entities.map((entity) => {
+                  const p = toPx(entity)
+                  if (entity.kind === 'equipment') {
+                    return (
+                      <Rect
+                        key={`onion-${index}-${entity.id}`}
+                        x={p.x - coneRadius / 2}
+                        y={p.y - coneRadius / 2}
+                        width={coneRadius}
+                        height={coneRadius}
+                        cornerRadius={coneRadius / 4}
+                        fill={CONE.named[entity.color ?? ''] ?? entity.color ?? CONE.fallback}
+                      />
+                    )
+                  }
+                  const isBall = entity.kind === 'ball'
+                  return (
+                    <Circle
+                      key={`onion-${index}-${entity.id}`}
+                      x={p.x}
+                      y={p.y}
+                      radius={isBall ? ballRadius : playerRadius}
+                      fill={
+                        isBall
+                          ? BALL.fill
+                          : entity.color ?? teamColors.get(entity.team ?? '') ?? PLAYER.fallback
+                      }
+                    />
+                  )
+                })
+              )}
+            </Layer>
+          )}
+
           {/* --- EntityLayer: balls, players, and the text notes that
               annotate them. Notes stay above the entities they point at,
               which is the one place this canvas departs from a strict
               markings-under-entities split — it preserves the z-order the
               phases-era canvas had, and keeping them here rather than adding
-              a sixth layer leaves room for OverlayLayer and OnionSkinLayer
-              inside Konva's seven-layer ceiling. --- */}
+              a sixth layer left room for OnionSkinLayer above and
+              OverlayLayer to come, inside Konva's seven-layer ceiling. --- */}
           <Layer listening={interactive}>
             {balls.map((ball) => {
               const p = toPx(ball)
@@ -850,10 +903,6 @@ export function PitchCanvas({
               )
             })}
           </Layer>
-
-          {/* --- OnionSkinLayer (previous/next keyframe ghosts) belongs
-              between the entities and the interaction chrome. Stage 4.5 adds
-              it — it's `frameAt` called twice more at low opacity. --- */}
 
           {/* --- InteractionLayer: transient chrome that isn't part of the
               drill — the staged arrow point, the box-select marquee, and the

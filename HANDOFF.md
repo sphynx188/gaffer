@@ -276,6 +276,95 @@ in.
 
 ---
 
+## Session log — Drill Creator rework, Stage 4: timeline & playback
+
+Stage 4 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md) — the
+visible payoff of Stages 1-3. A drill now has a clock, a scrubbable track, and
+a per-segment readout that says out loud whether the movement a coach just drew
+is physically possible.
+
+### What happened, in order
+
+1. **`timeline/useTimelinePlayback.ts`** — a rAF clock owning `currentTime`,
+   `playing`, `speed` and `loop`. `currentTime` is React state in the hook and
+   nowhere near Zustand: it changes sixty times a second, and every component
+   subscribed to that store would re-render with it.
+2. **`timeline/speeds.ts`** — normalized Δ to metres, divided by segment
+   seconds, maxed per entity kind, colour-coded against 8 m/s for a player and
+   25 m/s for a driven pass.
+3. **`timeline/cursor.ts`** — which keyframe the playhead is on, prev/next, and
+   the `mm:ss` clock. Three consumers, so it earns its own module.
+4. **`timeline/TimelineBar.tsx`** — clock, keyframe count, transport, speed,
+   loop, onion skin, expand. Presentational; owns no drill state.
+5. **`timeline/TimelineEditor.tsx`** — ruler, click-to-scrub, draggable
+   playhead, draggable keyframe diamonds, segment bars, the context-aware
+   primary button, and delete/clear/balance/duration.
+6. **`timeline/useKeyframeToggle.ts`** and **`useTimelineKeys.ts`** — the shared
+   Add/Update action and the Space/arrows/`,`/`.`/`K` shortcuts.
+7. **`timeline/onionSkin.ts`** + a real `OnionSkinLayer` in `PitchCanvas`,
+   filling the slot Stage 3 left marked.
+
+### What Worked
+
+- **Checking the physics by hand before trusting the UI**, as the plan asks.
+  45 Node assertions over `speeds.ts` and `cursor.ts`, including both halves of
+  the plan's own Verify and the orientation trap: `PitchConfig` stores canonical
+  *portrait* metres plus an orientation flag, so landscape has to swap the axes.
+  Getting that backwards would quietly report a 68m run as 105m, and no UI check
+  would have caught it.
+- **Retiming a keyframe writes once, on release.** `moveKeyframe` is a
+  committed mutation — calling it per pointer-move would have pushed an undo
+  entry per frame of the drag. The diamond shows a local preview and commits on
+  pointerup: verified as store-untouched during the drag, one entry after.
+- **`K` proved the gap Stage 2 left open is closed.** Pressing it at 4s captured
+  the *interpolated* frame — player at y=0.25, ball at 0.285, and the player who
+  isn't on the pitch yet recorded as `{ hidden: true }` — and split the segment
+  without changing its speed, so nothing snapped.
+
+### What Didn't Work / Watch Out For
+
+- **The caution band opens at 90% of the ceiling, not 80%.** The plan's Verify
+  pins it: 105m in 15s is 7 m/s and has to read green against the 8 m/s player
+  ceiling. 7 m/s is a genuinely quick sprint, so this band is generous by
+  design — if it ever wants tightening, that Verify step has to move with it.
+- **Segment speed is the straight-line chord**, which is what Stage 4.4
+  specifies. Once Stage 6's Draw Route lets a coach bend a run, the real
+  distance is longer than its chord and the readout becomes a lower bound.
+  Closing that means measuring the spline in metre space —
+  `interpolate.ts` already does exactly that internally for playback, so it's a
+  matter of exporting it rather than writing it.
+- **Onion skin ghosts entities only, not markings**, and draws them as plain
+  silhouettes rather than the full shapes. Ghost arrows and notes are clutter;
+  movement is the thing onion skin exists to show.
+- **The `OnionSkinLayer` sits *below* the entities**, not above them where the
+  plan's §1 layer list puts it — Stage 4.5's own wording is "beneath the live
+  one", and ghosts drawn on top of live markers would be worse than useless.
+  Six layers now, with OverlayLayer (Stage 7) still to come: exactly seven.
+- **The timeline shortcuts stand down when the canvas has claimed a key.** Both
+  want arrows and space. The canvas handles them on its own container and calls
+  `preventDefault`; the timeline listens on window, runs afterwards, and checks
+  `event.defaultPrevented`. Without that, one arrow press would nudge a player
+  *and* scrub the playhead.
+- **Nothing mounts these yet.** Stage 5.2 is "Timeline docked bottom", and the
+  only editor that exists today edits `phases[]` — docking a keyframe timeline
+  onto it would mean converting it to scene/keyframes, which is Stage 5's job.
+- **rAF is suspended while the browser pane is hidden**, which is correct
+  behaviour but means the playback loop can't be sampled from a background tab.
+  Verified by substituting the frame source (a `setTimeout` shim) so the hook's
+  real elapsed-time maths still ran: 4.99s of drill time in 5.00s of wall clock.
+
+## Next Steps
+
+1. **Stage 5 — editor shell.** It should call `useTimelinePlayback`, render
+   `TimelineBar` + `TimelineEditor` docked at the bottom, feed the canvas
+   `frameAt(...)` and `onionFramesFor(...)`, and pass `useKeyframeToggle`'s
+   `toggle` to the bar so `K` works while the track is collapsed.
+2. **Still outstanding:** open `/tactics` signed in (Stage 3), open the 11
+   drills and confirm nothing moved (Stage 1), and don't apply migration 014
+   until its header's three conditions hold.
+
+---
+
 ## Session log — Drill Creator rework, Stage 3: interpolation, selection, transform
 
 Stage 3 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md) — the
