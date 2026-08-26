@@ -23,8 +23,6 @@ const LEGACY_EQUIPMENT: Record<EquipmentKind, EquipmentType> = {
 export function phaseToRenderFrame(phase: DrillPhase): RenderFrame {
   const entities: RenderFrame['entities'] = []
 
-  // Players first, so assignTeamColors still sees the same first-seen team
-  // order the phases-era canvas fed it and hands A and B the same two colors.
   for (const player of phase.players) {
     entities.push({
       id: player.id,

@@ -351,12 +351,16 @@ export function getPitchOverlays(config: PitchConfig): PitchOverlayGeometry {
 
 // Team labels in a phase are freeform text (see DrillPhase in store/types.ts
 // — the 0.5.1 hardcoded phase uses "attack"), so colors are assigned by
-// first-seen order rather than matching specific known strings. Stable for a
-// given phase because `players` is rendered in array order every time.
+// sorted label rather than matching specific known strings. Sorted, not
+// first-seen-in-array-order: changing one player's team can reorder which
+// label is encountered first without moving anyone in the entities array,
+// which used to reshuffle every other player of every team's color along
+// with it. Sorting keys the assignment to the label itself, so it only
+// changes when the *set* of team labels in play changes.
 export function assignTeamColors(teamLabels: string[], palette: readonly string[], fallback: string) {
+  const sorted = [...new Set(teamLabels)].sort()
   const map = new Map<string, string>()
-  for (const label of teamLabels) {
-    if (map.has(label)) continue
+  for (const label of sorted) {
     map.set(label, palette[map.size] ?? fallback)
   }
   return map

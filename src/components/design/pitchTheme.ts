@@ -18,9 +18,8 @@ export const PLAYER = {
   // Team distinction is shape/2-color-pair, never a big palette (visual-style
   // discussion). The phase JSON's `team` field is freeform text (e.g.
   // "attack" in the 0.5.1 hardcoded phase) — we don't know the real values
-  // ahead of time, so colors are assigned by first-seen-team-label order,
-  // not by matching a specific string. See `assignTeamColor` in
-  // pitchGeometry.ts.
+  // ahead of time, so colors are assigned by sorted label rather than
+  // matching a specific string. See `assignTeamColors` in pitchGeometry.ts.
   colors: ['#152238', '#b91c1c'] as const, // navy, then red
   fallback: '#475569', // slate-600, a third+ team label (shouldn't normally happen)
   numberText: '#ffffff',
