@@ -700,6 +700,13 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     // A drill's scene, keyframes, duration and pitch go through the autosave
     // flush instead — see DrillUpdateInput.
     updateDrill: async (id, patch) => {
+      // Applied to local state immediately — the Details drawer's fields
+      // otherwise waited on the round-trip before a chip so much as
+      // highlighted, which read as unresponsive on anything but a fast
+      // connection. The network write still happens below; on success it
+      // reconciles with the server row exactly as before.
+      const current = get().drills.find((d) => d.id === id)
+      if (current) set({ drills: get().drills.map((d) => (d.id === id ? { ...d, ...patch } : d)) })
       set({ drillsLoading: true, drillsError: null })
       const { data, error } = await runSupabaseAction<Drill[]>(
         () => supabase.from('drill').update(patch).eq('id', id).select(),
