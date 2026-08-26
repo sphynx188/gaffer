@@ -3,23 +3,19 @@ import { createClient } from '@supabase/supabase-js'
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
 import type {
-  ArrowKind,
   Drill,
   DrillCoaching,
   DrillDifficulty,
   DrillIntensity,
-  DrillPhase,
   DrillPhaseOfPlay,
   DrillScene,
   EntityKind,
   EntityState,
-  EquipmentKind,
   Keyframe,
   Marking,
   PhasePoint,
   PitchConfig,
   PitchOrientation,
-  PitchSize,
   SceneEntity,
   SessionBlock,
 } from '../types'
@@ -28,13 +24,14 @@ import type { StoreState } from '../useStore'
 export interface NewDrillInput {
   team_id: string | null
   name: string
-  pitch_size: PitchSize
   orientation: PitchOrientation
+  // The pitch the coach picked at creation, seeded rather than left to the
+  // column default so a new drill doesn't claim to be a full pitch when they
+  // picked a rondo grid. Built by the caller from PITCH_PRESETS.
+  pitch: PitchConfig
   scene?: DrillScene
   keyframes?: Keyframe[]
   duration_seconds?: number
-  pitch?: PitchConfig
-  phases?: DrillPhase[]
 }
 
 // Deliberately does NOT carry scene/keyframes/duration_seconds/pitch. Those
@@ -44,9 +41,7 @@ export interface NewDrillInput {
 // without noticing.
 export interface DrillUpdateInput {
   name?: string
-  pitch_size?: PitchSize
   orientation?: PitchOrientation
-  phases?: DrillPhase[]
 
   // Metadata (rework plan Stage 8.1). These *are* routed through here rather
   // than the autosave queue, deliberately: they're plain columns a coach types
@@ -131,8 +126,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max)
 }
 
-// Every generated id (new phase, new annotation, new entity, new keyframe,
-// new marking) goes through here — one place to swap the id strategy later if
+// Every generated id (new entity, new keyframe, new marking) goes through
+// here — one place to swap the id strategy later if
 // `crypto.randomUUID` ever isn't available (it is in every browser this app
 // targets: Vercel-hosted HTTPS, modern iOS/Android/desktop browsers).
 function generateId(prefix: string): string {
@@ -220,74 +215,10 @@ function withEntityPosition(
   return changed ? { ...drill, keyframes } : drill
 }
 
-// Provisional. Stage 7 of the rework plan owns the real ~35-preset table;
-// these four are the metre dimensions migration 013b used to convert the old
-// pitch_size values, repeated here so a drill created in the app and a drill
-// backfilled by that migration describe the same pitch rather than drifting
-// apart.
-const PRESET_LENGTH_METERS: Record<PitchSize, number> = {
-  full: 105,
-  three_quarter: 79,
-  half: 53,
-  quarter: 35,
-}
-
-function derivePitch(size: PitchSize, orientation: PitchOrientation): PitchConfig {
-  return {
-    preset: size,
-    widthMeters: 68,
-    lengthMeters: PRESET_LENGTH_METERS[size],
-    orientation,
-    overlays: [],
-  }
-}
-
-// A drill always keeps at least one keyframe from creation, the same way it
-// always kept at least one phase — without one there's nowhere for addEntity
-// to record a position.
+// A drill always keeps at least one keyframe from creation — without one
+// there's nowhere for addEntity to record a position.
 function makeInitialKeyframe(): Keyframe {
   return { id: generateId('keyframe'), t: 0, states: {} }
-}
-
-// ---------------------------------------------------------------------------
-// Deprecated: the phases[] helpers. Dropped along with the column by
-// migration 014, once the editor has moved onto scene/keyframes (Stage 5).
-// ---------------------------------------------------------------------------
-
-// The three phase-element arrays a canvas element can belong to — arrows
-// aren't draggable (each has two points, not one, so "drag to reposition"
-// doesn't map cleanly onto this single-point machinery; placed via
-// addArrow/removeArrow instead, Upgrade Phase 2C). Annotations are placed
-// (2c, US-13) rather than dragged either, handled by `addAnnotation` below.
-export type DrillElementType = 'players' | 'cones' | 'balls'
-
-// 'duplicate' deep-copies the currently-viewed phase as a starting point
-// (build guide 2c, step 2); 'blank' starts a phase with empty element
-// arrays.
-export type NewPhaseMode = 'duplicate' | 'blank'
-
-// Pure, local-only: moves one element within one phase and returns a new
-// DrillPhase (never mutates). Shared by dragmove (local-only) and dragend
-// (local update immediately followed by the one Supabase write) so both
-// paths apply the exact same immutable-update logic.
-function movePhaseElement(
-  phase: DrillPhase,
-  elementType: DrillElementType,
-  elementId: string,
-  position: PhasePoint
-): DrillPhase {
-  switch (elementType) {
-    case 'players':
-      return { ...phase, players: phase.players.map((p) => (p.id === elementId ? { ...p, ...position } : p)) }
-    case 'cones':
-      return { ...phase, cones: phase.cones.map((c) => (c.id === elementId ? { ...c, ...position } : c)) }
-    case 'balls':
-      return { ...phase, balls: phase.balls.map((b) => (b.id === elementId ? { ...b, ...position } : b)) }
-  }
-}
-
-function makeBlankPhase(): DrillPhase {
-  return { id: generateId('phase'), players: [], cones: [], balls: [], arrows: [], annotations: [] }
 }
 
 export interface DrillSlice {
@@ -309,9 +240,8 @@ export interface DrillSlice {
   // that a drill is one cast of entities plus keyframes rather than a list of
   // independent phases. Copies everything a coach would expect to survive a
   // "duplicate": scene, keyframes, pitch, duration and every Stage 8 metadata
-  // field, following the same "copy everything, mark the name" precedent
-  // addPhase's own 'duplicate' mode already sets for a single phase. The one
-  // deliberate omission is thumbnail_url — see the implementation for why.
+  // field. The one deliberate omission is thumbnail_url — see the
+  // implementation for why.
   duplicateDrill: (drillId: string) => Promise<Drill | null>
 
   // Public share links (rework plan Stage 10.4). Turning sharing on mints a
@@ -442,36 +372,6 @@ export interface DrillSlice {
   // an interrupted gesture isn't left in local state only.
   flushDrillSave: () => Promise<void>
 
-  // -------------------------------------------------------------------------
-  // Deprecated: phases[] mutations, kept until the editor moves onto
-  // scene/keyframes (Stage 5) and migration 014 drops the column. These still
-  // follow the old contract — local mutation, then the caller fires exactly
-  // one `updateDrill` — and are NOT part of the undo stack or the autosave
-  // queue. Don't wire anything new to them.
-  // -------------------------------------------------------------------------
-
-  setPhaseElementPosition: (
-    drillId: string,
-    phaseIndex: number,
-    elementType: DrillElementType,
-    elementId: string,
-    position: PhasePoint
-  ) => void
-  addPhase: (drillId: string, afterIndex: number, mode: NewPhaseMode) => void
-  deletePhase: (drillId: string, phaseIndex: number) => void
-  addAnnotation: (drillId: string, phaseIndex: number, position: PhasePoint, text: string) => void
-  addElement: (
-    drillId: string,
-    phaseIndex: number,
-    elementType: DrillElementType,
-    position: PhasePoint,
-    extra?: { team?: string; color?: string; kind?: EquipmentKind }
-  ) => void
-  removeElement: (drillId: string, phaseIndex: number, elementType: DrillElementType, elementId: string) => void
-  removeAnnotation: (drillId: string, phaseIndex: number, annotationId: string) => void
-  addArrow: (drillId: string, phaseIndex: number, from: PhasePoint, to: PhasePoint, kind: ArrowKind) => void
-  removeArrow: (drillId: string, phaseIndex: number, arrowId: string) => void
-  updatePhaseMeta: (drillId: string, phaseIndex: number, patch: { label?: string; duration_seconds?: number }) => void
 }
 
 export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (set, get) => {
@@ -671,17 +571,12 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
 
     createDrill: async (input) => {
       set({ drillsLoading: true, drillsError: null })
-      // A drill always keeps at least one keyframe, the same way it always
-      // kept at least one phase — without one there's nowhere for addEntity
-      // to record a position, so a freshly created drill couldn't be edited
-      // at all. `pitch` is seeded rather than left to the column default so a
-      // new drill doesn't claim to be a full pitch when the coach picked a
-      // quarter one.
+      // A drill always keeps at least one keyframe — without one there's
+      // nowhere for addEntity to record a position, so a freshly created
+      // drill couldn't be edited at all.
       const seeded = {
         ...input,
-        phases: input.phases ?? [makeBlankPhase()],
         keyframes: input.keyframes ?? [makeInitialKeyframe()],
-        pitch: input.pitch ?? derivePitch(input.pitch_size, input.orientation),
       }
       const { data, error } = await runSupabaseAction<Drill[]>(
         () => supabase.from('drill').insert(seeded).select(),
@@ -696,7 +591,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       return drill
     },
 
-    // Drill-level fields only (name, and the deprecated phases/pitch columns).
+    // Drill-level fields only (name, orientation and the Stage 8 metadata).
     // A drill's scene, keyframes, duration and pitch go through the autosave
     // flush instead — see DrillUpdateInput.
     updateDrill: async (id, patch) => {
@@ -735,18 +630,16 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       const created = await get().createDrill({
         team_id: source.team_id,
         name: `${source.name} (copy)`,
-        pitch_size: source.pitch_size,
         orientation: source.orientation,
+        pitch: source.pitch,
         scene: source.scene,
         keyframes: source.keyframes,
         duration_seconds: source.duration_seconds,
-        pitch: source.pitch,
-        phases: source.phases,
       })
       if (!created) return null
       // Metadata isn't part of NewDrillInput — createDrill's insert exists to
-      // seed structural defaults (a blank phase, a derived pitch) a plain
-      // column patch must never fight with — so it goes through the same
+      // seed structural defaults (the initial keyframe) a plain column patch
+      // must never fight with — so it goes through the same
       // updateDrill path a coach's own edit in Details would use, exactly
       // like uploadDrillThumbnail does below for the one field it sets.
       //
@@ -1069,176 +962,6 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     flushDrillSave: async () => {
       settlePendingEdits()
       await flush()
-    },
-
-    // ---------------------------------------------------------------------
-    // Deprecated: phases[] mutations. See the note on DrillSlice above.
-    // ---------------------------------------------------------------------
-
-    setPhaseElementPosition: (drillId, phaseIndex, elementType, elementId, position) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) =>
-              i === phaseIndex ? movePhaseElement(ph, elementType, elementId, position) : ph
-            ),
-          }
-        }),
-      })
-    },
-
-    addPhase: (drillId, afterIndex, mode) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          const source = d.phases[afterIndex]
-          // Deep-copy-by-value: a fresh phase id keeps it independently
-          // steppable/deletable, but element ids are kept as-is — they only
-          // ever need to be unique *within* their own phase (every lookup is
-          // scoped by phaseIndex + elementId), so reusing them across phases
-          // is safe and means a duplicated phase drags exactly like its
-          // source until edited.
-          const newPhase: DrillPhase =
-            mode === 'duplicate' && source
-              ? { ...source, id: generateId('phase'), label: source.label ? `${source.label} (copy)` : undefined }
-              : makeBlankPhase()
-          const phases = [...d.phases]
-          phases.splice(afterIndex + 1, 0, newPhase)
-          return { ...d, phases }
-        }),
-      })
-    },
-
-    deletePhase: (drillId, phaseIndex) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          if (d.phases.length <= 1) return d // always keep at least one phase
-          return { ...d, phases: d.phases.filter((_, i) => i !== phaseIndex) }
-        }),
-      })
-    },
-
-    addAnnotation: (drillId, phaseIndex, position, text) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) =>
-              i === phaseIndex
-                ? { ...ph, annotations: [...ph.annotations, { id: generateId('note'), text, ...position }] }
-                : ph
-            ),
-          }
-        }),
-      })
-    },
-
-    addElement: (drillId, phaseIndex, elementType, position, extra) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) => {
-              if (i !== phaseIndex) return ph
-              switch (elementType) {
-                case 'players':
-                  return {
-                    ...ph,
-                    players: [...ph.players, { id: generateId('player'), team: extra?.team ?? 'A', ...position }],
-                  }
-                case 'cones':
-                  return {
-                    ...ph,
-                    cones: [...ph.cones, { id: generateId('cone'), color: extra?.color, kind: extra?.kind, ...position }],
-                  }
-                case 'balls':
-                  return { ...ph, balls: [...ph.balls, { id: generateId('ball'), ...position }] }
-              }
-            }),
-          }
-        }),
-      })
-    },
-
-    removeElement: (drillId, phaseIndex, elementType, elementId) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) => {
-              if (i !== phaseIndex) return ph
-              switch (elementType) {
-                case 'players':
-                  return { ...ph, players: ph.players.filter((p) => p.id !== elementId) }
-                case 'cones':
-                  return { ...ph, cones: ph.cones.filter((c) => c.id !== elementId) }
-                case 'balls':
-                  return { ...ph, balls: ph.balls.filter((b) => b.id !== elementId) }
-              }
-            }),
-          }
-        }),
-      })
-    },
-
-    removeAnnotation: (drillId, phaseIndex, annotationId) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) =>
-              i === phaseIndex ? { ...ph, annotations: ph.annotations.filter((a) => a.id !== annotationId) } : ph
-            ),
-          }
-        }),
-      })
-    },
-
-    addArrow: (drillId, phaseIndex, from, to, kind) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) =>
-              i === phaseIndex ? { ...ph, arrows: [...ph.arrows, { id: generateId('arrow'), from, to, kind }] } : ph
-            ),
-          }
-        }),
-      })
-    },
-
-    removeArrow: (drillId, phaseIndex, arrowId) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) =>
-              i === phaseIndex ? { ...ph, arrows: ph.arrows.filter((a) => a.id !== arrowId) } : ph
-            ),
-          }
-        }),
-      })
-    },
-
-    updatePhaseMeta: (drillId, phaseIndex, patch) => {
-      set({
-        drills: get().drills.map((d) => {
-          if (d.id !== drillId) return d
-          return {
-            ...d,
-            phases: d.phases.map((ph, i) => (i === phaseIndex ? { ...ph, ...patch } : ph)),
-          }
-        }),
-      })
     },
   }
 }

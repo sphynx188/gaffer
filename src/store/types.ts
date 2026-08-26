@@ -3,10 +3,9 @@
 // the store and, later, every component that reads from it.
 
 // Replaces the old 2-value PitchFormat ('11v11' | 'small_sided') — see
-// supabase/migrations/011_drill_pitch_size_orientation.sql. Two independent
-// dimensions instead of one fixed shape, so the Drill Creator can offer
-// 4 sizes x 2 orientations.
-export type PitchSize = 'full' | 'three_quarter' | 'half' | 'quarter'
+// supabase/migrations/011_drill_pitch_size_orientation.sql. The `pitch_size`
+// half of that pair is gone (migration 014); real metre dimensions live in
+// PitchConfig instead.
 export type PitchOrientation = 'portrait' | 'landscape'
 export type CoachRole = 'owner' | 'coach'
 // One status per (session, player) row, serving double duty: a coach can
@@ -14,13 +13,6 @@ export type CoachRole = 'owner' | 'coach'
 // roll-call outcome — 'unconfirmed' is the seeded default either way. See
 // supabase/migrations/010_attendance_roll_call_status.sql.
 export type AvailabilityStatus = 'unconfirmed' | 'present' | 'injured' | 'away'
-
-export const PITCH_SIZE_LABELS: Record<PitchSize, string> = {
-  full: 'Full pitch',
-  three_quarter: '¾ pitch',
-  half: 'Half pitch',
-  quarter: 'Quarter pitch',
-}
 
 export const PITCH_ORIENTATION_LABELS: Record<PitchOrientation, string> = {
   portrait: 'Portrait',
@@ -96,37 +88,14 @@ export interface Availability {
   responded_at: string | null
 }
 
-// One entry in Drill.phases (jsonb array). Normalized 0-1 coordinates so the
-// same phase renders correctly on both pitch formats — see
-// gaffer_project_plan_final.md §5 for the canonical shape.
+// The normalized 0-1 pitch coordinate every piece of drill and tactic content
+// is authored in, so the same content renders correctly on any pitch shape —
+// see gaffer_project_plan_final.md §5. Named after the phases[] model it
+// arrived with (dropped by migration 014); it now underpins Marking.points,
+// EntityState.path and TacticBoard.
 export interface PhasePoint {
   x: number
   y: number
-}
-
-export interface PhasePlayer extends PhasePoint {
-  id: string
-  team: string
-  number?: number
-  label?: string
-}
-
-// 'kind' absent/undefined means 'cone' — kept optional rather than adding
-// separate witchesHats/mannequins arrays (Upgrade Phase 2B,
-// UPGRADE_IMPLEMENTATION_PLAN.md) so every existing persisted drill (jsonb,
-// no migration needed) stays valid without a backfill, and so a future
-// equipment type is one more union member here, not a new array + new
-// canvas-render block + new store methods everywhere.
-export type EquipmentKind = 'cone' | 'witches_hat' | 'mannequin'
-
-export interface PhaseCone extends PhasePoint {
-  id: string
-  kind?: EquipmentKind
-  color?: string
-}
-
-export interface PhaseBall extends PhasePoint {
-  id: string
 }
 
 // 'kind' distinguishes ball/pass movement from player movement (Upgrade
@@ -134,6 +103,9 @@ export interface PhaseBall extends PhasePoint {
 // 'player', matching every arrow that existed before this field did.
 export type ArrowKind = 'ball' | 'player'
 
+// Arrows and annotations as a *tactic* still stores them (TacticBoard below).
+// Drills moved theirs onto Marking with the entities+keyframes rework; the
+// tactics board follows in TACTICS_BOARD_REWORK_PLAN.md Stage 1.
 export interface PhaseArrow {
   id: string
   from: PhasePoint
@@ -145,17 +117,6 @@ export interface PhaseArrow {
 export interface PhaseAnnotation extends PhasePoint {
   id: string
   text: string
-}
-
-export interface DrillPhase {
-  id: string
-  label?: string
-  duration_seconds?: number
-  players: PhasePlayer[]
-  cones: PhaseCone[]
-  balls: PhaseBall[]
-  arrows: PhaseArrow[]
-  annotations: PhaseAnnotation[]
 }
 
 // ---------------------------------------------------------------------------
@@ -179,8 +140,7 @@ export type PlayerDisplay = 'compact' | 'standard' | 'presentation' | 'dot'
 export type BodyShape = 'auto' | 'backpedal' | 'shuffle_left' | 'shuffle_right'
 
 // The full equipment set (rework plan Stage 6.1). jsonb, so widening this
-// never needed a schema migration — the same extensibility EquipmentKind was
-// given.
+// never needed a schema migration.
 //
 // Note the one rename this brought with it: the phases-era 'cone' value was
 // *drawn* as an agility pole (see pitchTheme.ts's own comment about keeping
@@ -236,7 +196,7 @@ export interface SceneEntity {
   id: string
   kind: EntityKind
   // players
-  team?: string // 'A' | 'B' — drives color, as PhasePlayer.team does today
+  team?: string // 'A' | 'B' — drives color
   number?: number // auto-assigned per team on create
   label?: string
   color?: string // per-entity override of the team color
@@ -393,16 +353,6 @@ export interface Drill {
   orientation: PitchOrientation
   created_at: string
 
-  // Deprecated by migration 013 (scene/keyframes) and dropped by 014 once the
-  // backfill has been read back in the new editor — see
-  // DRILL_CREATOR_REWORK_PLAN.md Stage 1.4. Still the authoritative copy of a
-  // drill's content until then, which is what keeps 013b re-runnable, so
-  // don't write new code against either of them.
-  /** @deprecated use `scene` + `keyframes`; dropped by migration 014. */
-  phases: DrillPhase[]
-  /** @deprecated use `pitch`; dropped by migration 014. */
-  pitch_size: PitchSize
-
   // Metadata (rework plan Stage 8.1, migration 016). Null throughout means
   // "not recorded", which is a different thing from an empty string — the
   // eleven drills that predate the migration carry none of this, and neither
@@ -448,7 +398,7 @@ export interface SessionDrill {
 }
 
 // Upgrade Phase 3 (UPGRADE_IMPLEMENTATION_PLAN.md): the Tactic Creator.
-// Unlike a drill's PhasePlayer (a freeform team label — "attack"/"A"/"B"),
+// Unlike a drill's scene entity (a freeform team label — "attack"/"A"/"B"),
 // a tactic player is always a real roster player, referenced by id — a
 // tactic shows this team's own actual squad, not a generic two-team drill
 // setup. No cones/balls: v1 tactics are players + arrows + annotations

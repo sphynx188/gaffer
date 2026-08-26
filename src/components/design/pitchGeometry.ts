@@ -349,8 +349,8 @@ export function getPitchOverlays(config: PitchConfig): PitchOverlayGeometry {
   }
 }
 
-// Team labels in a phase are freeform text (see DrillPhase in store/types.ts
-// — the 0.5.1 hardcoded phase uses "attack"), so colors are assigned by
+// Team labels are freeform text (see SceneEntity.team in store/types.ts —
+// the 0.5.1 hardcoded phase used "attack"), so colors are assigned by
 // sorted label rather than matching specific known strings. Sorted, not
 // first-seen-in-array-order: changing one player's team can reorder which
 // label is encountered first without moving anyone in the entities array,

@@ -9,7 +9,6 @@ export type {
   Session,
   Availability,
   Drill,
-  DrillPhase,
   DrillScene,
   SceneEntity,
   EntityKind,
@@ -27,15 +26,10 @@ export type {
   DrillPhaseOfPlay,
   SessionBlock,
   PhasePoint,
-  PhasePlayer,
-  PhaseCone,
-  EquipmentKind,
-  PhaseBall,
   PhaseArrow,
   ArrowKind,
   PhaseAnnotation,
   SessionDrill,
-  PitchSize,
   PitchOrientation,
   CoachRole,
   AvailabilityStatus,
@@ -46,7 +40,6 @@ export type {
 export {
   PLAYER_POSITIONS,
   PLAYER_POSITION_LABELS,
-  PITCH_SIZE_LABELS,
   PITCH_ORIENTATION_LABELS,
   EQUIPMENT_TYPES,
   EQUIPMENT_LABELS,
@@ -63,8 +56,6 @@ export {
 } from './types'
 export type { SessionWithRelations, CalendarSession, RecurringSessionInput } from './slices/sessionSlice'
 export type {
-  DrillElementType,
-  NewPhaseMode,
   NewDrillInput,
   NewEntityInput,
   DrillUpdateInput,

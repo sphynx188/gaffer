@@ -1,43 +1,69 @@
 -- Migration 014 — Drop drill.phases and drill.pitch_size
 --
 -- ============================================================================
--- NOT YET APPLIED. This file is written but deliberately not run.
+-- APPLIED 2026-08-26, together with the src/ strip (TACTICS_BOARD_REWORK_PLAN.md
+-- Stage 0). This file sat unapplied from the day it was written until then,
+-- gated on the entities+keyframes editor existing and every drill being read
+-- back through it. Both conditions were met by DRILL_CREATOR_REWORK_PLAN.md
+-- Stages 2-5.
 --
--- DRILL_CREATOR_REWORK_PLAN.md Stage 1.4 gates it on: "once a manual
--- read-back of all 11 drills IN THE NEW EDITOR looks right". That editor is
--- Stage 5. Until then `phases` stays the authoritative copy of every drill's
--- content and 013b stays re-runnable, which is the whole reason 013/013b are
--- purely additive. Applying this early would destroy the only source the
--- backfill can be re-derived from.
+-- ONE GATE WAS DELIBERATELY *NOT* SATISFIED AS WRITTEN, and this is the thing
+-- to know if you ever reach for 013b again:
 --
--- Apply it when all of the following are true:
---   1. The entities+keyframes editor (Stages 2-5) is reading and writing
---      `scene` / `keyframes` / `duration_seconds` / `pitch`.
---   2. 013b has been re-run, so any drill created or edited through the old
---      phases-based editor in the meantime is represented in the new columns.
---   3. All 11 drills have been opened in that editor and nothing has moved.
+--   The original checklist said "re-run 013b first". By 2026-08-26 that would
+--   have been DESTRUCTIVE, not protective. 013b derives scene/keyframes/pitch
+--   FROM phases, and since Stage 5 the editor writes scene/keyframes directly
+--   and never touches phases — so `phases` is the STALE copy, not the
+--   authoritative one. A read-only dry run of 013b against all 14 live drills
+--   on 2026-08-26 showed it would have:
+--     * reduced "ma" from 9 entities / 5 keyframes / indoor_cage pitch to
+--       5 / 1 / full;
+--     * reduced "Test drill passing" from 17 / 4 / defending_half to 0 / 1 / half;
+--     * reduced "rondo" from 9 / 5 to 0 / 1, and reset another drill's
+--       duration from 15s to 5s;
+--     * reverted six drills' equipment names from the post-015 values
+--       ('pole' / 'marker') back to the phases-era 'cone' — undoing migration
+--       015, exactly as 015's own header warns.
+--   No drill would have GAINED anything: every row's live scene already held
+--   at least as many entities as the backfill would produce. The gate's real
+--   intent — "nothing authored through the old phases editor is left behind" —
+--   was satisfied by inspection instead. The old editor no longer exists, so
+--   the condition can never be met again and 013b is now inert.
 --
--- Apply it together with the src/ changes, not before them — the 008 / 009 /
+-- Checks run before applying, all clean:
+--   * no policy, index, constraint, view or function references either column;
+--   * the `pitch_size` TYPE had exactly one dependent, drill.pitch_size;
+--   * both columns were dumped to JSON first (all 14 rows, phases + pitch_size)
+--     as the recovery path this drop otherwise removes.
+--
+-- Applied together with the src/ changes, not before them — the 008 / 009 /
 -- 010 precedent CLAUDE.md names is "drop the column and strip all the UI in
--- the same change, rather than leaving it half-wired". The references still
--- standing at the time this file was written:
+-- the same change, rather than leaving it half-wired". The references standing
+-- at the time this file was written, and what became of each:
 --   src/store/types.ts          DrillPhase and friends, PitchSize,
 --                               PITCH_SIZE_LABELS, Drill.phases,
---                               Drill.pitch_size
---   src/store/index.ts          the re-exports of all of the above
---   src/store/slices/drillSlice.ts   every phases[] action (Stage 2 rewrites
---                               this file around entities and keyframes)
---   src/components/design/DrillPreview.tsx    the phase filmstrip, phase meta
---                               form and pitch-size picker (Stages 3/5)
---   src/components/design/PitchCanvas.tsx     the `phase` and `pitchSize`
---                               props (Stage 3 swaps them for `frame` and
---                               `pitch`)
---   src/components/design/pitchGeometry.ts    getPitchMarkings(size, …)
---                               (Stage 7 generalises it to metre dimensions)
---   src/components/design/DrillLibrary.tsx    phase-cut preview and the
---                               pitch-size search/label (Stages 7/9)
---   src/components/SessionDrillsPanel.tsx     pitchLabel(pitch_size, …)
---                               (Stage 7)
+--                               Drill.pitch_size            — removed here.
+--                               PhasePoint / ArrowKind / PhaseArrow /
+--                               PhaseAnnotation KEPT: despite the names they
+--                               carry the new canvas (Marking.points,
+--                               EntityState.path) and TacticBoard, which
+--                               TACTICS_BOARD_REWORK_PLAN.md Stage 1 owns.
+--   src/store/index.ts          the re-exports of all of the above — removed.
+--   src/store/slices/drillSlice.ts   every phases[] action — removed (they had
+--                               no callers left), along with derivePitch and
+--                               NewDrillInput.pitch_size.
+--   src/components/design/canvas/phaseFrame.ts  the phases→RenderFrame bridge
+--                               — deleted (no callers left either).
+--   src/components/design/editor/CreateDrillForm.tsx  built its NewDrillInput
+--                               from pitch_size — now builds a PitchConfig
+--                               from pitchPresets.ts instead.
+--   DrillPreview.tsx / PitchCanvas's `phase` prop / getPitchMarkings(size) /
+--   DrillLibrary's pitch-size search / SessionDrillsPanel's pitchLabel — all
+--   already gone by Stages 3/5/7/9.
+--
+-- Note: supabase/sanity_check.sql still inserts `phases` (and `pitch_format`,
+-- dropped back in 011), so it was already stale before this migration. Left
+-- untouched — it is a scratch helper, not part of the schema.
 -- ============================================================================
 
 alter table drill

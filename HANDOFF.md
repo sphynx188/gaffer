@@ -276,6 +276,88 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 0: land migration 014, retire the phases bridge
+
+Stage 0 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md) — the
+drill rework's last loose end, done first so Stage 1's tactics migration isn't
+written against a schema about to move. `drill.phases` and `drill.pitch_size`
+are now gone from the database and from `src/`.
+
+### What happened, in order
+
+1. **Dry-ran `013b_backfill_scene.sql` read-only before touching anything** —
+   the plan's step 1 said to re-run it. It would have been destructive. 013b
+   derives `scene`/`keyframes` FROM `phases`, and since Stage 5 the editor
+   writes `scene`/`keyframes` directly and never touches `phases`, so `phases`
+   was the stale copy, not the authoritative one. Re-running it would have cut
+   "Test drill passing" from 17 entities / 4 keyframes to 0 / 1, "ma" from
+   9 / 5 / `indoor_cage` to 5 / 1 / `full`, "rondo" from 9 / 5 to 0 / 1, and
+   reverted six drills' equipment names from the post-015 `pole`/`marker` back
+   to `cone` — undoing migration 015. No drill would have gained anything
+   (`backfilled_entities <= current_entities` on all 14 rows). **Skipped it**,
+   and recorded why in 014's header, in 013b's own header (now marked
+   SUPERSEDED AND INERT), and in CLAUDE.md.
+2. **Pre-drop audit** — no policy, index, constraint, view or function
+   references either column; the `pitch_size` type had exactly one dependent.
+3. **Backed both columns up** for all 14 drills to
+   `../drill_phases_pitch_size_backup_2026-08-26.json` (outside the git repo).
+4. **Applied 014** (needed explicit user approval — the permission classifier
+   blocks column drops) and confirmed `information_schema` shows neither
+   column and `pg_type` no longer has `pitch_size`.
+5. **Stripped `src/`** — deleted `canvas/phaseFrame.ts` (no callers left);
+   removed `DrillPhase`/`PhasePlayer`/`PhaseCone`/`PhaseBall`/`EquipmentKind`/
+   `PitchSize`/`PITCH_SIZE_LABELS`/`Drill.phases`/`Drill.pitch_size` from
+   `types.ts` and their re-exports from `store/index.ts`; removed the ten
+   deprecated `phases[]` actions plus `derivePitch`/`PRESET_LENGTH_METERS`/
+   `makeBlankPhase`/`movePhaseElement` from `drillSlice.ts` (−311 lines).
+6. **`CreateDrillForm` now builds a `PitchConfig`** from `pitchPresets.ts`
+   instead of writing `pitch_size`. Same four options, resolved through
+   `findPreset`/`presetLabel` (the legacy ids still resolve), so a drill
+   created today and one backfilled by 013b still describe the same pitch.
+
+### What Worked
+
+- **Dry-running the migration's own SQL as a SELECT diff.** The plan's
+  instruction was written when `phases` was still authoritative and had gone
+  stale; running it read-only first is what caught that. A Supabase *branch*
+  would not have caught it — branches get a fresh DB with no production data,
+  so there is nothing to diff.
+- **Keeping `PhasePoint`/`ArrowKind`/`PhaseArrow`/`PhaseAnnotation`.** The
+  names say "phases" but they are load-bearing: `PhasePoint` is the normalized
+  0-1 coordinate the whole canvas is authored in (`Marking.points`,
+  `EntityState.path`), and the other three are what `TacticBoard` still
+  stores. Deleting on the strength of the name would have broken tactics.
+- Verified the four legacy pitch options produce byte-identical dimensions to
+  the old `derivePitch` (`preset` id and metres both match).
+
+### What Didn't Work / Watch Out For
+
+- **`013b` must never be run again.** Its own header still contains the
+  now-inverted "re-run it if a drill was edited" instruction; a SUPERSEDED
+  banner was added above it, but read the banner, not the body.
+- **Only 5 of the 14 drills were opened in the editor.** The signed-in coach
+  belongs to two teams; the other 9 drills belong to "Test U12 Reds", owned by
+  the disposable test account. Signing in as it would mean typing its password,
+  which I don't do. The 5 that were opened include all four the skipped 013b
+  re-run would have damaged, and all 14 passed a structural check plus a
+  `frameAt`-resolvability check on their stored shape. The other 9 are the
+  original seed drills, unchanged since the backfill.
+- `supabase/sanity_check.sql` still inserts `phases` and `pitch_format` (the
+  latter dropped back in 011), so it was already stale before this. Left alone
+  — it's a scratch helper, not schema. Flagging rather than deleting.
+
+## Next Steps
+
+1. **Stage 1 — tactic scene, keyframes, sides.** Unblocked: the drill tables
+   are settled, so the tactics migration can be written against a stable
+   schema. Start with `SceneEntity`'s optional tactics fields (`player_id`,
+   `role`, `scale`, marker overrides) — all jsonb, no migration needed for
+   them — then the `tactic` table's own columns.
+2. **Optional:** open the remaining 9 drills in "Test U12 Reds" to close out
+   Stage 0's verify step in full.
+
+---
+
 ## Session log — Drill Creator rework, Stage 11: onboarding, and the 3D decision
 
 Stage 11 of [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md). Two

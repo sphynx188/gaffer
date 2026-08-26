@@ -128,17 +128,31 @@ in `src/store/types.ts` (`SceneEntity`, `Keyframe`, `Marking`,
 equipment type, a new marking kind, a new optional per-entity property)
 never needs a migration — only real columns (like `drill.pitch_format`) do.
 
-`drill.phases` — the older shape, a jsonb array of phase objects each
-carrying its *own* players/cones/balls/arrows/annotations — is **deprecated
-but still authoritative**: migration 013 added the scene/keyframes columns
-and 013b backfilled them from `phases`, but nothing in `src/` reads the new
-columns yet, so the editor still runs on `phases`. Migration 014 (written,
-deliberately not applied) drops it. Until then, don't write new code
-against `phases`, and re-run 013b if drills are created or edited through
-the current editor. The reason for the change, and every stage that depends
-on it, is in [DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md)
-§0: a player in phase 1 and the "same" player in phase 2 were unrelated
-objects, so nothing could ever interpolate between two phases.
+`drill.phases` and `drill.pitch_size` — the older shapes — are **gone**,
+dropped by migration 014 on 2026-08-26 together with every reference in
+`src/`. Why they existed and why they had to go is in
+[DRILL_CREATOR_REWORK_PLAN.md](DRILL_CREATOR_REWORK_PLAN.md) §0: a player in
+phase 1 and the "same" player in phase 2 were unrelated objects, so nothing
+could ever interpolate between two phases.
+
+**Do not re-run `013b_backfill_scene.sql`.** It derives `scene`/`keyframes`
+from `phases`, and its own header still says to re-run it whenever a drill is
+edited "through the current editor" — that instruction is now inverted and
+destructive. The editor has written `scene`/`keyframes` directly since
+rework Stage 5 and never touched `phases`, so by the time 014 landed the
+phases copy was the *stale* one: a dry run showed it would have cut one drill
+from 17 entities to 0, another from 5 keyframes to 1, and reverted six
+drills' equipment names to their pre-migration-015 values. The script is
+inert now that the column is gone; 014's header records the full diff. The
+pre-drop dump of both columns for all 14 drills lives outside the repo at
+`../drill_phases_pitch_size_backup_2026-08-26.json`.
+
+Note the naming leftovers this dropped column did *not* take with it:
+`PhasePoint`, `ArrowKind`, `PhaseArrow` and `PhaseAnnotation` in `types.ts`
+are still live and load-bearing — `PhasePoint` is the normalized 0-1
+coordinate the whole canvas is authored in, and the other three are the shape
+`TacticBoard` still stores (the tactics board moves onto entities+keyframes
+in [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md) Stage 1).
 
 ### Design canvas (Konva)
 

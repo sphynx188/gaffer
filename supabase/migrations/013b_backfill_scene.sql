@@ -1,5 +1,24 @@
 -- Migration 013b — backfill drill.scene / keyframes / duration_seconds / pitch
 --
+-- ############################################################################
+-- SUPERSEDED AND INERT — DO NOT RUN. Migration 014 dropped `drill.phases` and
+-- `drill.pitch_size` on 2026-08-26, so this script's inputs no longer exist and
+-- it will simply error.
+--
+-- Do not "fix" it by reconstructing phases from the backup either. The
+-- instruction below to re-run it "if any drill is created or edited through
+-- the old phases-based editor" inverted once the entities+keyframes editor
+-- shipped: from then on the editor wrote scene/keyframes directly and never
+-- touched phases, making phases the STALE copy. A read-only dry run on
+-- 2026-08-26 showed re-running this would have cut one drill from 17 entities
+-- to 0, another from 5 keyframes to 1, reset a third's pitch preset, and
+-- reverted six drills' equipment names to their pre-015 values. See 014's
+-- header for the full diff.
+--
+-- Kept in the repo as the record of how the entities+keyframes data was
+-- originally derived, not as a runnable script.
+-- ############################################################################
+--
 -- Derives the entities+keyframes shape added by 013 from the phases[] shape it
 -- replaces (DRILL_CREATOR_REWORK_PLAN.md Stage 1.3). Reads `phases` and
 -- `pitch_size` and writes only the four new columns, so it is re-runnable and
