@@ -110,6 +110,14 @@ isn't interchangeable. Without that guard an unroled outfielder standing a few
 metres closer to goal takes it and the keeper ends up at right-back — which
 happened, and is the specific failure Stage 3's definition of done names.
 
+`playerSlice.players` is the SELECTED team's roster and must stay that way —
+the roster, attendance and session screens all read it. When another team's
+players are needed (the tactics board's away side can be bound to a team the
+coach also coaches), use `fetchTeamRoster(teamId)` and read
+`rostersByTeam[teamId]`; overwriting `players` to show an opponent would empty
+the roster page behind the coach's back. Its errors are kept per team for the
+same reason.
+
 `selectedTeamId` (`teamSlice`) is the single source of truth for "current
 team" scope, persisted to `localStorage` and reconciled against the
 RLS-scoped team list on every `fetchTeams`. Never derive current-team as

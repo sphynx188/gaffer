@@ -740,3 +740,31 @@ export function resolveFormation(key: string, custom: CustomFormation[]): Format
   if (!saved) return null
   return { key, label: saved.name, description: 'Your saved shape.', slots: saved.slots }
 }
+
+// The slot a player who has NEVER been on the pitch should be placed in
+// (Stage 4's verify step: "toggling one on places it in the first free slot").
+//
+// Distinct from `assignToFormation`, and deliberately so: that re-shapes a
+// whole side at once and is free to move everyone, while this places one
+// player into a shape the others are already standing in. Walking the slots in
+// formation order — keeper first, then defence, midfield, attack — means a
+// coach filling an empty board one player at a time builds their team back to
+// front, which is how they would set it up on a whiteboard.
+//
+// `occupied` is the set of on-pitch positions, so a slot counts as free when
+// nobody is standing on it. Returns null when every slot is taken; the caller
+// then has more players than the formation has places, and puts them somewhere
+// of its own choosing rather than stacking them on someone.
+export function nextFreeSlot(
+  slots: FormationSlot[],
+  states: Record<string, EntityState>,
+  onPitchEntityIds: string[]
+): FormationSlot | null {
+  const occupied = new Set(
+    onPitchEntityIds
+      .map((id) => states[id])
+      .filter((state): state is EntityState => !!state && state.x !== undefined && state.y !== undefined)
+      .map((state) => `${state.x}:${state.y}`)
+  )
+  return slots.find((slot) => !occupied.has(`${slot.x}:${slot.y}`)) ?? null
+}

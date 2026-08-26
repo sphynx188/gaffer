@@ -276,6 +276,68 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 4: squad panel, two teams, roster binding
+
+Stage 4 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md).
+`SquadPanel.tsx` with Home/Away tabs, roster binding, and the on/off-pitch
+toggle. Stage 7 mounts it — it owns the editor shell and deletes
+TacticBoard.tsx — so nothing renders it in the app yet.
+
+### What happened, in order
+
+1. **`playerSlice.rostersByTeam` + `fetchTeamRoster(teamId)`** — the away side
+   needs another team's roster, and `players` is the selected team's and is
+   read by the roster, attendance and session screens. Keyed record with
+   per-team loading and error, mirroring playerNoteSlice.
+2. **`tacticSlice.setTacticEntityHidden`** — 4.2's toggle. Writes the current
+   keyframe only and never touches x/y.
+3. **`formations.nextFreeSlot`** — for a player who has never been placed.
+4. **`SquadPanel.tsx`** — tabs, per-side colour, `FormationPicker`, opposition
+   selector, squad list on the shared `ROW_GRID`.
+
+### What Worked
+
+- **Reading 4.2 and the verify step as two cases rather than a contradiction.**
+  4.2 says a toggled-off player "returns to the same place"; the verify says
+  toggling on "places it in the first free slot". Both are true of different
+  players: one that *was* on the pitch has a remembered position and returns to
+  it; a roster player with no entity at all gets one created at the first free
+  slot. Verified both.
+- **Seeding the 15 test roster players into the store rather than the
+  database.** The verify step needs 15 players and no team has that many; a
+  `useStore.setState` fixture exercised the panel end to end without writing a
+  single junk row to `player`. Confirmed afterwards: rosters are still 2/12/1/0/0.
+
+### What Didn't Work / Watch Out For
+
+- **A row's "edit" and "delete" are deliberately narrower than the plan's list.**
+  A home row IS a real `player` row shared with the roster, attendance and
+  session screens. EDIT changes the per-tactic role only (4.4's "role is a
+  per-tactic assignment") — names and squad numbers stay the roster's business.
+  DELETE appears only on away placeholders, which the tactic invented. For a
+  roster row, toggling off IS the removal, and 4.2 forbids deleting the entity
+  on toggle.
+- **4.4 needed no code.** `PlayerRole` on `SceneEntity.role` landed in Stage 1,
+  and the point of 4.4 is what NOT to do — the `player_position` enum is
+  untouched, no migration, and `player` is unchanged. A tactic role and a
+  roster position are independent by design: in testing a player tagged
+  "Winger" on the roster sat as `ST` in the tactic, which is correct.
+- Mounting a component in isolation via the dev server's module graph needs
+  `(await import('.../react.js')).default` — the namespace object has no
+  `createElement`. A stale `subscribe` callback from a failed attempt will also
+  keep firing; reload the page between tries.
+
+## Next Steps
+
+1. **Stage 5 — timeline, phases and visualisations.** Depends on 2, not on
+   this. Its stated regression risk is 5.1's `TimelineHost` parameterisation
+   touching the shipped drill editor — do that as its own commit with the drill
+   editor verified green first.
+2. **Stage 7** mounts `SquadPanel` and `FormationPicker`, and is the gate on
+   migration 021.
+
+---
+
 ## Session log — Tactics board rework, Stage 3: formations
 
 Stage 3 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). 29

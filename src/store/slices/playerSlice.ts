@@ -22,7 +22,25 @@ export interface PlayerSlice {
   playersLoading: boolean
   playersError: string | null
 
+  // Rosters of teams OTHER than the selected one, keyed by team id — the same
+  // keyed-record shape playerNoteSlice uses. The tactics board's away side can
+  // be bound to another team the coach coaches (TACTICS_BOARD_REWORK_PLAN.md
+  // Stage 4.3), and it needs that team's players WITHOUT touching `players`
+  // above, which is the selected team's roster and is what the roster,
+  // attendance and session screens all read. Overwriting it to show an
+  // opponent would empty the roster page behind the coach's back.
+  rostersByTeam: Record<string, Player[]>
+  rostersByTeamLoading: Record<string, boolean>
+  // Kept per team rather than folded into `playersError`: a failure loading an
+  // OPPONENT's roster is not the selected team's roster failing, and surfacing
+  // it there would put an error banner on the roster page.
+  rostersByTeamError: Record<string, string | null>
+
   fetchPlayers: (teamId: string) => Promise<void>
+  // Cache-aware: a team already loaded is not re-fetched, because this is
+  // called from a panel that re-renders on every side switch. Pass `force` to
+  // pick up roster edits made since.
+  fetchTeamRoster: (teamId: string, force?: boolean) => Promise<void>
   createPlayer: (input: NewPlayerInput) => Promise<Player | null>
   updatePlayer: (id: string, patch: PlayerUpdateInput) => Promise<Player | null>
 }
@@ -45,6 +63,9 @@ export const createPlayerSlice: StateCreator<StoreState, [], [], PlayerSlice> = 
     players: [],
     playersLoading: false,
     playersError: null,
+    rostersByTeam: {},
+    rostersByTeamLoading: {},
+    rostersByTeamError: {},
 
     fetchPlayers: async (teamId) => {
       latestFetchTeamId = teamId
@@ -65,6 +86,29 @@ export const createPlayerSlice: StateCreator<StoreState, [], [], PlayerSlice> = 
         playersError: error,
         ...(data ? { players: data } : {}),
       })
+    },
+
+    fetchTeamRoster: async (teamId, force = false) => {
+      if (!force && get().rostersByTeam[teamId]) return
+      set((state) => ({
+        rostersByTeamLoading: { ...state.rostersByTeamLoading, [teamId]: true },
+        rostersByTeamError: { ...state.rostersByTeamError, [teamId]: null },
+      }))
+      const { data, error } = await runSupabaseAction<Player[]>(
+        () =>
+          supabase
+            .from('player')
+            .select('*')
+            .eq('team_id', teamId)
+            .order('squad_number', { ascending: true, nullsFirst: false })
+            .order('name', { ascending: true }),
+        "Couldn't load that team's players, try again."
+      )
+      set((state) => ({
+        rostersByTeamLoading: { ...state.rostersByTeamLoading, [teamId]: false },
+        rostersByTeamError: { ...state.rostersByTeamError, [teamId]: error },
+        ...(data ? { rostersByTeam: { ...state.rostersByTeam, [teamId]: data } } : {}),
+      }))
     },
 
     createPlayer: async (input) => {

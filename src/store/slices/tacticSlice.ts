@@ -246,6 +246,14 @@ export interface TacticSlice {
     commit?: boolean
   ) => void
 
+  // Takes one entity off the pitch, or puts it back (Stage 4.2). Sets or
+  // clears `{ hidden: true }` in THIS keyframe only, and never touches `x`/`y`
+  // — that is the whole point: a player toggled off keeps the position they
+  // were standing in, so toggling them back on returns them to it rather than
+  // to some default. A player who has never BEEN on the pitch has no entity at
+  // all; the panel creates one at the next free formation slot instead.
+  setTacticEntityHidden: (tacticId: string, keyframeId: string, entityId: string, hidden: boolean) => void
+
   addTacticKeyframe: (tacticId: string, t: number, states?: Record<string, EntityState>) => string | null
   updateTacticKeyframeState: (tacticId: string, keyframeId: string, states: Record<string, EntityState>) => void
   moveTacticKeyframe: (tacticId: string, keyframeId: string, t: number) => void
@@ -656,6 +664,24 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
     },
 
     // ── Keyframes ────────────────────────────────────────────────────────
+
+    setTacticEntityHidden: (tacticId, keyframeId, entityId, hidden) => {
+      commit(tacticId, 'timeline', (t) => {
+        const keyframe = t.keyframes.find((k) => k.id === keyframeId)
+        if (!keyframe || !t.scene.entities.some((e) => e.id === entityId)) return t
+        const current = keyframe.states[entityId]
+        if (!!current?.hidden === hidden) return t
+        const next: EntityState = { ...current }
+        if (hidden) next.hidden = true
+        else delete next.hidden
+        return {
+          ...t,
+          keyframes: t.keyframes.map((k) =>
+            k.id === keyframeId ? { ...k, states: { ...k.states, [entityId]: next } } : k
+          ),
+        }
+      })
+    },
 
     addTacticKeyframe: (tacticId, t, states) => {
       const id = scene.generateId('keyframe')
