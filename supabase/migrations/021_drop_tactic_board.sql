@@ -1,9 +1,38 @@
 -- Migration 021 — Drop tactic.board
 --
 -- ============================================================================
--- NOT YET APPLIED. This file is written but deliberately not run.
+-- APPLIED 2026-08-26, together with the src/ strip — the 008/009/010 precedent
+-- CLAUDE.md names, and the way 014 was landed the same day.
 --
--- TACTICS_BOARD_REWORK_PLAN.md Stage 1.5 gates it exactly the way migration
+-- WHAT WAS CHECKED BEFORE APPLYING, against the gates set out below:
+--   * Stage 7 shipped the new editor, and all 4 tactics were opened in it with
+--     nothing moved — 0 players displaced, every board arrow and annotation
+--     present as a marking. That is gate 2, and it is what made gate 1 moot.
+--   * `scene` still matched `board` exactly at that point, so the "one
+--     legitimate re-run" of 020b described below was not needed and was NOT
+--     performed. Nothing re-derived scene from board at any stage.
+--   * Read-only diff at drop time: 11/2/1 board players/arrows/annotations ->
+--     11 entities / 3 markings; 11/1/1 -> 11 / 2; 2/0/0 -> 2 / 0; 0/0/0 ->
+--     0 / 0. Every board row was fully represented in the live columns.
+--   * pg_depend showed no view, index, default or constraint depending on the
+--     column, so the drop could not cascade.
+--   * Dump of `board` for all 4 rows written outside the repo to
+--     ../tactic_board_backup_2026-08-26.json, alongside the drill one 014 left.
+--   * src/ strip landed in the same commit: Tactic.board, TacticBoard,
+--     TacticPlayer, PhaseArrow and PhaseAnnotation removed from types.ts and
+--     its re-exports, and NewTacticInput.board / TacticUpdateInput.board /
+--     makeBlankBoard() removed from tacticSlice.ts. `npm run build` clean;
+--     `npm run lint` at its 3 pre-existing warnings.
+--
+-- ONE DEVIATION FROM THE NOTE AT THE FOOT OF THIS FILE: it said ArrowKind must
+-- stay. It stayed — but the justification given there covers PhasePoint only,
+-- and with PhaseArrow gone ArrowKind has no consumers left at all. It is kept
+-- because this file asked for it, not because anything types with it. Deleting
+-- it is a one-line follow-up whenever that is wanted.
+--
+-- The original gating, kept for the record:
+--
+-- TACTICS_BOARD_REWORK_PLAN.md Stage 1.5 gated it exactly the way migration
 -- 014 was gated: `board` stays the authoritative copy of every tactic's
 -- content, and 020b stays re-runnable, until the new editor has been used to
 -- read all four tactics back. That is what makes 020/020b purely additive.

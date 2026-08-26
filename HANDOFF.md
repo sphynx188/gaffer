@@ -276,6 +276,67 @@ in.
 
 ---
 
+## Session log — Migration 021: drop `tactic.board`, strip the board types
+
+Not a plan stage — the destructive act Stage 7 was the gate on, done as one
+change the way CLAUDE.md's 008/009/010 precedent and migration 014 both ask
+for: drop the column and strip every reference in `src/` together, never
+leaving the app half-wired.
+
+**What was checked before dropping**, following 021's own header:
+
+1. **The gate was already met.** Stage 7 opened all 4 tactics in the new
+   editor with nothing moved, and `scene` still matched `board` exactly at
+   that point — so the "one legitimate re-run" of 020b that 021's header
+   reserves was *not* needed and was not performed.
+2. **Read-only diff at drop time.** Board players/arrows/annotations vs the
+   live columns: 11/2/1 → 11 entities / 3 markings, 11/1/1 → 11 / 2,
+   2/0/0 → 2 / 0, 0/0/0 → 0 / 0. Every board row fully represented.
+3. **`pg_depend` on the column: empty.** No view, index, default or
+   constraint, so the drop could not cascade into anything.
+4. **Pre-drop dump** of `board` for all 4 rows written outside the repo to
+   `../tactic_board_backup_2026-08-26.json` — the drill dump 014 left is its
+   sibling. Validated by re-parsing the file and matching its counts against
+   the live rows before applying anything.
+
+**The src/ strip**, in the same commit: `Tactic.board`, `TacticBoard`,
+`TacticPlayer`, `PhaseArrow` and `PhaseAnnotation` out of `types.ts` and its
+re-exports in `index.ts`; `NewTacticInput.board`, `TacticUpdateInput.board`,
+`makeBlankBoard()` and the `board:` seed in `createTactic` out of
+`tacticSlice.ts`. Only prose mentions of the old names survive, in comments
+recording history.
+
+**`ArrowKind` was kept, and it is now dead.** 021's header said "PhasePoint
+and ArrowKind must STAY", but the justification it gives covers `PhasePoint`
+only — and `ArrowKind`'s sole consumer was `PhaseArrow.kind`, which went with
+the column. Kept because the migration file explicitly asked for it, not
+because anything types with it; the comment on it now says so honestly.
+Deleting it is a one-line follow-up. `PhasePoint` really is load-bearing —
+`Marking.points` and `EntityState.path` are both authored in it.
+
+**020b is now inert**, exactly as 013b became after 014, and carries a
+SUPERSEDED banner saying so: it reads FROM `board`, which no longer exists.
+
+**Verified live, not just headlessly.** `createTactic` is the one code path
+whose *runtime* behaviour changed (it stopped sending `board`), so it was
+exercised in the running app: created a tactic from `/tactics`, landed in the
+editor, save state "Saved", and the row came back with its migration-020
+defaults and one seeded keyframe. Then reopened a migrated tactic (`4-33`) —
+2 entities, both players "On pitch", renders unchanged post-drop. The scratch
+row was deleted afterwards and the count confirmed back at 4.
+
+`npm run build` clean, `npm run lint` at its 3 pre-existing warnings.
+
+### Gotcha worth repeating
+
+The long-lived tab showed two console errors — a 404 and a failed HMR reload
+of `TacticBoard.tsx`, a file Stage 7 deleted. Both were stale HMR residue from
+before that deletion, not anything this change caused: a fresh tab on the same
+URLs logged nothing at all. Same lesson as every prior stage — **check a fresh
+tab before believing a console error**.
+
+---
+
 ## Session log — Tactics board rework, Stage 7: editor shell, inspector and views
 
 Stage 7 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). The

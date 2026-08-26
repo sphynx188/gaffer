@@ -91,33 +91,19 @@ export interface Availability {
 // The normalized 0-1 pitch coordinate every piece of drill and tactic content
 // is authored in, so the same content renders correctly on any pitch shape —
 // see gaffer_project_plan_final.md §5. Named after the phases[] model it
-// arrived with (dropped by migration 014); it now underpins Marking.points,
-// EntityState.path and TacticBoard.
+// arrived with (dropped by migration 014); it now underpins Marking.points
+// and EntityState.path.
 export interface PhasePoint {
   x: number
   y: number
 }
 
-// 'kind' distinguishes ball/pass movement from player movement (Upgrade
-// Phase 2C, UPGRADE_IMPLEMENTATION_PLAN.md) — absent/undefined means
-// 'player', matching every arrow that existed before this field did.
+// Ball/pass movement as distinct from player movement (Upgrade Phase 2C).
+// Kept by name at 021's instruction when `tactic.board` was dropped, but it is
+// the last of that family left and nothing types with it any more: PhaseArrow
+// and PhaseAnnotation, its only consumers, went with the column. A drill or
+// tactic arrow is a `Marking` now, and Marking.kind carries the distinction.
 export type ArrowKind = 'ball' | 'player'
-
-// Arrows and annotations as a *tactic* still stores them (TacticBoard below).
-// Drills moved theirs onto Marking with the entities+keyframes rework; the
-// tactics board follows in TACTICS_BOARD_REWORK_PLAN.md Stage 1.
-export interface PhaseArrow {
-  id: string
-  from: PhasePoint
-  to: PhasePoint
-  kind?: ArrowKind
-  style?: string
-}
-
-export interface PhaseAnnotation extends PhasePoint {
-  id: string
-  text: string
-}
 
 // ---------------------------------------------------------------------------
 // Entities + keyframes (DRILL_CREATOR_REWORK_PLAN.md Stage 1)
@@ -515,28 +501,6 @@ export interface Tactic {
   thumbnail_url: string | null
   share_token: string | null
   created_at: string
-
-  // Deprecated by migration 020 (scene/keyframes) and dropped by 021 once all
-  // four tactics have been opened in the new editor — see the header of
-  // 021_drop_tactic_board.sql. Still the authoritative copy until then, which
-  // is what keeps 020b re-runnable. Don't write new code against it.
-  /** @deprecated use `scene` + `keyframes`; dropped by migration 021. */
-  board: TacticBoard
-}
-
-// The old board shape, kept only until 021 drops the column. `TacticPlayer`
-// is what `scene.entities` replaces: it could hold one position and nothing
-// else, so a tactic could never animate.
-export interface TacticPlayer extends PhasePoint {
-  id: string
-  player_id: string
-}
-
-/** @deprecated the pre-Stage-1 tactic shape; dropped by migration 021. */
-export interface TacticBoard {
-  players: TacticPlayer[]
-  arrows: PhaseArrow[]
-  annotations: PhaseAnnotation[]
 }
 
 // A shape a coach saved for themselves (Stage 3.4, migration 022). Per coach

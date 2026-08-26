@@ -18,7 +18,6 @@ import type {
   PitchConfig,
   PitchOrientation,
   Tactic,
-  TacticBoard,
   TacticPhase,
   TacticSide,
 } from '../types'
@@ -46,8 +45,6 @@ import type { StoreState } from '../useStore'
 export interface NewTacticInput {
   team_id: string
   name: string
-  /** @deprecated seeded only while the `board` column exists; dropped by 021. */
-  board?: TacticBoard
 }
 
 // Deliberately does NOT carry scene/keyframes/phases/duration_seconds/pitch/
@@ -57,10 +54,6 @@ export interface NewTacticInput {
 // debounce without noticing. Same rule, same reason, as DrillUpdateInput.
 export interface TacticUpdateInput {
   name?: string
-  /** @deprecated the pre-Stage-1 board. Nothing writes it now that the new
-   *  editor has replaced TacticBoard.tsx; the column and this field go with
-   *  migration 021. */
-  board?: TacticBoard
 }
 
 // Which history a mutation belongs to. `drawing` covers markings — arrows,
@@ -149,10 +142,6 @@ const AUTOSAVE_IDLE_MS = 800
 
 function emptyStacks(): TacticStacks {
   return { timeline: { past: [], future: [] }, drawing: { past: [], future: [] } }
-}
-
-function makeBlankBoard(): TacticBoard {
-  return { players: [], arrows: [], annotations: [] }
 }
 
 // A tactic always keeps at least one keyframe from creation — without one
@@ -545,7 +534,6 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
       // column default from migration 020, so it isn't restated here.
       const seeded = {
         ...input,
-        board: input.board ?? makeBlankBoard(),
         keyframes: [makeInitialKeyframe()],
       }
       const { data, error } = await runSupabaseAction<Tactic[]>(

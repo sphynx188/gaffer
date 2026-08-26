@@ -215,12 +215,19 @@ inert now that the column is gone; 014's header records the full diff. The
 pre-drop dump of both columns for all 14 drills lives outside the repo at
 `../drill_phases_pitch_size_backup_2026-08-26.json`.
 
-Note the naming leftovers this dropped column did *not* take with it:
-`PhasePoint`, `ArrowKind`, `PhaseArrow` and `PhaseAnnotation` in `types.ts`
-are still live and load-bearing — `PhasePoint` is the normalized 0-1
-coordinate the whole canvas is authored in, and the other three are the shape
-`TacticBoard` still stores (the tactics board moves onto entities+keyframes
-in [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md) Stage 1).
+`tactic.board` is gone the same way, dropped by migration 021 on 2026-08-26
+once the new tactics editor had read all four tactics back with nothing moved
+(TACTICS_BOARD_REWORK_PLAN.md Stages 1-7). Its pre-drop dump lives outside the
+repo at `../tactic_board_backup_2026-08-26.json`, and **020b's backfill must
+not be re-run** — it derives `scene` FROM `board`, so it is inert now, and it
+was already pointing the stale direction before that.
+
+Of the names those two dropped columns left behind, `PhasePoint` is the one
+still load-bearing: the normalized 0-1 coordinate the whole canvas is authored
+in (`Marking.points`, `EntityState.path`). `PhaseArrow`, `PhaseAnnotation`,
+`TacticPlayer` and `TacticBoard` went with 021. `ArrowKind` survives by name
+only — 021's header asked for it to stay, but its sole consumer was
+`PhaseArrow`, so nothing types with it today.
 
 ### Design canvas (Konva)
 

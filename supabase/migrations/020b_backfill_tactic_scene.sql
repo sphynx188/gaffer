@@ -1,5 +1,14 @@
 -- Migration 020b — backfill tactic.scene / keyframes / duration_seconds / pitch
 --
+-- ============================================================================
+-- SUPERSEDED 2026-08-26. `tactic.board`, the column this reads FROM, was
+-- dropped by migration 021, so this script is now inert — running it errors on
+-- the missing column rather than doing anything. Exactly the state 013b ended
+-- in after 014. Everything below is history; the live shape is `scene` +
+-- `keyframes`, written by the editor. The pre-drop dump of `board` for all 4
+-- tactics is outside the repo at ../tactic_board_backup_2026-08-26.json.
+-- ============================================================================
+--
 -- Derives the entities+keyframes shape added by 020 from the `board` shape it
 -- replaces (TACTICS_BOARD_REWORK_PLAN.md Stage 1.4). Reads `board` and writes
 -- only the new columns, so it is re-runnable and non-destructive: `board`
