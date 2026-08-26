@@ -1094,33 +1094,44 @@ export function PitchCanvas({
             {players.map((player) => {
               const p = toPx(player)
               const fill = player.color ?? teamColors.get(player.team ?? '') ?? PLAYER.fallback
+              const display = player.display ?? 'standard'
+              // Dot mode is a bare marker — no number, no label, no room to
+              // read either at the size coaches use it (a full squad packed
+              // onto one pitch). Presentation goes the other way, sized up
+              // for a projector; compact keeps the number but drops the name
+              // chip that standard shows underneath.
+              const radius = display === 'dot' ? playerRadius * 0.55 : display === 'presentation' ? playerRadius * 1.3 : playerRadius
+              const showNumber = display !== 'dot' && player.number != null
+              const showLabel = display === 'standard' || display === 'presentation'
+              const fontSize = display === 'presentation' ? numberFontSize * 1.3 : numberFontSize
+              const chipFontSize = display === 'presentation' ? labelFontSize * 1.3 : labelFontSize
               // The dot, number and label chip drag together as one unit, so
               // the Group carries the absolute position and every child is
               // positioned relative to it.
               return (
-                <Group key={player.id} x={p.x} y={p.y} {...entityHandlers(player.id, playerRadius)}>
-                  {isSelected(player.id) && <SelectionHalo radius={playerRadius + haloWidth} strokeWidth={haloWidth} />}
-                  <Circle x={0} y={0} radius={playerRadius} fill={fill} />
-                  {player.number != null && (
+                <Group key={player.id} x={p.x} y={p.y} {...entityHandlers(player.id, radius)}>
+                  {isSelected(player.id) && <SelectionHalo radius={radius + haloWidth} strokeWidth={haloWidth} />}
+                  <Circle x={0} y={0} radius={radius} fill={fill} />
+                  {showNumber && (
                     <Text
                       text={String(player.number)}
-                      x={-playerRadius}
-                      y={-numberFontSize / 2}
-                      width={playerRadius * 2}
+                      x={-radius}
+                      y={-fontSize / 2}
+                      width={radius * 2}
                       align="center"
-                      fontSize={numberFontSize}
+                      fontSize={fontSize}
                       fontStyle="bold"
                       fill={PLAYER.numberText}
                       listening={false}
                     />
                   )}
-                  {player.label && (
+                  {showLabel && player.label && (
                     // Rough width estimate to center the chip under the dot —
                     // Konva's Label doesn't auto-center, and measuring real
                     // text width needs a mounted canvas context.
-                    <Label x={-(player.label.length * labelFontSize * 0.6) / 2 - 4} y={playerRadius + 2} listening={false}>
+                    <Label x={-(player.label.length * chipFontSize * 0.6) / 2 - 4} y={radius + 2} listening={false}>
                       <Tag fill={ANNOTATION.background} stroke={ANNOTATION.border} strokeWidth={1} cornerRadius={3} />
-                      <Text text={player.label} fontSize={labelFontSize} fill={ANNOTATION.text} padding={2} />
+                      <Text text={player.label} fontSize={chipFontSize} fill={ANNOTATION.text} padding={2} />
                     </Label>
                   )}
                 </Group>
