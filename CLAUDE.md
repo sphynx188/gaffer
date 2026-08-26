@@ -222,12 +222,12 @@ repo at `../tactic_board_backup_2026-08-26.json`, and **020b's backfill must
 not be re-run** — it derives `scene` FROM `board`, so it is inert now, and it
 was already pointing the stale direction before that.
 
-Of the names those two dropped columns left behind, `PhasePoint` is the one
-still load-bearing: the normalized 0-1 coordinate the whole canvas is authored
-in (`Marking.points`, `EntityState.path`). `PhaseArrow`, `PhaseAnnotation`,
-`TacticPlayer` and `TacticBoard` went with 021. `ArrowKind` survives by name
-only — 021's header asked for it to stay, but its sole consumer was
-`PhaseArrow`, so nothing types with it today.
+Of the names those two dropped columns left behind, **`PhasePoint` is the only
+survivor** — the normalized 0-1 coordinate the whole canvas is authored in
+(`Marking.points`, `EntityState.path`). `PhaseArrow`, `PhaseAnnotation`,
+`TacticPlayer`, `TacticBoard` and `ArrowKind` are all gone with 021. Ball-vs-
+player movement is `Marking.kind` now, which is why `ArrowKind` had nothing
+left to type.
 
 ### Design canvas (Konva)
 

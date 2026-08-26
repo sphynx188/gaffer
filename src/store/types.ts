@@ -98,13 +98,6 @@ export interface PhasePoint {
   y: number
 }
 
-// Ball/pass movement as distinct from player movement (Upgrade Phase 2C).
-// Kept by name at 021's instruction when `tactic.board` was dropped, but it is
-// the last of that family left and nothing types with it any more: PhaseArrow
-// and PhaseAnnotation, its only consumers, went with the column. A drill or
-// tactic arrow is a `Marking` now, and Marking.kind carries the distinction.
-export type ArrowKind = 'ball' | 'player'
-
 // ---------------------------------------------------------------------------
 // Entities + keyframes (DRILL_CREATOR_REWORK_PLAN.md Stage 1)
 //

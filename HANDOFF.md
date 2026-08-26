@@ -306,13 +306,15 @@ re-exports in `index.ts`; `NewTacticInput.board`, `TacticUpdateInput.board`,
 `tacticSlice.ts`. Only prose mentions of the old names survive, in comments
 recording history.
 
-**`ArrowKind` was kept, and it is now dead.** 021's header said "PhasePoint
-and ArrowKind must STAY", but the justification it gives covers `PhasePoint`
-only — and `ArrowKind`'s sole consumer was `PhaseArrow.kind`, which went with
-the column. Kept because the migration file explicitly asked for it, not
-because anything types with it; the comment on it now says so honestly.
-Deleting it is a one-line follow-up. `PhasePoint` really is load-bearing —
-`Marking.points` and `EntityState.path` are both authored in it.
+**`ArrowKind` went too, one commit later.** 021's header said "PhasePoint and
+ArrowKind must STAY", but the justification it gives covers `PhasePoint` only,
+and `ArrowKind`'s sole consumer was `PhaseArrow.kind` — which went with the
+column, leaving it dead on arrival. It was kept for exactly one commit out of
+deference to the migration file's own wording, flagged as dead, and then
+dropped on request. 021's header now records the correction so the next reader
+doesn't reinstate it. `PhasePoint` really is load-bearing — `Marking.points`
+and `EntityState.path` are both authored in it, and ball-vs-player movement
+lives on `Marking.kind`.
 
 **020b is now inert**, exactly as 013b became after 014, and carries a
 SUPERSEDED banner saying so: it reads FROM `board`, which no longer exists.

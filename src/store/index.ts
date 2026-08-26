@@ -26,7 +26,6 @@ export type {
   DrillPhaseOfPlay,
   SessionBlock,
   PhasePoint,
-  ArrowKind,
   SessionDrill,
   PitchOrientation,
   CoachRole,

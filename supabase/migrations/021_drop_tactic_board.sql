@@ -24,11 +24,12 @@
 --     makeBlankBoard() removed from tacticSlice.ts. `npm run build` clean;
 --     `npm run lint` at its 3 pre-existing warnings.
 --
--- ONE DEVIATION FROM THE NOTE AT THE FOOT OF THIS FILE: it said ArrowKind must
--- stay. It stayed — but the justification given there covers PhasePoint only,
--- and with PhaseArrow gone ArrowKind has no consumers left at all. It is kept
--- because this file asked for it, not because anything types with it. Deleting
--- it is a one-line follow-up whenever that is wanted.
+-- ONE CORRECTION TO THE NOTE AT THE FOOT OF THIS FILE: it said ArrowKind must
+-- stay. That was wrong. The justification given there covers PhasePoint only,
+-- and ArrowKind's sole consumer was PhaseArrow.kind, which went with the
+-- column — so it was dead the moment this migration landed. It was kept for
+-- one commit out of deference to this file's own wording, then deleted. Read
+-- the note below as: PhasePoint must stay. ArrowKind did not.
 --
 -- The original gating, kept for the record:
 --
