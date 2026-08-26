@@ -4,6 +4,9 @@ import { Hero } from './Hero'
 import { LogoWall } from './LogoWall'
 import { StatsStrip } from './StatsStrip'
 import { FeatureSections } from './FeatureSections'
+import { Testimonials } from './Testimonials'
+import { Pricing } from './Pricing'
+import { FinalCta } from './FinalCta'
 
 // The public marketing page (landing-page spec, 2026-08-26). Dark-only via
 // .landing-dark (index.css) regardless of the visitor's stored theme.
@@ -18,6 +21,9 @@ export function LandingPage() {
         <LogoWall />
         <StatsStrip />
         <FeatureSections />
+        <Testimonials />
+        <Pricing />
+        <FinalCta />
       </main>
       <Footer />
     </div>
