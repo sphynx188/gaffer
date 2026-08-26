@@ -211,3 +211,13 @@ body {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Carousel scroll-snap tracks (landing DrillCarousel) hide their native
+   scrollbar — the dot/arrow controls are the visible affordance instead. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
