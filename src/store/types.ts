@@ -139,6 +139,16 @@ export type EntityKind = 'player' | 'ball' | 'equipment'
 export type PlayerDisplay = 'compact' | 'standard' | 'presentation' | 'dot'
 export type BodyShape = 'auto' | 'backpedal' | 'shuffle_left' | 'shuffle_right'
 
+// Tactics vocabularies (TACTICS_BOARD_REWORK_PLAN.md Stage 1.1). Granular
+// pitch roles, unlike Player.positions' five broad buckets
+// (goalkeeper/defender/midfielder/winger/striker) — a formation needs to know
+// a right-back from a left-back, which a roster tag deliberately doesn't.
+// The two are independent: PlayerPosition describes a person, PlayerRole
+// describes the slot they're filling on this particular board.
+export type PlayerRole = 'GK' | 'RB' | 'CB' | 'LB' | 'CDM' | 'CM' | 'CAM' | 'LW' | 'RW' | 'ST'
+export type MarkerStyle = 'circle' | 'square' | 'shield' | 'jersey'
+export type StatusRing = 'none' | 'captain' | 'booked' | 'injured' | 'sub'
+
 // The full equipment set (rework plan Stage 6.1). jsonb, so widening this
 // never needed a schema migration.
 //
@@ -208,6 +218,24 @@ export interface SceneEntity {
   // orientation on the pitch, while a player's heading is per-keyframe and
   // lives on EntityState.facing instead.
   rotation?: number
+
+  // Tactics-only, and deliberately on the SHARED entity rather than a forked
+  // TacticEntity (rework plan Stage 1.1): one canvas, one interpolator, one
+  // export path. Drills leave every one of them unset, and because scene is
+  // jsonb none of them needed a migration.
+  //
+  // Note what is NOT here: a `side` field. A tactic puts 'home'/'away' in
+  // `team` above, the same field a drill puts 'A'/'B' in, because the canvas
+  // already colours by `team` — a parallel field would mean two things to
+  // keep in step and two colour paths.
+  player_id?: string // roster binding — which real Player this marker is
+  role?: PlayerRole // the slot on the board, not the person's roster tag
+  scale?: number // marker size multiplier; 1.0 when unset
+  markerStyle?: MarkerStyle
+  roleTag?: string | null // short text drawn on the marker, e.g. 'RB'
+  highlight?: string | null
+  statusRing?: StatusRing
+  statusColor?: string | null
 }
 
 // Where one entity is at one keyframe. `x`/`y` are optional only because a
@@ -397,27 +425,90 @@ export interface SessionDrill {
   notes: string | null
 }
 
-// Upgrade Phase 3 (UPGRADE_IMPLEMENTATION_PLAN.md): the Tactic Creator.
-// Unlike a drill's scene entity (a freeform team label — "attack"/"A"/"B"),
-// a tactic player is always a real roster player, referenced by id — a
-// tactic shows this team's own actual squad, not a generic two-team drill
-// setup. No cones/balls: v1 tactics are players + arrows + annotations
-// only, per the roadmap's "static tactical diagram" scope.
-export interface TacticPlayer extends PhasePoint {
+// ---------------------------------------------------------------------------
+// Tactics (TACTICS_BOARD_REWORK_PLAN.md Stage 1)
+//
+// A tactic is now the SAME entities+keyframes model a drill is — `scene` +
+// `keyframes` + `pitch`, all the types above — so `frameAt`, PitchCanvas, the
+// timeline and the export path work on a tactic unchanged. Only three things
+// here are genuinely new: two sides with formations, phases over the keyframe
+// track, and the roster binding (SceneEntity.player_id).
+// ---------------------------------------------------------------------------
+
+// A named, coloured band over the keyframe track — "Build-up", "Press",
+// "Transition". Purely organisational: it groups keyframes for the coach and
+// has NO effect on interpolation, which is why `frameAt` never needs to know
+// phases exist. Not to be confused with the drill `phases[]` model migration
+// 014 dropped; that was geometry, this is only a label over a time range.
+export interface TacticPhase {
   id: string
-  player_id: string
+  name: string
+  startSeconds: number
+  endSeconds: number
+  color: string
 }
 
-export interface TacticBoard {
-  players: TacticPlayer[]
-  arrows: PhaseArrow[]
-  annotations: PhaseAnnotation[]
+export interface TacticSide {
+  formation: string // key into FORMATIONS (Stage 3), e.g. '4-3-3'
+  color: string
+  teamId: string | null // null = placeholder opposition, not a real team
 }
 
 export interface Tactic {
   id: string
   team_id: string // always team-scoped, unlike Drill.team_id — see migrations/012_tactic_table.sql
   name: string
-  board: TacticBoard
+  scene: DrillScene // the same shape drills use, entity for entity
+  keyframes: Keyframe[]
+  phases: TacticPhase[]
+  duration_seconds: number
+  // Orientation is live-switchable from the editor, not fixed at creation
+  // (decided 2026-08-26) — and switching it must transpose the content too,
+  // which is what canvas/transposeScene.ts is for.
+  pitch: PitchConfig
+  sides: { home: TacticSide; away: TacticSide }
+  view: 'single' | 'dual'
+
+  // Light metadata only (decided 2026-08-26). Enough to find a tactic and to
+  // put it in a session; deliberately NOT drill's ~19 columns — a tactic is a
+  // thinking tool a coach works through, not a 15-minute pitch activity with
+  // equipment, intensity and an age band.
+  description: string | null
+  phase_of_play: DrillPhaseOfPlay | null // reuses the drill vocabulary
+  thumbnail_url: string | null
+  share_token: string | null
   created_at: string
+
+  // Deprecated by migration 020 (scene/keyframes) and dropped by 021 once all
+  // four tactics have been opened in the new editor — see the header of
+  // 021_drop_tactic_board.sql. Still the authoritative copy until then, which
+  // is what keeps 020b re-runnable. Don't write new code against it.
+  /** @deprecated use `scene` + `keyframes`; dropped by migration 021. */
+  board: TacticBoard
+}
+
+// The old board shape, kept only until 021 drops the column. `TacticPlayer`
+// is what `scene.entities` replaces: it could hold one position and nothing
+// else, so a tactic could never animate.
+export interface TacticPlayer extends PhasePoint {
+  id: string
+  player_id: string
+}
+
+/** @deprecated the pre-Stage-1 tactic shape; dropped by migration 021. */
+export interface TacticBoard {
+  players: TacticPlayer[]
+  arrows: PhaseArrow[]
+  annotations: PhaseAnnotation[]
+}
+
+// Mirrors SessionDrill exactly, so the session planner can hold both kinds of
+// item in one list (Stage 9.4) rather than growing a parallel panel.
+export interface SessionTactic {
+  id: string
+  session_id: string
+  tactic_id: string
+  order_index: number
+  planned_duration_minutes: number | null
+  notes: string | null
 }

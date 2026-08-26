@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import { createClient } from '@supabase/supabase-js'
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
+import { transposeKeyframes, transposeScene } from '../../components/design/canvas/transposeScene'
 import type {
   Drill,
   DrillCoaching,
@@ -919,7 +920,24 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     },
 
     setDrillPitch: (drillId, pitch) => {
-      commit(drillId, (d) => (d.pitch === pitch ? d : { ...d, pitch }))
+      commit(drillId, (d) => {
+        if (d.pitch === pitch) return d
+        // Flipping orientation has to move the content too, not just the
+        // markings — see canvas/transposeScene.ts for the bug this fixes and
+        // why it's a diagonal mirror rather than a rotation. Done here rather
+        // than in PitchPanel because the panel only ever sees `pitch`, while
+        // this is the one funnel BOTH of its call sites (ToolRail and
+        // DrillDetailsDrawer) go through — and going through `commit` makes
+        // the flip a single undo step instead of leaving the content stranded
+        // one step behind the pitch.
+        if (d.pitch.orientation === pitch.orientation) return { ...d, pitch }
+        return {
+          ...d,
+          pitch,
+          scene: transposeScene(d.scene),
+          keyframes: transposeKeyframes(d.keyframes),
+        }
+      })
     },
 
     setDuration: (drillId, seconds) => {

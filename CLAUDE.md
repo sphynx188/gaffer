@@ -113,7 +113,9 @@ the same change, rather than leaving it half-wired — see migrations
 Core tables: `team` → `team_coaches` (membership/role) / `player` (with
 `player_notes`) / `session` (with `availability` per player) / `drill`
 (team-owned or `team_id = null` for coach-wide reusable drills) /
-`session_drills` (join table ordering drills within a session). RLS is
+`session_drills` (join table ordering drills within a session) / `tactic`
+(always team-scoped, unlike drill — no coach-owned case) / `session_tactics`
+(the tactic equivalent of `session_drills`, added by migration 020). RLS is
 enabled on every table; policies live in `supabase/rls_policies.sql`, built
 on two `security definer` helper functions (`is_team_member`,
 `is_team_owner`) — every new table's RLS should reuse those rather than
@@ -127,6 +129,21 @@ in `src/store/types.ts` (`SceneEntity`, `Keyframe`, `Marking`,
 `PitchConfig`). Because that content lives in jsonb, extending it (a new
 equipment type, a new marking kind, a new optional per-entity property)
 never needs a migration — only real columns (like `drill.pitch_format`) do.
+
+**A tactic is the same model, not a parallel one** (migration 020,
+TACTICS_BOARD_REWORK_PLAN.md Stage 1). `tactic.scene` / `keyframes` /
+`duration_seconds` / `pitch` are the identical shapes and the identical
+types, so `frameAt`, `PitchCanvas`, the timeline and the export path all
+work on a tactic unchanged — verified: `getPitchMarkings` on a tactic's
+pitch is byte-identical to a full-pitch drill's. `SceneEntity` was EXTENDED
+rather than forked for this (`player_id`, `role`, `scale`, `markerStyle`,
+`roleTag`, `highlight`, `statusRing`, `statusColor` — all optional, all
+jsonb, all unset on drills). A tactic puts `'home'`/`'away'` in the same
+`team` field a drill puts `'A'`/`'B'` in; there is deliberately no parallel
+`side` field, because the canvas already colours by `team`. What IS
+tactics-only: `sides` (two formations), `phases` (named coloured bands over
+the keyframe track — organisational only, they never affect interpolation)
+and `view`.
 
 `drill.phases` and `drill.pitch_size` — the older shapes — are **gone**,
 dropped by migration 014 on 2026-08-26 together with every reference in
@@ -164,10 +181,19 @@ elements are drawn, not styled with Tailwind classes), `DrillPreview.tsx`,
 `DrillLibrary.tsx`. `PitchCanvas` only ever renders positions/shapes handed
 to it and reports interactions back via callbacks — it never talks to
 Supabase itself; persistence is always the caller's job (see
-`DrillPreview.tsx`'s `persistPhases`). This separation is why other
-pitch-based features (e.g. a tactics board) can reuse `PitchCanvas` as-is by
-adapting their own data into the same phase shape, rather than forking the
-canvas component.
+`DrillPreview.tsx`'s `persistPhases`). This separation is why the tactics
+board reuses `PitchCanvas` as-is rather than forking it.
+
+`canvas/transposeScene.ts` is shared by both editors and must stay that way.
+Flipping a pitch between portrait and landscape has to move the CONTENT as
+well as the markings: `getPitchMarkings` renders landscape as the portrait
+authoring put through `transpose()`, so patching `pitch.orientation` alone
+moves the goalmouth and penalty box while leaving every player where they
+were. It is the diagonal mirror `(x,y) -> (y,x)`, never a 90° rotation, so
+that it matches what `pitchGeometry` does to the markings. Entry point is
+`drillSlice.setDrillPitch`, which applies it whenever orientation changes —
+that is the one funnel both `PitchPanel` call sites go through, and routing
+it through `commit` keeps a flip to a single undo step.
 
 ### Styling
 

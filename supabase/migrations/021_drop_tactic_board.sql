@@ -1,0 +1,60 @@
+-- Migration 021 — Drop tactic.board
+--
+-- ============================================================================
+-- NOT YET APPLIED. This file is written but deliberately not run.
+--
+-- TACTICS_BOARD_REWORK_PLAN.md Stage 1.5 gates it exactly the way migration
+-- 014 was gated: `board` stays the authoritative copy of every tactic's
+-- content, and 020b stays re-runnable, until the new editor has been used to
+-- read all four tactics back. That is what makes 020/020b purely additive.
+-- Applying this early would destroy the only source the backfill can be
+-- re-derived from.
+--
+-- Apply it when ALL of the following are true:
+--   1. The tactics editor (Stages 2-7) reads and writes `scene` / `keyframes`
+--      / `phases` / `duration_seconds` / `pitch` / `sides` / `view`.
+--   2. All 4 tactics have been opened in that editor and nothing has moved —
+--      same players, same places, same arrows and notes.
+--   3. Every reference to `board` is gone from src/, so this can be applied
+--      TOGETHER with the src/ strip rather than leaving the app half-wired
+--      (the 008 / 009 / 010 precedent CLAUDE.md names, and the way 014 was
+--      landed).
+--
+-- ── AND ONE GATE 014 TAUGHT US TO WRITE DOWN ─────────────────────────────
+-- Do NOT "just re-run 020b first" as a safety step before applying this.
+-- That is the trap 013b set for migration 014. 020b derives scene FROM board;
+-- once Stage 2 ships, the editor writes scene directly and never touches
+-- board, so board becomes the STALE copy and re-running the backfill would
+-- roll every tactic back to its pre-rework state.
+--
+-- The check to run instead is the read-only diff that caught it last time:
+-- compute what 020b WOULD write, compare it against the live columns, and
+-- confirm no tactic's live scene holds more than the backfill would produce.
+-- If they differ, the live columns are the newer ones and board is expendable
+-- — which is the whole point of this migration.
+--
+-- Before applying, also dump `board` for all rows to a file outside the repo,
+-- as was done for drill.phases on 2026-08-26. It is the only recovery path
+-- this drop removes.
+--
+-- References standing at the time this file was written:
+--   src/store/types.ts                    Tactic.board, TacticBoard,
+--                                         TacticPlayer
+--   src/store/index.ts                    the re-exports of those
+--   src/store/slices/tacticSlice.ts       NewTacticInput.board,
+--                                         TacticUpdateInput.board, and every
+--                                         board mutation (Stage 2 rewrites
+--                                         this file around entities and
+--                                         keyframes)
+--   src/components/tactics/TacticBoard.tsx  the whole board adapter and its
+--                                         tap-to-place handlers (Stages 5-7
+--                                         replace this screen)
+--
+-- Note that PhaseArrow / PhaseAnnotation / TacticPlayer in types.ts exist ONLY
+-- to type this column. Migration 014 kept them alive for exactly this reason;
+-- once `board` is gone they can go too. PhasePoint and ArrowKind must STAY —
+-- PhasePoint is the normalized 0-1 coordinate the whole canvas is authored in
+-- (Marking.points, EntityState.path).
+-- ============================================================================
+
+alter table tactic drop column board;

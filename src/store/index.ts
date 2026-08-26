@@ -36,6 +36,12 @@ export type {
   TacticPlayer,
   TacticBoard,
   Tactic,
+  TacticPhase,
+  TacticSide,
+  SessionTactic,
+  PlayerRole,
+  MarkerStyle,
+  StatusRing,
 } from './types'
 export {
   PLAYER_POSITIONS,

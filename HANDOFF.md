@@ -276,6 +276,82 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 1: tactic scene, keyframes, sides
+
+Stage 1 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md).
+Tactics are now on the same entities+keyframes model drills are, so the whole
+shipped drill engine — `frameAt`, `PitchCanvas`, the timeline, export — works
+on a tactic unchanged. Mostly adoption, not invention.
+
+### What happened, in order
+
+1. **Extended the SHARED `SceneEntity`** rather than forking a tactic entity:
+   `player_id`, `role`, `scale`, `markerStyle`, `roleTag`, `highlight`,
+   `statusRing`, `statusColor`, plus the `PlayerRole` / `MarkerStyle` /
+   `StatusRing` vocabularies. All optional, all jsonb, all unset on drills —
+   no migration needed for any of them. `'home'`/`'away'` go in the existing
+   `team` field; no parallel `side` field, because the canvas already colours
+   by `team`.
+2. **New types** `TacticPhase`, `TacticSide`, `SessionTactic`; `Tactic` grew
+   `scene`/`keyframes`/`phases`/`duration_seconds`/`pitch`/`sides`/`view` plus
+   the four light-metadata fields, keeping `board` marked deprecated.
+3. **Migration 020** (additive): the columns above, a partial unique index on
+   `share_token` matching 018's, and `session_tactics` mirroring
+   `session_drills` column for column, its RLS reusing `is_team_member`
+   through the session join.
+4. **Dry-ran 020b read-only before applying it** — the habit Stage 0 forced.
+   It matched `board` exactly on all 4 rows, so it was applied.
+5. **Fixed the orientation/coordinate bug (1.6)** in `canvas/transposeScene.ts`,
+   wired into `drillSlice.setDrillPitch`.
+
+### What Worked
+
+- **`setDrillPitch` was the right seam for the transpose.** `PitchPanel` only
+  receives `{pitch, onChange}` and can't see the scene, so the fix could not
+  live there. `setDrillPitch` has the whole drill, is the one funnel both
+  panel call sites (ToolRail, DrillDetailsDrawer) go through, and routing
+  through `commit` makes a flip a single undo step rather than leaving the
+  content one step behind the pitch.
+- **Transposing angles too, not just positions.** The plan's 1.6 lists three
+  positional fields; `EntityState.facing` and `SceneEntity.rotation` are the
+  same defect on the same content. Fixing where a player stands but not which
+  way they face leaves a flip half-applied, which is harder to spot than not
+  applied at all. `(90 - a) mod 360` is the angular form of the same mirror.
+- **Verified live, not just by build.** Flipped "Test drill passing" to
+  landscape in the real editor: goalmouth, players, cones and arrows all moved
+  together; one Undo restored it; the DB came back byte-identical to the
+  pre-flip coordinates.
+
+### What Didn't Work / Watch Out For
+
+- **The four existing tactics are backfilled PORTRAIT, not the column's
+  landscape default.** Their coordinates were authored against
+  TacticBoard.tsx's hardcoded portrait `TACTIC_PITCH` (now removed — the board
+  reads `tactic.pitch`). Writing landscape would have transposed the markings
+  and left the players put, i.e. the exact bug 1.6 documents, and would have
+  broken this stage's own DoD. Landscape remains the default for NEW tactics,
+  and any of the four can now be flipped correctly in one click.
+- **020b has 013b's trap armed.** It derives scene FROM board and is
+  re-runnable only while `board` is authoritative — i.e. only until Stage 2
+  rewrites tacticSlice. From the first save through the new editor, `board` is
+  stale. Both 020b's and 021's headers say so explicitly.
+- **No anon read policy for `tactic.share_token` yet**, deliberately. 018
+  pairs drill's token with a header-scoped anon policy; the tactic equivalent
+  belongs with the sharing UI that mints the tokens (Stage 8.3). Adding it now
+  would open a public surface nothing can use.
+- Both migrations needed explicit user approval — the permission classifier
+  blocks schema changes, additive ones included.
+
+## Next Steps
+
+1. **Stage 2 — `tacticSlice` on entities and keyframes.** Port drillSlice's
+   committed-mutation model, undo stack and debounced autosave. Note that the
+   moment this ships, `board` goes stale and 020b must never run again.
+2. **Stage 7** is what unblocks migration 021 (drop `board`): all 4 tactics
+   opened in the new editor with nothing moved.
+
+---
+
 ## Session log — Tactics board rework, Stage 0: land migration 014, retire the phases bridge
 
 Stage 0 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md) — the

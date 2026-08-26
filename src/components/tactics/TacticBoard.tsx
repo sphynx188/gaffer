@@ -1,28 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Shield } from 'lucide-react'
 import { useStore } from '../../store'
-import type { Marking, PitchConfig, Player, PlayerPosition, Tactic } from '../../store'
+import type { Marking, Player, PlayerPosition, Tactic } from '../../store'
 import { PitchCanvas } from '../design/PitchCanvas'
 import type { EntityMove } from '../design/PitchCanvas'
 import type { RenderFrame } from '../design/canvas/interpolate'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
 import { Dropdown } from '../ui/Dropdown'
-
-// Tactics are always a full pitch, portrait — unlike drills, there's no
-// size/orientation picker here (the roadmap fixes the Tactic Creator to
-// "a full football pitch"). No cones/balls/witches-hats/mannequins either:
-// v1 tactics are players + arrows + annotations only. The metre dimensions
-// are the ones migration 013b wrote for every full-pitch drill, so a tactic
-// and a full-pitch drill render identically; Stage 7 of the drill-creator
-// rework owns the real preset table.
-const TACTIC_PITCH: PitchConfig = {
-  preset: 'full',
-  widthMeters: 68,
-  lengthMeters: 105,
-  orientation: 'portrait',
-  overlays: [],
-}
 
 // Display-only grouping (no schema change) — winger + striker both bucket
 // into "Attackers", matching the roadmap's 4-group roster panel
@@ -273,7 +258,7 @@ export function TacticBoard() {
         {tactic && canvasFrame && (
           <>
             <PitchCanvas
-              pitch={TACTIC_PITCH}
+              pitch={tactic.pitch}
               frame={canvasFrame}
               maxWidth={960}
               editable
