@@ -12,6 +12,8 @@ import type { TimelineHost } from '../timeline/TimelineHost'
 // rendering something inert. Adding them to a shipped drill editor is not what
 // this stage was asked to do.
 export function useDrillTimelineHost(drill: Drill): TimelineHost {
+  const updateEntity = useStore((s) => s.updateEntity)
+  const updateMarking = useStore((s) => s.updateMarking)
   const addKeyframe = useStore((s) => s.addKeyframe)
   const updateKeyframeState = useStore((s) => s.updateKeyframeState)
   const moveKeyframe = useStore((s) => s.moveKeyframe)
@@ -29,6 +31,8 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
       keyframes: drill.keyframes,
       duration: drill.duration_seconds,
       pitch: drill.pitch,
+      updateEntity: (entityId, patch) => updateEntity(drill.id, entityId, patch),
+      updateMarking: (markingId, patch) => updateMarking(drill.id, markingId, patch),
       addKeyframe: (t, states) => addKeyframe(drill.id, t, states),
       updateKeyframeState: (keyframeId, states) => updateKeyframeState(drill.id, keyframeId, states),
       moveKeyframe: (keyframeId, t) => moveKeyframe(drill.id, keyframeId, t),
@@ -43,6 +47,8 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
       drill.keyframes,
       drill.duration_seconds,
       drill.pitch,
+      updateEntity,
+      updateMarking,
       addKeyframe,
       updateKeyframeState,
       moveKeyframe,

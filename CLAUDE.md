@@ -235,6 +235,15 @@ Supabase itself; persistence is always the caller's job (see
 `DrillPreview.tsx`'s `persistPhases`). This separation is why the tactics
 board reuses `PitchCanvas` as-is rather than forking it.
 
+Both editors share `EditorLayout` (`design/editor/EditorShell.tsx`) — three
+columns, docked timeline, mobile sheets and floating dock — plus `Sheet`,
+`DockButton` and the top bar's small pieces. They do **not** share a top bar,
+deliberately: the plan's own rule is that a shell forced over two different
+toolbars is worse than two toolbars, and a drill's carries export/3D/tour while
+a tactic's carries Single/Dual, orientation and Add Ball. The tactics bar
+scrolls sideways rather than wrapping, because a two-row bar breaks the fixed
+260px chrome reserve the canvas sizes against.
+
 `design/timeline/` is shared by both editors via `TimelineHost` — the document
 fields the timeline reads plus its actions, pre-bound to the document, supplied
 by `useDrillTimelineHost` / `useTacticTimelineHost`. **Nothing in `timeline/`

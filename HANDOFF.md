@@ -276,6 +276,68 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 7: editor shell, inspector and views
+
+Stage 7 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). The
+tactics editor exists at `/tactics/:tacticId`, `TacticBoard.tsx` is deleted,
+and **the gate on migration 021 is met**.
+
+### What happened, in order
+
+1. **`TimelineHost` gained `updateEntity`/`updateMarking`**, and
+   `PropertiesPanel` was parameterised onto it — its drill coupling was only
+   `drill.scene`, `drill.keyframes` and `drill.id` passed to three actions.
+   One inspector serves both editors; no fork.
+2. **`EditorShell.tsx`** — `EditorLayout`, `Sheet`, `DockButton`, the save
+   indicator and the inline name field. DrillEditor moved onto it and was
+   re-verified pixel-identical BEFORE any tactics work.
+3. **`TacticTopBar`, `TacticInspector`, `TacticEditor`**, the `/tactics/:id`
+   route, and `/tactics` rebuilt as a picker mirroring `/design`.
+4. **Deleted `TacticBoard.tsx`** and the board[] mutations it was the only
+   caller of. `Tactic.board` stays typed until 021 drops the column.
+
+### What Worked
+
+- **Not sharing the top bar.** The plan's warning was right: the two bars agree
+  on the back link, the name field and the save state and nothing else. Sharing
+  those three as small pieces and letting each editor compose its own toolbar
+  cost less than any parameterised `EditorTopBar` would have.
+- **Doing the DrillEditor migration first and alone.** It meant the layout was
+  proven against a working editor before a second one depended on it.
+- **Seeding the two inaccessible tactics into the store to render them.** Two
+  of the four belong to a team this account isn't a member of, so RLS hides
+  them; injecting their real rows let the actual editor render them, which is
+  what the gate asks for rather than a SQL-only check.
+
+### What Didn't Work / Watch Out For
+
+- **The tactics top bar wrapped to three rows on a phone**, pushing the layout
+  down until the floating dock covered the timeline. The canvas sizes against a
+  flat 260px chrome reserve that assumes a ONE-ROW bar — an assumption the
+  drill editor happens to satisfy and this one didn't. Fixed by making the bar
+  scroll sideways instead of wrapping. Worth remembering if either bar grows.
+- **Marker Overrides are gated behind a prop** the tactics inspector sets. The
+  five fields live on the shared `SceneEntity`, but a drill has no use for a
+  captain's armband, and switching them on in a shipped editor is not what this
+  stage asked for.
+- **`SquadPanel`'s side tab is now controlled** by the editor, because Single
+  view renders whichever side the panel is on — otherwise working on the away
+  side in Single view would show an empty pitch. It still works uncontrolled.
+- **No Actions menu.** Teloframe's holds Export, Presentation and Customize —
+  all Stage 8's. An empty menu is worse than none.
+
+## Next Steps
+
+1. **Migration 021 is now unblocked.** All four tactics were opened in the new
+   editor and nothing moved; `scene` still matched `board` exactly beforehand,
+   so no final 020b re-run was needed. Applying it drops `tactic.board`, and
+   should go together with removing `Tactic.board` / `TacticBoard` /
+   `TacticPlayer` from types.ts — see 021's own header.
+2. **Stage 8 — export, share and presentation.** It owns the Actions menu this
+   stage deliberately left out.
+
+---
+
 ## Session log — Tactics board rework, Stage 6: drawing tools to parity
 
 Stage 6 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). Five

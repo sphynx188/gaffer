@@ -9,7 +9,6 @@ import type { NewEntityInput } from '../sceneActions'
 // simply where it was first declared.
 import type { SaveState } from './drillSlice'
 import type {
-  ArrowKind,
   DrillScene,
   EntityKind,
   EntityState,
@@ -58,7 +57,9 @@ export interface NewTacticInput {
 // debounce without noticing. Same rule, same reason, as DrillUpdateInput.
 export interface TacticUpdateInput {
   name?: string
-  /** @deprecated the pre-Stage-1 board; written only by the old TacticBoard screen. */
+  /** @deprecated the pre-Stage-1 board. Nothing writes it now that the new
+   *  editor has replaced TacticBoard.tsx; the column and this field go with
+   *  migration 021. */
   board?: TacticBoard
 }
 
@@ -328,24 +329,6 @@ export interface TacticSlice {
   // Call it on editor unmount and on route change.
   flushTacticSave: () => Promise<void>
 
-  // -------------------------------------------------------------------------
-  // Deprecated: the board[] mutations, kept until the tactics editor moves
-  // onto scene/keyframes (Stages 5-7) and migration 021 drops the column.
-  // These still follow the old contract — local mutation, then the caller
-  // fires exactly one `updateTactic` — and are NOT part of either undo stack
-  // or the autosave queue. Don't wire anything new to them.
-  //
-  // While they are still live, `board` remains the AUTHORITATIVE copy of a
-  // tactic's content, because TacticBoard.tsx is the screen a coach actually
-  // uses. That is what keeps 020b re-runnable up to Stage 7 — see its header.
-  // -------------------------------------------------------------------------
-  setTacticPlayerPosition: (tacticId: string, tacticPlayerId: string, position: PhasePoint) => void
-  addTacticPlayer: (tacticId: string, playerId: string, position: PhasePoint) => void
-  removeTacticPlayer: (tacticId: string, tacticPlayerId: string) => void
-  addTacticArrow: (tacticId: string, from: PhasePoint, to: PhasePoint, kind: ArrowKind) => void
-  removeTacticArrow: (tacticId: string, arrowId: string) => void
-  addTacticAnnotation: (tacticId: string, position: PhasePoint, text: string) => void
-  removeTacticAnnotation: (tacticId: string, annotationId: string) => void
 }
 
 export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = (set, get) => {
@@ -918,97 +901,6 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
     flushTacticSave: async () => {
       settlePendingEdits()
       await flush()
-    },
-
-    // ---------------------------------------------------------------------
-    // Deprecated: board[] mutations. See the note on TacticSlice above.
-    // ---------------------------------------------------------------------
-
-    setTacticPlayerPosition: (tacticId, tacticPlayerId, position) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return {
-            ...t,
-            board: {
-              ...t.board,
-              players: t.board.players.map((p) => (p.id === tacticPlayerId ? { ...p, ...position } : p)),
-            },
-          }
-        }),
-      })
-    },
-
-    addTacticPlayer: (tacticId, playerId, position) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return {
-            ...t,
-            board: {
-              ...t.board,
-              players: [...t.board.players, { id: scene.generateId('tplayer'), player_id: playerId, ...position }],
-            },
-          }
-        }),
-      })
-    },
-
-    removeTacticPlayer: (tacticId, tacticPlayerId) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return { ...t, board: { ...t.board, players: t.board.players.filter((p) => p.id !== tacticPlayerId) } }
-        }),
-      })
-    },
-
-    addTacticArrow: (tacticId, from, to, kind) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return {
-            ...t,
-            board: { ...t.board, arrows: [...t.board.arrows, { id: scene.generateId('arrow'), from, to, kind }] },
-          }
-        }),
-      })
-    },
-
-    removeTacticArrow: (tacticId, arrowId) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return { ...t, board: { ...t.board, arrows: t.board.arrows.filter((a) => a.id !== arrowId) } }
-        }),
-      })
-    },
-
-    addTacticAnnotation: (tacticId, position, text) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return {
-            ...t,
-            board: {
-              ...t.board,
-              annotations: [...t.board.annotations, { id: scene.generateId('note'), text, ...position }],
-            },
-          }
-        }),
-      })
-    },
-
-    removeTacticAnnotation: (tacticId, annotationId) => {
-      set({
-        tactics: get().tactics.map((t) => {
-          if (t.id !== tacticId) return t
-          return {
-            ...t,
-            board: { ...t.board, annotations: t.board.annotations.filter((a) => a.id !== annotationId) },
-          }
-        }),
-      })
     },
   }
 }

@@ -17,6 +17,7 @@ import { SharedDrillPage } from './pages/SharedDrillPage'
 import { TeamSettingsPage } from './pages/TeamSettingsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { TacticsPage } from './pages/TacticsPage'
+import { TacticEditorPage } from './pages/TacticEditorPage'
 
 // Redesign: routed with a persistent shell (src/layout/AppShell.tsx) that
 // swaps between a coach-level tab set (Dashboard/Teams/Calendar — cross-
@@ -83,6 +84,7 @@ function AuthedApp() {
         <Route path="design/:drillId" element={<DrillEditorPage />} />
         <Route path="drills" element={<DrillLibraryPage />} />
         <Route path="tactics" element={<TacticsPage />} />
+        <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
         <Route path="teams" element={<TeamSettingsPage />} />
         <Route path="calendar" element={<CalendarPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

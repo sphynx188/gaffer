@@ -11,6 +11,8 @@ import type { TimelineHost } from '../design/timeline/TimelineHost'
 // (5.2) and keyframe copy/paste (5.6) are tactics concepts, and their store
 // actions landed in Stage 2.
 export function useTacticTimelineHost(tactic: Tactic): TimelineHost {
+  const updateEntity = useStore((s) => s.updateTacticEntity)
+  const updateMarking = useStore((s) => s.updateTacticMarking)
   const addKeyframe = useStore((s) => s.addTacticKeyframe)
   const updateKeyframeState = useStore((s) => s.updateTacticKeyframeState)
   const moveKeyframe = useStore((s) => s.moveTacticKeyframe)
@@ -31,6 +33,8 @@ export function useTacticTimelineHost(tactic: Tactic): TimelineHost {
       keyframes: tactic.keyframes,
       duration: tactic.duration_seconds,
       pitch: tactic.pitch,
+      updateEntity: (entityId, patch) => updateEntity(tactic.id, entityId, patch),
+      updateMarking: (markingId, patch) => updateMarking(tactic.id, markingId, patch),
       addKeyframe: (t, states) => addKeyframe(tactic.id, t, states),
       updateKeyframeState: (keyframeId, states) => updateKeyframeState(tactic.id, keyframeId, states),
       moveKeyframe: (keyframeId, t) => moveKeyframe(tactic.id, keyframeId, t),
@@ -53,6 +57,8 @@ export function useTacticTimelineHost(tactic: Tactic): TimelineHost {
       tactic.duration_seconds,
       tactic.pitch,
       tactic.phases,
+      updateEntity,
+      updateMarking,
       addKeyframe,
       updateKeyframeState,
       moveKeyframe,

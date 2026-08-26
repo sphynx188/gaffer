@@ -1,10 +1,20 @@
 import { Route, Trash2 } from 'lucide-react'
-import { useStore } from '../../../store'
-import type { BodyShape, Drill, EntityState, EquipmentType, Marking, PlayerDisplay, SceneEntity } from '../../../store'
+import type {
+  BodyShape,
+  EntityState,
+  EquipmentType,
+  Marking,
+  MarkerStyle,
+  PlayerDisplay,
+  PlayerRole,
+  SceneEntity,
+  StatusRing,
+} from '../../../store'
 import { EQUIPMENT_ADVANCED, EQUIPMENT_CORE, EQUIPMENT_LABELS } from '../../../store'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
 import { EQUIPMENT } from '../pitchTheme'
 import { formatClock } from '../timeline/cursor'
+import type { TimelineHost } from '../timeline/TimelineHost'
 
 // The right-hand panel (rework plan Stages 5.2 and 6.5): the drill's keyframes
 // when nothing is selected, and the selected thing's properties when something
@@ -16,7 +26,10 @@ import { formatClock } from '../timeline/cursor'
 // offers the second group when there is a keyframe to write it to.
 
 interface PropertiesPanelProps {
-  drill: Drill
+  // Whichever document is being edited — see TimelineHost, which Stage 7.3
+  // grew into the shared contract so this panel could serve both editors
+  // rather than being forked into a near-identical tactics copy.
+  host: TimelineHost
   selectedIds: string[]
   currentTime: number
   // The keyframe the playhead is parked on, if any, and whether one follows
@@ -30,6 +43,12 @@ interface PropertiesPanelProps {
   onSeek: (seconds: number) => void
   onRemoveSelection: () => void
   onDuplicateAlongLine: (entityId: string, count: number) => void
+  // Teloframe's per-player "Marker Overrides" — scale, marker style, role tag,
+  // highlight and status ring (Stage 7.3). Tactics-only: the fields live on the
+  // shared SceneEntity, but a drill has no use for a captain's armband or a
+  // booking, and switching them on in a shipped editor is not what this stage
+  // was asked to do.
+  showMarkerOverrides?: boolean
 }
 
 const FIELD =
@@ -65,15 +84,39 @@ const FACINGS: { value: number; label: string }[] = [
 
 const COLOUR_CHOICES = ['', 'orange', 'yellow', 'red', 'blue', 'white']
 
-export function PropertiesPanel(props: PropertiesPanelProps) {
-  const { drill, selectedIds, currentTime, onSeek, onRemoveSelection } = props
-  const updateEntity = useStore((s) => s.updateEntity)
-  const updateMarking = useStore((s) => s.updateMarking)
-  const updateKeyframeState = useStore((s) => s.updateKeyframeState)
+// Marker Overrides (Stage 7.3) — Teloframe's "per-player captain, status and
+// style tweaks". All five write to the shared SceneEntity fields Stage 1.1
+// added; all five are per TACTIC, not per keyframe, because a captain is a
+// captain for the whole board.
+const MARKER_STYLES: { value: MarkerStyle; label: string }[] = [
+  { value: 'circle', label: 'Circle' },
+  { value: 'square', label: 'Square' },
+  { value: 'shield', label: 'Shield' },
+  { value: 'jersey', label: 'Jersey' },
+]
 
-  const selected = drill.scene.entities.filter((entity) => selectedIds.includes(entity.id))
-  const selectedMarkings = drill.scene.markings.filter((marking) => selectedIds.includes(marking.id))
-  const parked = drill.keyframes.find((keyframe) => keyframe.id === props.parkedKeyframeId) ?? null
+const STATUS_RINGS: { value: StatusRing; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'captain', label: 'Captain' },
+  { value: 'booked', label: 'Booked' },
+  { value: 'injured', label: 'Injured' },
+  { value: 'sub', label: 'Sub' },
+]
+
+const ROLES: PlayerRole[] = ['GK', 'RB', 'CB', 'LB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST']
+
+// 0.6x to 1.6x. Below that a marker stops being readable, above it a player
+// covers the space two others need.
+const SCALE_MIN = 0.6
+const SCALE_MAX = 1.6
+
+export function PropertiesPanel(props: PropertiesPanelProps) {
+  const { host, selectedIds, currentTime, onSeek, onRemoveSelection } = props
+  const { updateEntity, updateMarking, updateKeyframeState } = host
+
+  const selected = host.scene.entities.filter((entity) => selectedIds.includes(entity.id))
+  const selectedMarkings = host.scene.markings.filter((marking) => selectedIds.includes(marking.id))
+  const parked = host.keyframes.find((keyframe) => keyframe.id === props.parkedKeyframeId) ?? null
 
   // Per-keyframe authoring goes through updateKeyframeState, which replaces
   // the whole map — so the patch is merged onto what's already stored rather
@@ -81,18 +124,18 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
   const patchState = (entityId: string, patch: Partial<EntityState>) => {
     if (!parked) return
     const current = parked.states[entityId] ?? {}
-    updateKeyframeState(drill.id, parked.id, { ...parked.states, [entityId]: { ...current, ...patch } })
+    updateKeyframeState(parked.id, { ...parked.states, [entityId]: { ...current, ...patch } })
   }
 
   if (selectedIds.length === 0) {
     return (
       <div className="space-y-2">
         <p className="text-xs font-medium text-ink-muted">Keyframes</p>
-        {drill.keyframes.length === 0 && (
+        {host.keyframes.length === 0 && (
           <p className="text-xs text-ink-faint">No keyframes yet — add one from the timeline.</p>
         )}
         <ul className="space-y-1">
-          {[...drill.keyframes]
+          {[...host.keyframes]
             .sort((a, b) => a.t - b.t)
             .map((keyframe, index) => {
               const here = Math.abs(keyframe.t - currentTime) < 0.05
@@ -123,7 +166,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
       <Shell count={1} noun="marking" onRemove={onRemoveSelection}>
         <MarkingSection
           marking={selectedMarkings[0]}
-          onPatch={(patch) => updateMarking(drill.id, selectedMarkings[0].id, patch)}
+          onPatch={(patch) => updateMarking(selectedMarkings[0].id, patch)}
         />
       </Shell>
     )
@@ -156,13 +199,13 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             label="Display"
             options={DISPLAYS.map((d) => ({ value: d.value, label: d.label }))}
             value={entity.display ?? 'standard'}
-            onChange={(value) => updateEntity(drill.id, entity.id, { display: value as PlayerDisplay })}
+            onChange={(value) => updateEntity(entity.id, { display: value as PlayerDisplay })}
           />
           <Choice
             label="Team"
             options={[{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }]}
             value={entity.team ?? 'A'}
-            onChange={(value) => updateEntity(drill.id, entity.id, { team: value })}
+            onChange={(value) => updateEntity(entity.id, { team: value })}
           />
           <Field label="Number">
             <input
@@ -171,7 +214,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
               value={entity.number ?? ''}
               onChange={(e) => {
                 const parsed = Number(e.target.value)
-                updateEntity(drill.id, entity.id, { number: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined })
+                updateEntity(entity.id, { number: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined })
               }}
               className={FIELD}
             />
@@ -180,20 +223,108 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             <input
               value={entity.label ?? ''}
               placeholder="e.g. GK"
-              onChange={(e) => updateEntity(drill.id, entity.id, { label: e.target.value || undefined })}
+              onChange={(e) => updateEntity(entity.id, { label: e.target.value || undefined })}
               className={FIELD}
             />
           </Field>
           <Swatches
             label="Colour"
             value={entity.color ?? ''}
-            onChange={(value) => updateEntity(drill.id, entity.id, { color: value || undefined })}
+            onChange={(value) => updateEntity(entity.id, { color: value || undefined })}
           />
           <Toggle
             label="Goalkeeper"
             on={entity.goalkeeper === true}
-            onToggle={() => updateEntity(drill.id, entity.id, { goalkeeper: !entity.goalkeeper || undefined })}
+            onToggle={() => updateEntity(entity.id, { goalkeeper: !entity.goalkeeper || undefined })}
           />
+
+          {props.showMarkerOverrides && (
+            <div className="space-y-2 border-t border-line pt-2">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Marker overrides</p>
+                <p className="text-[11px] text-ink-faint">Per-player captain, status and style tweaks.</p>
+              </div>
+
+              <Field label={`Scale — ${(entity.scale ?? 1).toFixed(2)}×`}>
+                <input
+                  type="range"
+                  min={SCALE_MIN}
+                  max={SCALE_MAX}
+                  step={0.05}
+                  value={entity.scale ?? 1}
+                  onChange={(e) => {
+                    const next = Number(e.target.value)
+                    // 1.0 is the default, so store nothing rather than a value
+                    // that means "unchanged" — same rule the other optional
+                    // entity fields follow.
+                    updateEntity(entity.id, { scale: next === 1 ? undefined : next })
+                  }}
+                  className="w-full accent-accent"
+                />
+              </Field>
+
+              <Choice
+                label="Marker style"
+                options={MARKER_STYLES.map((m) => ({ value: m.value, label: m.label }))}
+                value={entity.markerStyle ?? 'circle'}
+                onChange={(value) => updateEntity(entity.id, { markerStyle: value as MarkerStyle })}
+              />
+
+              <Choice
+                label="Role"
+                options={ROLES.map((role) => ({ value: role, label: role }))}
+                value={entity.role ?? ''}
+                onChange={(value) => updateEntity(entity.id, { role: (value || undefined) as PlayerRole })}
+              />
+
+              <Field label="Role tag">
+                <input
+                  value={entity.roleTag ?? ''}
+                  placeholder="e.g. Target man"
+                  onChange={(e) => updateEntity(entity.id, { roleTag: e.target.value || null })}
+                  className={FIELD}
+                />
+              </Field>
+
+              <Swatches
+                label="Highlight"
+                value={entity.highlight ?? ''}
+                onChange={(value) => updateEntity(entity.id, { highlight: value || null })}
+              />
+
+              <Choice
+                label="Status ring"
+                options={STATUS_RINGS.map((r) => ({ value: r.value, label: r.label }))}
+                value={entity.statusRing ?? 'none'}
+                onChange={(value) => updateEntity(entity.id, { statusRing: value as StatusRing })}
+              />
+
+              {entity.statusRing && entity.statusRing !== 'none' && (
+                <Swatches
+                  label="Status colour"
+                  value={entity.statusColor ?? ''}
+                  onChange={(value) => updateEntity(entity.id, { statusColor: value || null })}
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  updateEntity(entity.id, {
+                    scale: undefined,
+                    markerStyle: undefined,
+                    roleTag: null,
+                    highlight: null,
+                    statusRing: undefined,
+                    statusColor: null,
+                  })
+                }
+                className="min-h-11 w-full rounded-md border border-line text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink lg:min-h-9"
+              >
+                Reset overrides
+              </button>
+            </div>
+          )}
 
           <PerKeyframe parked={parked !== null}>
             <Choice
@@ -254,7 +385,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
                 <button
                   key={type}
                   type="button"
-                  onClick={() => updateEntity(drill.id, entity.id, { equipment: type as EquipmentType })}
+                  onClick={() => updateEntity(entity.id, { equipment: type as EquipmentType })}
                   aria-pressed={(entity.equipment ?? 'cone') === type}
                   className={
                     'flex min-h-11 items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-colors lg:min-h-9 ' +
@@ -272,7 +403,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
           <Swatches
             label="Colour"
             value={entity.color ?? ''}
-            onChange={(value) => updateEntity(drill.id, entity.id, { color: value || undefined })}
+            onChange={(value) => updateEntity(entity.id, { color: value || undefined })}
           />
           <Field label={`Rotation — ${Math.round(entity.rotation ?? 0)}°`}>
             <input
@@ -281,7 +412,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
               max={350}
               step={10}
               value={entity.rotation ?? 0}
-              onChange={(e) => updateEntity(drill.id, entity.id, { rotation: Number(e.target.value) || undefined })}
+              onChange={(e) => updateEntity(entity.id, { rotation: Number(e.target.value) || undefined })}
               className="w-full accent-accent"
             />
           </Field>

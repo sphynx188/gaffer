@@ -22,6 +22,7 @@ import { downloadBlob, downloadDataUrl } from '../export/exportFile'
 import { recordGif } from '../export/recordGif'
 import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
 import { markingToolSpec, type MarkingTool } from './markingTools'
+import { DockButton, EditorLayout } from './EditorShell'
 import { useMarkingKeys } from './useMarkingKeys'
 import type { GridSettings } from './GridPanel'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
@@ -479,7 +480,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   const properties = (
     <PropertiesPanel
-      drill={drill}
+      host={timelineHost}
       selectedIds={selectedIds}
       currentTime={playback.currentTime}
       parkedKeyframeId={parkedKeyframe?.id ?? null}
@@ -497,100 +498,82 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     />
   )
 
-  return (
-    <div className="flex min-h-0 flex-col gap-3">
-      <EditorTopBar drill={drill} onExport={() => setExportOpen(true)} onReplayTour={tour.restart} />
+  const canvas = (
+    <>
+      <PitchCanvas
+        stageRef={stageRef}
+        onboardingAnchor="pitch-canvas"
+        pitch={drill.pitch}
+        frame={frame}
+        onionFrames={onion}
+        motionPaths={paths}
+        trailFrames={trails}
+        maxWidth={720}
+        maxHeight={Math.max(260, viewportHeight - 260)}
+        editable
+        onEntitiesMove={handleEntitiesMove}
+        annotationMode={tool !== 'select' || routeDraft !== null}
+        onCanvasClick={handleCanvasClick}
+        drawTool={tool === 'marking' && !routeDraft ? markingToolSpec(marking).draw : null}
+        drawStyle={{ dash: marking === 'pass' }}
+        onDrawMarking={handleDrawMarking}
+        showGrid={grid.showGrid}
+        snapToGrid={grid.snapToGrid}
+        smartGuides={grid.smartGuides}
+        selectedIds={selectedIds}
+        onSelectionChange={tool === 'select' ? setSelectedIds : undefined}
+        onDeleteSelection={removeSelection}
+        // PitchCanvas has carried the Transformer since the drill rework's
+        // Stage 3.5, but it only renders it when this callback is present
+        // and nothing ever passed one — so resizing and rotating a marking
+        // was built and left unplugged for every kind. Stage 6's definition
+        // of done asks that all fourteen tools transform, so it is wired
+        // here; the canvas already bakes the result back into normalized
+        // points, which is why this only has to store them.
+        onMarkingsTransform={(updates) => {
+          for (const update of updates) updateMarking(drill.id, update.id, { points: update.points })
+        }}
+        pendingArrowStart={pendingArrowStart}
+        hintText={placementHint}
+      />
 
-      <div className="flex min-w-0 gap-3">
-        {/* Rail — desktop only; below lg it lives in the drawer. */}
-        <div className="hidden shrink-0 lg:block">{!toolsOpen && rail}</div>
-
-        <div className="flex min-w-0 flex-1 flex-col items-center gap-2">
-          <PitchCanvas
-            stageRef={stageRef}
-            onboardingAnchor="pitch-canvas"
-            pitch={drill.pitch}
-            frame={frame}
-            onionFrames={onion}
-            motionPaths={paths}
-            trailFrames={trails}
-            maxWidth={720}
-            maxHeight={Math.max(260, viewportHeight - 260)}
-            editable
-            onEntitiesMove={handleEntitiesMove}
-            annotationMode={tool !== 'select' || routeDraft !== null}
-            onCanvasClick={handleCanvasClick}
-            drawTool={tool === 'marking' && !routeDraft ? markingToolSpec(marking).draw : null}
-            drawStyle={{ dash: marking === 'pass' }}
-            onDrawMarking={handleDrawMarking}
-            showGrid={grid.showGrid}
-            snapToGrid={grid.snapToGrid}
-            smartGuides={grid.smartGuides}
-            selectedIds={selectedIds}
-            onSelectionChange={tool === 'select' ? setSelectedIds : undefined}
-            onDeleteSelection={removeSelection}
-            // PitchCanvas has carried the Transformer since the drill rework's
-            // Stage 3.5, but it only renders it when this callback is present
-            // and nothing ever passed one — so resizing and rotating a marking
-            // was built and left unplugged for every kind. Stage 6's definition
-            // of done asks that all fourteen tools transform, so it is wired
-            // here; the canvas already bakes the result back into normalized
-            // points, which is why this only has to store them.
-            onMarkingsTransform={(updates) => {
-              for (const update of updates) updateMarking(drill.id, update.id, { points: update.points })
-            }}
-            pendingArrowStart={pendingArrowStart}
-            hintText={placementHint}
-          />
-
-          {pendingNote && (
-            <form
-              onSubmit={handleSaveNote}
-              className="flex w-full flex-wrap items-center gap-2 rounded-md border border-line bg-panel-raised p-2"
-            >
-              <label htmlFor="new-marking-text" className="text-xs font-medium text-ink-muted">
-                Note
-              </label>
-              <input
-                id="new-marking-text"
-                autoFocus
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder="e.g. Press trigger"
-                className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-              />
-              <button
-                type="submit"
-                disabled={!noteText.trim()}
-                className="min-h-11 rounded-md bg-accent px-3 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 lg:min-h-9"
-              >
-                Save note
-              </button>
-              <button
-                type="button"
-                onClick={() => setPendingNote(null)}
-                className="min-h-11 px-2 text-sm text-ink-muted lg:min-h-9"
-              >
-                Cancel
-              </button>
-            </form>
-          )}
-        </div>
-
-        {/* Properties — desktop only; below lg it's the right-hand sheet. */}
-        {/* Capped and scrolled on the same reserve the canvas uses. Without
-            it, selecting an entity grew this panel past 800px — taller than
-            the pitch — and pushed the docked timeline off the bottom of the
-            screen, which is exactly what that reserve exists to prevent. */}
-        <div
-          data-onboarding-anchor="properties-panel"
-          className="hidden w-64 shrink-0 overflow-y-auto rounded-xl border border-line bg-panel p-3 lg:block"
-          style={{ maxHeight: Math.max(260, viewportHeight - 260) }}
+      {pendingNote && (
+        <form
+          onSubmit={handleSaveNote}
+          className="flex w-full flex-wrap items-center gap-2 rounded-md border border-line bg-panel-raised p-2"
         >
-          {properties}
-        </div>
-      </div>
+          <label htmlFor="new-marking-text" className="text-xs font-medium text-ink-muted">
+            Note
+          </label>
+          <input
+            id="new-marking-text"
+            autoFocus
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="e.g. Press trigger"
+            className="min-w-40 flex-1 rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
+          />
+          <button
+            type="submit"
+            disabled={!noteText.trim()}
+            className="min-h-11 rounded-md bg-accent px-3 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50 lg:min-h-9"
+          >
+            Save note
+          </button>
+          <button
+            type="button"
+            onClick={() => setPendingNote(null)}
+            className="min-h-11 px-2 text-sm text-ink-muted lg:min-h-9"
+          >
+            Cancel
+          </button>
+        </form>
+      )}
+    </>
+  )
 
+  const timeline = (
+    <>
       <TimelineBar
         playback={playback}
         duration={drill.duration_seconds}
@@ -606,12 +589,26 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         onToggleKeyframe={keyframeToggle.toggle}
       />
       {timelineOpen && <TimelineEditor host={timelineHost} playback={playback} frame={frame} />}
+    </>
+  )
 
-      {/* Floating dock — the phone control surface. Space is reserved below the
-          timeline so the dock never covers it. */}
-      <div className="h-20 lg:hidden" aria-hidden />
-      <div className="fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-4 lg:hidden">
-        <div className="flex items-center gap-1 rounded-full border border-line bg-panel p-1.5">
+  return (
+    <EditorLayout
+      topBar={<EditorTopBar drill={drill} onExport={() => setExportOpen(true)} onReplayTour={tour.restart} />}
+      rail={rail}
+      canvas={canvas}
+      inspector={properties}
+      timeline={timeline}
+      railOpen={toolsOpen}
+      onRailClose={() => setToolsOpen(false)}
+      railTitle="Tools"
+      inspectorOpen={propsOpen}
+      onInspectorClose={() => setPropsOpen(false)}
+      inspectorTitle="Properties"
+      inspectorAnchor="properties-panel"
+      maxPanelHeight={Math.max(260, viewportHeight - 260)}
+      dock={
+        <>
           <DockButton label="Tools" icon={<Wrench className="h-4 w-4" />} onClick={() => setToolsOpen(true)} />
           <button
             type="button"
@@ -622,120 +619,53 @@ export function DrillEditor({ drill }: { drill: Drill }) {
             {playback.playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
           </button>
           <DockButton label="Props" icon={<PanelRight className="h-4 w-4" />} onClick={() => setPropsOpen(true)} />
-        </div>
-      </div>
+        </>
+      }
+      extras={
+        <>
+          <DrillDetailsDrawer
+            drill={drill}
+            open={detailsOpen}
+            onClose={() => setDetailsOpen(false)}
+            onCaptureThumbnail={() => void captureThumbnail()}
+            capturing={capturing}
+          />
 
-      <Sheet open={toolsOpen} side="left" title="Tools" onClose={() => setToolsOpen(false)}>
-        {rail}
-      </Sheet>
-      <Sheet open={propsOpen} side="right" title="Properties" onClose={() => setPropsOpen(false)}>
-        <div data-onboarding-anchor="properties-panel">{properties}</div>
-      </Sheet>
+          <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)}>
+            <ExportPanel
+              drill={drill}
+              onExportPng={handleExportPng}
+              onExportGif={(filename) => void handleExportGif(filename)}
+              gifProgress={gifProgress}
+            />
+          </ExportDrawer>
 
-      <DrillDetailsDrawer
-        drill={drill}
-        open={detailsOpen}
-        onClose={() => setDetailsOpen(false)}
-        onCaptureThumbnail={() => void captureThumbnail()}
-        capturing={capturing}
-      />
+          {tour.open && (
+            <OnboardingTour
+              step={tour.step}
+              stepIndex={tour.stepIndex}
+              stepCount={tour.stepCount}
+              onNext={tour.next}
+              onBack={tour.back}
+              onSkip={tour.skip}
+              settleMs={tour.step.openTools || tour.step.openProperties ? 250 : 0}
+            />
+          )}
 
-      <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)}>
-        <ExportPanel
-          drill={drill}
-          onExportPng={handleExportPng}
-          onExportGif={(filename) => void handleExportGif(filename)}
-          gifProgress={gifProgress}
-        />
-      </ExportDrawer>
-
-      {tour.open && (
-        <OnboardingTour
-          step={tour.step}
-          stepIndex={tour.stepIndex}
-          stepCount={tour.stepCount}
-          onNext={tour.next}
-          onBack={tour.back}
-          onSkip={tour.skip}
-          settleMs={tour.step.openTools || tour.step.openProperties ? 250 : 0}
-        />
-      )}
-
-      {/* Drag ghost — follows the pointer between picking a tool up off the
-          rail and dropping it on the pitch. */}
-      {drag && (
-        <div
-          className="pointer-events-none fixed z-50 flex h-9 w-9 items-center justify-center rounded-full border border-line bg-panel"
-          style={{ left: drag.x - 18, top: drag.y - 18 }}
-          aria-hidden
-        >
-          {dragIcon(drag.placement)}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function DockButton({ label, icon, onClick }: { label: string; icon: React.ReactNode; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex h-11 min-w-16 flex-col items-center justify-center gap-0.5 rounded-full px-3 text-[10px] font-medium text-ink-muted"
-    >
-      {icon}
-      {label}
-    </button>
-  )
-}
-
-// The same always-mounted, transform-animated pattern AppShell's mobile drawer
-// uses, so both sheets in the app open and close the same way.
-function Sheet({
-  open,
-  side,
-  title,
-  onClose,
-  children,
-}: {
-  open: boolean
-  side: 'left' | 'right'
-  title: string
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <div className={`fixed inset-0 z-40 lg:hidden ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
-      <button
-        type="button"
-        aria-label={`Close ${title.toLowerCase()}`}
-        onClick={onClose}
-        className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
-      />
-      <div
-        // Written out in full rather than composed from `side` — Tailwind
-        // scans for complete class names, so `left-0` built from a template
-        // string never reaches the stylesheet.
-        className={
-          'absolute inset-y-0 flex w-72 max-w-[85vw] flex-col overflow-y-auto bg-panel transition-transform duration-200 ' +
-          (side === 'left' ? 'left-0 ' : 'right-0 ') +
-          (open ? 'translate-x-0' : side === 'left' ? '-translate-x-full' : 'translate-x-full')
-        }
-      >
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
-          <p className="text-sm font-semibold text-ink">{title}</p>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={`Close ${title.toLowerCase()}`}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-ink-muted hover:bg-panel-raised"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="p-4">{children}</div>
-      </div>
-    </div>
+          {/* Drag ghost — follows the pointer between picking a tool up off
+              the rail and dropping it on the pitch. */}
+          {drag && (
+            <div
+              className="pointer-events-none fixed z-50 flex h-9 w-9 items-center justify-center rounded-full border border-line bg-panel"
+              style={{ left: drag.x - 18, top: drag.y - 18 }}
+              aria-hidden
+            >
+              {dragIcon(drag.placement)}
+            </div>
+          )}
+        </>
+      }
+    />
   )
 }
 

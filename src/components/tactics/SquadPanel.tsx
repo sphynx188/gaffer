@@ -62,8 +62,27 @@ interface SquadRow {
   positionLabel: string
 }
 
-export function SquadPanel({ tactic, keyframeId }: { tactic: Tactic; keyframeId: string }) {
-  const [side, setSide] = useState<'home' | 'away'>('home')
+export function SquadPanel({
+  tactic,
+  keyframeId,
+  side: controlledSide,
+  onSideChange,
+}: {
+  tactic: Tactic
+  keyframeId: string
+  // Controlled by the editor (Stage 7.4), because Single view renders whichever
+  // side this panel is on — switching to the Away tab has to show the away
+  // side rather than an empty pitch. Uncontrolled still works for anything that
+  // just wants the panel.
+  side?: 'home' | 'away'
+  onSideChange?: (side: 'home' | 'away') => void
+}) {
+  const [ownSide, setOwnSide] = useState<'home' | 'away'>('home')
+  const side = controlledSide ?? ownSide
+  const setSide = (next: 'home' | 'away') => {
+    setOwnSide(next)
+    onSideChange?.(next)
+  }
 
   const teams = useStore((s) => s.teams)
   const players = useStore((s) => s.players)
