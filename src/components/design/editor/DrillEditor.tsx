@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type Konva from 'konva'
-import { PanelRight, Pause, Play, Wrench, X } from 'lucide-react'
+import { PanelRight, Pause, Play, Wrench } from 'lucide-react'
 import { useStore } from '../../../store'
 import type { Drill, EquipmentType, Marking, PhasePoint } from '../../../store'
 import { EQUIPMENT_LABELS } from '../../../store'
@@ -22,7 +22,7 @@ import { downloadBlob, downloadDataUrl } from '../export/exportFile'
 import { recordGif } from '../export/recordGif'
 import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
 import { markingToolSpec, type MarkingTool } from './markingTools'
-import { DockButton, EditorLayout } from './EditorShell'
+import { DockButton, EditorLayout, ExportDrawer } from './EditorShell'
 import { useMarkingKeys } from './useMarkingKeys'
 import type { GridSettings } from './GridPanel'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
@@ -64,6 +64,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const updateKeyframeState = useStore((s) => s.updateKeyframeState)
   const flushDrillSave = useStore((s) => s.flushDrillSave)
   const uploadDrillThumbnail = useStore((s) => s.uploadDrillThumbnail)
+  const enableDrillSharing = useStore((s) => s.enableDrillSharing)
+  const disableDrillSharing = useStore((s) => s.disableDrillSharing)
   const saveState = useStore((s) => s.saveState)
   const showToast = useToast()
 
@@ -633,7 +635,15 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
           <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)}>
             <ExportPanel
-              drill={drill}
+              target={{
+                kind: 'drill',
+                name: drill.name,
+                shareToken: drill.share_token,
+                sharePath: '/d',
+                cardPath: `/drills/${drill.id}/card`,
+                onEnableSharing: () => enableDrillSharing(drill.id),
+                onDisableSharing: () => disableDrillSharing(drill.id),
+              }}
               onExportPng={handleExportPng}
               onExportGif={(filename) => void handleExportGif(filename)}
               gifProgress={gifProgress}
@@ -669,55 +679,3 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   )
 }
 
-// The export drawer, the same always-mounted right-hand shape
-// DrillDetailsDrawer uses — one drawer idiom in the editor, not two.
-function ExportDrawer({
-  open,
-  onClose,
-  children,
-}: {
-  open: boolean
-  onClose: () => void
-  children: React.ReactNode
-}) {
-  useEffect(() => {
-    if (!open) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
-
-  return (
-    <div className={`fixed inset-0 z-40 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
-      <button
-        type="button"
-        aria-label="Close export"
-        onClick={onClose}
-        className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
-      />
-      <div
-        role="dialog"
-        aria-label="Export and share"
-        className={
-          'absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-panel transition-transform duration-200 ' +
-          (open ? 'translate-x-0' : 'translate-x-full')
-        }
-      >
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
-          <p className="text-sm font-semibold text-ink">Export &amp; share</p>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close export"
-            className="flex h-11 w-11 items-center justify-center rounded-md text-ink-muted hover:bg-panel-raised"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="overflow-y-auto p-4">{children}</div>
-      </div>
-    </div>
-  )
-}

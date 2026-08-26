@@ -1,6 +1,8 @@
 import type { StateCreator } from 'zustand'
-import { supabase } from '../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
+import { mintShareToken } from '../shareToken'
 import * as scene from '../sceneActions'
 import { assignToFormation, type FormationSlot } from '../../components/tactics/formations'
 import type { NewEntityInput } from '../sceneActions'
@@ -54,6 +56,11 @@ export interface NewTacticInput {
 // debounce without noticing. Same rule, same reason, as DrillUpdateInput.
 export interface TacticUpdateInput {
   name?: string
+  // Written only by enableTacticSharing/disableTacticSharing, never typed into
+  // a form — the same carve-out DrillUpdateInput makes. It is a real column
+  // rather than editor content, so it does not go through the autosave flush
+  // the comment above rules everything else out of.
+  share_token?: string | null
 }
 
 // Which history a mutation belongs to. `drawing` covers markings — arrows,
@@ -271,6 +278,15 @@ export interface TacticSlice {
   addTacticPhase: (tacticId: string, phase: Omit<TacticPhase, 'id'>) => string | null
   updateTacticPhase: (tacticId: string, phaseId: string, patch: Partial<Omit<TacticPhase, 'id'>>) => void
   removeTacticPhase: (tacticId: string, phaseId: string) => void
+
+  // Sharing (Stage 8.2), mirroring drillSlice's three actions exactly. Opt-in
+  // per tactic and revocable: the token is null until a coach turns sharing
+  // on, and null again the moment they turn it off, which migration 023's
+  // first conjunct turns into immediate revocation.
+  enableTacticSharing: (tacticId: string) => Promise<string | null>
+  disableTacticSharing: (tacticId: string) => Promise<boolean>
+  /** Reads one tactic by token as an anonymous visitor would. */
+  fetchSharedTactic: (token: string) => Promise<Tactic | null>
 
   setTacticSide: (tacticId: string, side: 'home' | 'away', patch: Partial<TacticSide>) => void
 
@@ -566,6 +582,40 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
         ...(tactic ? { tactics: get().tactics.map((t) => (t.id === id ? tactic : t)) } : {}),
       })
       return tactic
+    },
+
+    enableTacticSharing: async (tacticId) => {
+      const token = mintShareToken()
+      const updated = await get().updateTactic(tacticId, { share_token: token })
+      return updated ? token : null
+    },
+
+    disableTacticSharing: async (tacticId) => {
+      const updated = await get().updateTactic(tacticId, { share_token: null })
+      return updated !== null
+    },
+
+    fetchSharedTactic: async (token) => {
+      // A second, short-lived client rather than the app-wide one, for the two
+      // reasons drillSlice.fetchSharedDrill gives. It carries the
+      // `x-share-token` header migration 023's policy matches against, which is
+      // per-request data with no business being pinned onto the client every
+      // signed-in coach uses. And it holds no auth session, so a coach who
+      // happens to be signed in on this browser sees exactly what the person
+      // they sent the link to sees — the only way this page can be trusted.
+      const client = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+        global: { headers: { 'x-share-token': token } },
+      })
+      const { data, error } = await runSupabaseAction<Tactic[]>(
+        () => client.from('tactic').select('*').eq('share_token', token).limit(1),
+        "Couldn't load this tactic."
+      )
+      if (error) {
+        set({ tacticsError: error })
+        return null
+      }
+      return data?.[0] ?? null
     },
 
     deleteTactic: async (id) => {

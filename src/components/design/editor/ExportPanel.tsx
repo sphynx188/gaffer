@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, Copy, FileText, Image, Link2, Loader2 } from 'lucide-react'
-import { useStore } from '../../../store'
-import type { Drill } from '../../../store'
 import { useToast } from '../../ui/useToast'
 import { QrCode } from '../export/QrCode'
 import { fileStem } from '../export/exportFile'
@@ -11,8 +9,15 @@ import { fileStem } from '../export/exportFile'
 // button, which was rendered disabled from Stage 5 waiting for exactly this.
 //
 // Filename is a single field shared by every file export, seeded from the
-// drill's own name — the plan's export dialog leads with it, and a folder of
-// "drill.png, drill (1).png, drill (2).png" is what happens without it.
+// document's own name — the plan's export dialog leads with it, and a folder
+// of "drill.png, drill (1).png, drill (2).png" is what happens without it.
+//
+// ── Parameterised, not forked (TACTICS_BOARD_REWORK_PLAN.md Stage 8.1) ────
+// This took a `drill: Drill` until tactics needed the same panel. Everything
+// it actually uses is four strings and two actions, so it takes those instead
+// — the same move Stage 7 made on PropertiesPanel, and for the same reason:
+// two near-copies of this file would drift, and the share half is the half
+// where drift is a security bug rather than a cosmetic one.
 
 const ROW =
   'flex min-h-11 w-full items-center gap-2 rounded-md border border-line px-2.5 text-sm font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50 lg:min-h-9'
@@ -20,8 +25,38 @@ const ROW =
 const FIELD =
   'w-full rounded-md border border-line bg-panel px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30'
 
+/** The per-kind wording. Everything else on this panel is identical. */
+const COPY = {
+  drill: {
+    animation: 'GIF — the whole drill',
+    card: "Coach's card — print or PDF",
+    sharedOn: 'Anyone with this link can watch this drill without an account. No other drill is reachable from it.',
+    sharedOff: 'Off. Turning it on publishes this drill to anyone holding the link — nothing else in your account.',
+  },
+  tactic: {
+    animation: 'GIF — the whole tactic',
+    card: 'Tactic card — print or PDF',
+    sharedOn: 'Anyone with this link can watch this tactic without an account. No other tactic is reachable from it.',
+    sharedOff: 'Off. Turning it on publishes this tactic to anyone holding the link — nothing else in your account.',
+  },
+} as const
+
+export interface ExportTarget {
+  /** Picks the wording above and the filename fallback. */
+  kind: 'drill' | 'tactic'
+  name: string
+  shareToken: string | null
+  /** The public route's prefix — `/d` for drills, `/t` for tactics. */
+  sharePath: string
+  /** The print-styled card route for this document. */
+  cardPath: string
+  /** Resolves to the new token, or null if it couldn't be minted. */
+  onEnableSharing: () => Promise<string | null>
+  onDisableSharing: () => Promise<boolean>
+}
+
 interface ExportPanelProps {
-  drill: Drill
+  target: ExportTarget
   // Owned by the editor — only it can reach the Konva stage (same split as
   // Stage 8's thumbnail capture).
   onExportPng: (filename: string) => void
@@ -29,24 +64,25 @@ interface ExportPanelProps {
   gifProgress: number | null
 }
 
-export function ExportPanel({ drill, onExportPng, onExportGif, gifProgress }: ExportPanelProps) {
-  const enableDrillSharing = useStore((s) => s.enableDrillSharing)
-  const disableDrillSharing = useStore((s) => s.disableDrillSharing)
+export function ExportPanel({ target, onExportPng, onExportGif, gifProgress }: ExportPanelProps) {
   const showToast = useToast()
+  const copy = COPY[target.kind]
 
-  const [stem, setStem] = useState(() => fileStem(drill.name))
+  const [stem, setStem] = useState(() => fileStem(target.name, target.kind))
   const [sharing, setSharing] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const shareUrl = drill.share_token ? `${window.location.origin}/d/${drill.share_token}` : null
+  const shareUrl = target.shareToken
+    ? `${window.location.origin}${target.sharePath}/${target.shareToken}`
+    : null
 
   const handleToggleShare = async () => {
     setSharing(true)
-    if (drill.share_token) {
-      const ok = await disableDrillSharing(drill.id)
+    if (target.shareToken) {
+      const ok = await target.onDisableSharing()
       showToast(ok ? 'Sharing turned off — the old link is dead' : "Couldn't turn sharing off")
     } else {
-      const token = await enableDrillSharing(drill.id)
+      const token = await target.onEnableSharing()
       showToast(token ? 'Share link created' : "Couldn't create a share link")
     }
     setSharing(false)
@@ -66,7 +102,7 @@ export function ExportPanel({ drill, onExportPng, onExportGif, gifProgress }: Ex
     }
   }
 
-  const name = stem.trim() || fileStem(drill.name)
+  const name = stem.trim() || fileStem(target.name, target.kind)
 
   return (
     <div className="space-y-3">
@@ -78,7 +114,7 @@ export function ExportPanel({ drill, onExportPng, onExportGif, gifProgress }: Ex
           id="export-filename"
           value={stem}
           onChange={(e) => setStem(e.target.value)}
-          placeholder={fileStem(drill.name)}
+          placeholder={fileStem(target.name, target.kind)}
           className={FIELD}
         />
       </div>
@@ -95,11 +131,11 @@ export function ExportPanel({ drill, onExportPng, onExportGif, gifProgress }: Ex
           ) : (
             <Image className="h-4 w-4 shrink-0" />
           )}
-          {gifProgress !== null ? `Recording — ${Math.round(gifProgress * 100)}%` : 'GIF — the whole drill'}
+          {gifProgress !== null ? `Recording — ${Math.round(gifProgress * 100)}%` : copy.animation}
         </button>
-        <Link to={`/drills/${drill.id}/card`} className={ROW}>
+        <Link to={target.cardPath} className={ROW}>
           <FileText className="h-4 w-4 shrink-0" />
-          Coach's card — print or PDF
+          {copy.card}
         </Link>
       </div>
 
@@ -107,9 +143,7 @@ export function ExportPanel({ drill, onExportPng, onExportGif, gifProgress }: Ex
         <p className="text-xs font-medium text-ink-muted">Share link</p>
         {shareUrl ? (
           <>
-            <p className="text-xs text-ink-faint">
-              Anyone with this link can watch this drill without an account. No other drill is reachable from it.
-            </p>
+            <p className="text-xs text-ink-faint">{copy.sharedOn}</p>
             <div className="flex justify-center py-1">
               <QrCode value={shareUrl} />
             </div>
@@ -132,9 +166,7 @@ export function ExportPanel({ drill, onExportPng, onExportGif, gifProgress }: Ex
           </>
         ) : (
           <>
-            <p className="text-xs text-ink-faint">
-              Off. Turning it on publishes this drill to anyone holding the link — nothing else in your account.
-            </p>
+            <p className="text-xs text-ink-faint">{copy.sharedOff}</p>
             <button type="button" onClick={handleToggleShare} disabled={sharing} className={ROW}>
               <Link2 className="h-4 w-4 shrink-0" />
               {sharing ? 'Working…' : 'Create a share link'}

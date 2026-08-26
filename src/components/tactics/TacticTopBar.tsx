@@ -3,9 +3,11 @@ import {
   ChevronLeft,
   Circle,
   Columns2,
+  Download,
   Maximize,
   PanelLeft,
   PanelRight,
+  Play,
   Redo2,
   RectangleHorizontal,
   RectangleVertical,
@@ -38,8 +40,11 @@ import {
 // a setup step. It calls `setTacticOrientation`, which transposes the content
 // as well as the markings — see canvas/transposeScene.ts for why that matters.
 //
-// ACTIONS is absent. Teloframe's Actions menu holds Export, Presentation and
-// Customize, all of which are Stage 8's; an empty menu is worse than no menu.
+// ACTIONS is still absent as a MENU. Teloframe collects Export, Presentation
+// and Customize behind one; Stage 8 built the first two and Customize is
+// already the inspector's Style tab, so all three have a home and a menu over
+// them would be a layer with nothing in it. Export and Present are plain
+// buttons in this bar instead, beside everything else a coach reaches for.
 // UNDO/REDO here are the TIMELINE scope. Drawing undo lives in the inspector's
 // Tools tab beside the drawing tools, which is the whole point of the two
 // stacks Stage 2.3 built.
@@ -54,6 +59,8 @@ export function TacticTopBar({
   onToggleTimeline,
   onAddBall,
   onEnterBoardOnly,
+  onExport,
+  onPresent,
 }: {
   tactic: Tactic
   squadOpen: boolean
@@ -64,6 +71,8 @@ export function TacticTopBar({
   onToggleTimeline: () => void
   onAddBall: () => void
   onEnterBoardOnly: () => void
+  onExport: () => void
+  onPresent: () => void
 }) {
   const updateTactic = useStore((s) => s.updateTactic)
   const saveState = useStore((s) => s.tacticSaveState)
@@ -197,6 +206,26 @@ export function TacticTopBar({
         title="Redo"
       >
         <Redo2 className="h-4 w-4" />
+      </button>
+
+      <button
+        type="button"
+        onClick={onPresent}
+        className={EDITOR_TOGGLE_OFF + ' shrink-0'}
+        title="Present phase by phase, full screen (P)"
+      >
+        <Play className="h-3.5 w-3.5" />
+        Present
+      </button>
+
+      <button
+        type="button"
+        onClick={onExport}
+        className={EDITOR_ICON_BUTTON + ' shrink-0'}
+        aria-label="Export"
+        title="Export & share"
+      >
+        <Download className="h-4 w-4" />
       </button>
 
       <button

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import type { SaveState } from '../../../store'
 
 // The parts of the editor shell both editors genuinely agree on
@@ -256,6 +256,68 @@ export function Sheet({
           </button>
         </div>
         <div className="p-4">{children}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The export & share drawer — the same always-mounted right-hand shape
+ * `DrillDetailsDrawer` and `Sheet` use, so there is one drawer idiom in the
+ * editor rather than three.
+ *
+ * Lived inside `DrillEditor.tsx` until the tactics editor needed the identical
+ * drawer for the identical panel (TACTICS_BOARD_REWORK_PLAN.md Stage 8.1).
+ * Unlike the top bars, which the plan is explicit about NOT forcing a shell
+ * over, the two drawers really are the same thing — so this is moved here
+ * rather than copied.
+ */
+export function ExportDrawer({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  children: ReactNode
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onClose])
+
+  return (
+    <div className={`fixed inset-0 z-40 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+      <button
+        type="button"
+        aria-label="Close export"
+        onClick={onClose}
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
+      />
+      <div
+        role="dialog"
+        aria-label="Export and share"
+        className={
+          'absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-panel transition-transform duration-200 ' +
+          (open ? 'translate-x-0' : 'translate-x-full')
+        }
+      >
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
+          <p className="text-sm font-semibold text-ink">Export &amp; share</p>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close export"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-ink-muted hover:bg-panel-raised"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-4">{children}</div>
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import { createClient } from '@supabase/supabase-js'
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
+import { mintShareToken } from '../shareToken'
 import * as scene from '../sceneActions'
 import type { NewEntityInput } from '../sceneActions'
 import type {
@@ -106,15 +107,6 @@ const AUTOSAVE_IDLE_MS = 800
 
 // Created by migration 017, public-read, one PNG per drill named by id.
 const THUMBNAIL_BUCKET = 'drill-thumbnails'
-
-// 128 bits, per the plan's own warning about guessable-if-short share URLs
-// (Stage 10.4). `crypto.getRandomValues` rather than `Math.random`: this is the
-// only thing standing between a drill and the open internet once a coach opts
-// in, and Math.random is not a CSPRNG in any engine.
-function mintShareToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16))
-  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
-}
 
 function snapshotOf(drill: Drill): DrillSnapshot {
   return {

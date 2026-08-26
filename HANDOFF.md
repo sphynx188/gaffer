@@ -276,6 +276,140 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 8: export, share and presentation
+
+Stage 8 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). A
+tactic now exports as a PNG, a GIF and a one-page printed card, shares on a
+public `/t/:token` link, and presents full-screen phase by phase.
+
+### 8.1 Export — parameterised, not forked
+
+The plan's own framing ("re-point `design/export/*` at tactics") is what this
+followed literally. Three extractions, no new export code:
+
+- `ExportPanel` took a `drill: Drill`. It now takes an `ExportTarget` —
+  `{kind, name, shareToken, sharePath, cardPath, onEnable/DisableSharing}` —
+  which both editors satisfy. Same move Stage 7 made on `PropertiesPanel`.
+  The per-kind wording lives in one `COPY` record.
+- `ExportDrawer` was a private function inside `DrillEditor.tsx`. Moved to
+  `EditorShell.tsx` beside `Sheet`. Unlike the top bars, which the plan is
+  explicit about NOT forcing a shell over, the two drawers really are the
+  same thing.
+- `mintShareToken` was private to `drillSlice`. Now `store/shareToken.ts`,
+  called by both. It is the one function that must not exist twice.
+
+PNG and GIF are driven from the EDITORS, not the panel, because the Konva
+stage is only reachable there — the split `DrillEditor` already documents.
+`TacticEditor` gained the `stageRef` it never had.
+
+**The Tactic Card** is `/tactics/:tacticId/card`, a print-styled route rather
+than a PDF dependency, exactly as the drill's Coach's Card is, and outside
+`AppShell` for the same reason. Content is the plan's list: formation, both
+sides, phase list, drawn board. Measured at A4 with 14mm margins (688×1017px
+of printable area): the sheet renders 622px tall, so one page with ~105mm
+spare — room for roughly seventeen more phase rows before it would overflow.
+
+**MP4 was NOT built.** The plan's item 1 lists it; the plan's own definition
+of done does not ("a still, an animation and a one-page PDF"). `recordGif.ts`
+already records the drill rework's decision to build the GIF half only, as the
+half that works everywhere and the fallback an MP4 path would need anyway.
+Building a WebCodecs encoder here would have been invention, not the
+re-pointing this stage asks for. Flagged rather than silently skipped.
+
+### 8.2 Share token — the part the plan says genuinely matters
+
+Migration 023 mirrors 018 in **both** its parts. Part 2 is the policy:
+`share_token is not null AND share_token = <x-share-token header>`. Part 1
+gives `tactic_all_members` the `to authenticated` it never had — which changes
+no behaviour today (probe 0 below) and is there so a `for all` policy is not
+left pointed at `anon` next to a live anon surface, which is exactly how 018
+Part 1's hole came to exist.
+
+**Verified by hand, twice, as the stage demands** — once in SQL against the
+live database, then again over real HTTP through the anon key, which is the
+true private-window equivalent. Two tactics were shared at once for the read
+probes, because the failure this policy exists to prevent is one link
+revealing the other. The SQL probes are recorded in 023's footer; over HTTP,
+every table in the schema was swept while holding a valid link:
+
+    availability [] · drill [] · formation [] · player [] · player_notes []
+    session [] · session_drills [] · session_tactics [] · team [] ·
+    team_coaches [] · tactic -> exactly one row, the shared one
+
+Negative cases: neighbouring token (last char changed) → `[]`; a different
+first character → `[]`; no header → `[]`; a valid token asking for another
+tactic by id → `[]`; `PATCH` with a valid token → `[]`. In the browser all
+three bad tokens render the same "This link isn't active" message — one
+message for mistyped, revoked and non-existent alike, so a guessing attempt
+learns nothing. Revocation was tested through the UI: Stop sharing, and the
+same URL died immediately.
+
+**A shared tactic exposes less than the plan feared.** The plan warns that it
+"exposes real squad names". It does not: a roster-bound entity carries
+`player_id` and the squad NUMBER, and the name is resolved from
+`rostersByTeam` at render time, never denormalised into `tactic.scene`. With
+no anon policy on `player`, the share page cannot resolve a name even if it
+wanted to. So the link publishes the shape, the numbers, the roles and the
+drawings — and nothing else in the account.
+
+### 8.3 Presentation mode
+
+`TacticPresentation.tsx`. The plan says it "builds directly on board-only mode
+(7.5)", and the difference that mattered: board-only strips the EDITOR to the
+pitch, but still renders inside `AppShell`, so the nav rail stays. Presentation
+has to strip the APP to the pitch, which a `fixed inset-0` overlay does. So
+`TacticEditor` hands off to it entirely — an early return placed after every
+hook — rather than layering it on top, which keeps exactly one Konva stage
+mounted.
+
+A step is one phase; entering it parks the playhead at that phase's start, and
+Play stops at the phase's END rather than running into the next one, because
+the point of stepping is that the coach talks between phases. The play-range
+watcher lives in this component, not in `useTimelinePlayback` — a range is what
+presentation means by a step, and the shared hook is the wrong home for a
+tactics-only idea. A tactic with no phases still presents, as one implicit step
+over the whole timeline. Fullscreen API is requested best-effort on top.
+
+**Verified against the real interpolator, not just the labels.** Three phases
+(0–6s, 6–11s, 11–15s) and two extra keyframes were seeded onto a live tactic,
+then the marker positions were read straight off the Konva stage at each step:
+step 2 → {0.500, 0.500} and {0.700, 0.500}; step 3 → {0.200, 0.800} and
+{0.400, 0.850}. Those are the t=6s and t=11s keyframes exactly, so stepping
+really does seek. ArrowLeft returned to step 2's positions, Escape returned to
+the editor with the nav rail back. All seeded data was restored afterwards and
+confirmed by SQL.
+
+### Regression check on the drill editor
+
+The refactor touched shipped drill code, so the drill side was re-verified end
+to end: the drawer opens with drill wording ("GIF — the whole drill",
+"Coach's card"), the right card href, the filename seeded from the drill name
+— and a full share round-trip, create link → `/d/:token` renders the drill →
+Stop sharing. No console errors. Both tables end with zero live share tokens.
+
+`npm run build` clean, `npm run lint` at its 3 pre-existing warnings.
+
+### Gotchas
+
+- **The stale-HMR trap again, and it cost real time.** The Export button
+  looked dead: the click hit-tested correctly onto the button, the handler was
+  wired, the drawer stayed shut. A hard reload fixed it — the tab had been
+  alive across every edit in the session. This is the fourth stage it has bitten.
+  **Reload before debugging a control that does nothing.**
+- **The GIF encode itself cannot be exercised headlessly.** `recordGif` awaits
+  `requestAnimationFrame`, which is suspended while the Browser pane is not
+  compositing, so a real encode would hang rather than fail. What was verified
+  is the guard (a 1-keyframe tactic reports "Add a second keyframe first") and
+  that the export path reaches the live stage — `stage.toDataURL({pixelRatio:
+  2})` returned a 62KB PNG. The encoder itself is the drill's shipped
+  `recordGif`, called with the same arguments.
+- **`read_page` doesn't show an always-mounted drawer's contents**, and
+  `get_page_text` shows them whether it is open or shut — both drawers are in
+  the DOM permanently and only transform out of view. Read `aria-hidden` on the
+  wrapper to know the actual state; neither text dump answers the question.
+
+---
+
 ## Session log — Migration 021: drop `tactic.board`, strip the board types
 
 Not a plan stage — the destructive act Stage 7 was the gate on, done as one

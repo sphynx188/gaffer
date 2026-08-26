@@ -129,7 +129,11 @@ is in flight.
 ### Routing / shell
 
 `src/App.tsx` gates everything on `useSession()` (loading → login → routed
-app). Signed-in routes render inside `src/layout/AppShell.tsx`, which swaps
+app) — except the two public share routes, `/d/:token` and `/t/:token`, which
+sit ABOVE the gate because they have to render for a visitor with no account.
+The two print-styled card routes (`drills/:id/card`, `tactics/:id/card`) are
+inside the gate but outside `AppShell`: a page whose job is to become a sheet
+of paper has no use for a nav rail. Signed-in routes render inside `src/layout/AppShell.tsx`, which swaps
 between two tab sets based on the active route (`TEAM_SCOPED_PATHS` in
 `AppShell.tsx`):
 - Coach-level (cross-team): Dashboard, Teams, Calendar
@@ -170,7 +174,17 @@ Core tables: `team` → `team_coaches` (membership/role) / `player` (with
 enabled on every table; policies live in `supabase/rls_policies.sql`, built
 on two `security definer` helper functions (`is_team_member`,
 `is_team_owner`) — every new table's RLS should reuse those rather than
-redefining membership checks inline. A drill's content lives in
+redefining membership checks inline.
+
+The two anon-reachable policies, `drill_shared_read` (018) and
+`tactic_shared_read` (023), are the only exceptions and share one shape:
+`share_token is not null AND share_token = <the x-share-token request
+header>`. **Both conjuncts matter** — on the first alone, `select * from
+drill` as anon returns every shared row, so one share link would enumerate
+all the others. Any future share surface must copy this shape, and must also
+carry 018/023's other half: give the table's members policy `to
+authenticated`, so a `for all` policy is never left pointed at `anon`.
+023's header records the full set of probes used to verify it. A drill's content lives in
 `drill.scene` (one cast of `entities` with ids stable for the whole drill,
 plus `markings`) and `drill.keyframes` (each a `t` in seconds and a
 `states` map of entityId → position), alongside `drill.duration_seconds`
@@ -244,12 +258,25 @@ board reuses `PitchCanvas` as-is rather than forking it.
 
 Both editors share `EditorLayout` (`design/editor/EditorShell.tsx`) — three
 columns, docked timeline, mobile sheets and floating dock — plus `Sheet`,
-`DockButton` and the top bar's small pieces. They do **not** share a top bar,
-deliberately: the plan's own rule is that a shell forced over two different
-toolbars is worse than two toolbars, and a drill's carries export/3D/tour while
-a tactic's carries Single/Dual, orientation and Add Ball. The tactics bar
-scrolls sideways rather than wrapping, because a two-row bar breaks the fixed
-260px chrome reserve the canvas sizes against.
+`ExportDrawer`, `DockButton` and the top bar's small pieces. They do **not**
+share a top bar, deliberately: the plan's own rule is that a shell forced over
+two different toolbars is worse than two toolbars, and a drill's carries
+export/3D/tour while a tactic's carries Single/Dual, orientation and Add Ball.
+The tactics bar scrolls sideways rather than wrapping, because a two-row bar
+breaks the fixed 260px chrome reserve the canvas sizes against.
+
+`design/export/*` serves both too. `ExportPanel` takes an `ExportTarget`
+(`{kind, name, shareToken, sharePath, cardPath, onEnable/DisableSharing}`)
+rather than a `Drill`, so PNG/GIF/card/share-link is one panel, not two —
+and the share half is the half where a near-duplicate would drift into a
+security bug. PNG and GIF are driven from each EDITOR, not from the panel,
+because the Konva stage is only reachable there. `store/shareToken.ts` holds
+the one 128-bit CSPRNG token minter both slices call.
+
+**MP4 is not built**, for drills or tactics. `recordGif.ts` records why: the
+drill rework built the GIF half only, as the half that works everywhere, and
+Stage 8's definition of done asks for "a still, an animation and a one-page
+PDF" — which PNG/GIF/card satisfy.
 
 `design/timeline/` is shared by both editors via `TimelineHost` — the document
 fields the timeline reads plus its actions, pre-bound to the document, supplied

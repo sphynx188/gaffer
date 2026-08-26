@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Pause, PanelRight, Play, Users } from 'lucide-react'
+import type Konva from 'konva'
 import { useStore } from '../../store'
 import type { Marking, PhasePoint, Tactic } from '../../store'
+import { useToast } from '../ui/useToast'
 import { PitchCanvas, type EntityMove } from '../design/PitchCanvas'
 import { frameAt, type RenderFrame } from '../design/canvas/interpolate'
-import { DockButton, EditorLayout } from '../design/editor/EditorShell'
+import { DockButton, EditorLayout, ExportDrawer } from '../design/editor/EditorShell'
+import { ExportPanel } from '../design/editor/ExportPanel'
+import { downloadBlob, downloadDataUrl } from '../design/export/exportFile'
+import { recordGif } from '../design/export/recordGif'
 import { markingToolSpec, type MarkingTool } from '../design/editor/markingTools'
 import { useMarkingKeys } from '../design/editor/useMarkingKeys'
 import { motionPathsFor, trailFramesFor } from '../design/timeline/motion'
@@ -16,6 +21,7 @@ import { useKeyframeToggle } from '../design/timeline/useKeyframeToggle'
 import { useTimelinePlayback } from '../design/timeline/useTimelinePlayback'
 import { SquadPanel } from './SquadPanel'
 import { TacticInspector, type InspectorTab } from './TacticInspector'
+import { TacticPresentation } from './TacticPresentation'
 import { TacticTopBar } from './TacticTopBar'
 import { useTacticTimelineHost } from './useTacticTimelineHost'
 
@@ -28,6 +34,12 @@ import { useTacticTimelineHost } from './useTacticTimelineHost'
 // All of the editor's own view state lives here: which tool is armed, what is
 // selected, where the playhead is. None of it belongs in the store — the
 // playhead alone would re-render every subscriber sixty times a second.
+//
+// Stage 8 added the two ways out of the editor. EXPORT reuses the drill
+// editor's panel wholesale — PNG and GIF are driven from here because the
+// Konva stage is only reachable from this component, exactly the split
+// DrillEditor documents. PRESENT hands off to TacticPresentation entirely
+// rather than layering it on top, so only one Konva stage is ever mounted.
 
 export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const addTacticEntity = useStore((s) => s.addTacticEntity)
@@ -37,6 +49,9 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const removeTacticMarking = useStore((s) => s.removeTacticMarking)
   const updateTacticMarking = useStore((s) => s.updateTacticMarking)
   const flushTacticSave = useStore((s) => s.flushTacticSave)
+  const enableTacticSharing = useStore((s) => s.enableTacticSharing)
+  const disableTacticSharing = useStore((s) => s.disableTacticSharing)
+  const showToast = useToast()
 
   const [side, setSide] = useState<'home' | 'away'>('home')
   const [tool, setTool] = useState<'select' | 'marking'>('select')
@@ -47,6 +62,9 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [boardOnly, setBoardOnly] = useState(false)
+  const [presenting, setPresenting] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [gifProgress, setGifProgress] = useState<number | null>(null)
   const [onionSkin, setOnionSkin] = useState(false)
   const [playerPaths, setPlayerPaths] = useState(false)
   const [ghostTrails, setGhostTrails] = useState(false)
@@ -103,6 +121,52 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     [ghostTrails, tactic.scene, tactic.keyframes, playback.currentTime]
   )
 
+  // Exports (Stage 8.1). Both live here rather than in ExportPanel because
+  // the Konva stage is only reachable from this component — the same split
+  // DrillEditor makes, for the same reason.
+  const stageRef = useRef<Konva.Stage | null>(null)
+
+  const handleExportPng = (filename: string) => {
+    const stage = stageRef.current
+    if (!stage) return
+    // pixelRatio 2, as the drill editor uses: a retina-sharp still that
+    // survives being dropped into a team chat.
+    void downloadDataUrl(stage.toDataURL({ pixelRatio: 2, mimeType: 'image/png' }), filename)
+    showToast('PNG saved')
+  }
+
+  const handleExportGif = async (filename: string) => {
+    const stage = stageRef.current
+    if (!stage || gifProgress !== null) return
+    if (tactic.keyframes.length < 2) {
+      showToast('Add a second keyframe first — there is nothing to animate')
+      return
+    }
+    // Recording drives the playhead, so anything already playing has to stop
+    // or the two would fight over it. Where the coach had it is restored
+    // afterwards, whether the encode succeeded or not.
+    const resumeAt = playback.currentTime
+    playback.pause()
+    setGifProgress(0)
+    try {
+      const blob = await recordGif({
+        stage,
+        durationSeconds: tactic.duration_seconds,
+        seek: playback.seek,
+        onProgress: setGifProgress,
+      })
+      if (blob) {
+        downloadBlob(blob, filename)
+        showToast('GIF saved')
+      } else {
+        showToast("Couldn't record the GIF")
+      }
+    } finally {
+      setGifProgress(null)
+      playback.seek(resumeAt)
+    }
+  }
+
   useMarkingKeys({
     onSelectTool: (next) => {
       if (next === 'select') {
@@ -115,19 +179,24 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     },
   })
 
-  // Board-only mode (7.5): `F` in, Escape or `F` back out.
+  // Board-only mode (7.5): `F` in, Escape or `F` back out. `P` presents
+  // (8.3). Both stand down while presenting, which owns its own keys —
+  // otherwise Escape would leave the presentation AND toggle board-only
+  // underneath it, and `F` would flip a layout nobody can see.
   useEffect(() => {
+    if (presenting) return
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       const tag = target?.tagName?.toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
       if (event.key === 'f' || event.key === 'F') setBoardOnly((on) => !on)
+      if (event.key === 'p' || event.key === 'P') setPresenting(true)
       if (event.key === 'Escape') setBoardOnly(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [presenting])
 
   const keyframeId = parkedKeyframe?.id ?? tactic.keyframes[0]?.id ?? null
 
@@ -189,6 +258,7 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const canvas = (
     <>
       <PitchCanvas
+        stageRef={stageRef}
         pitch={tactic.pitch}
         frame={visible}
         onionFrames={onion}
@@ -275,6 +345,13 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     </>
   )
 
+  // Presentation (8.3) replaces the editor rather than covering it: one Konva
+  // stage on screen, and `fixed inset-0` there escapes AppShell's nav rail,
+  // which board-only can't do from inside the layout. Placed after every hook
+  // above, so none of them is skipped on the render that hands off.
+  if (presenting) {
+    return <TacticPresentation tactic={tactic} onExit={() => setPresenting(false)} />
+  }
   return (
     <EditorLayout
       boardOnly={boardOnly}
@@ -291,6 +368,8 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
             if (keyframeId) addTacticEntity(tactic.id, 'ball', { x: 0.5, y: 0.5 })
           }}
           onEnterBoardOnly={() => setBoardOnly(true)}
+          onExport={() => setExportOpen(true)}
+          onPresent={() => setPresenting(true)}
         />
       }
       rail={squad}
@@ -319,15 +398,34 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
         </>
       }
       extras={
-        boardOnly ? (
-          <button
-            type="button"
-            onClick={() => setBoardOnly(false)}
-            className="fixed right-4 top-4 z-40 rounded-md border border-line bg-panel/90 px-2 py-1 text-xs font-medium text-ink-muted hover:border-line-strong"
-          >
-            Exit board-only (F)
-          </button>
-        ) : null
+        <>
+          {boardOnly && (
+            <button
+              type="button"
+              onClick={() => setBoardOnly(false)}
+              className="fixed right-4 top-4 z-40 rounded-md border border-line bg-panel/90 px-2 py-1 text-xs font-medium text-ink-muted hover:border-line-strong"
+            >
+              Exit board-only (F)
+            </button>
+          )}
+
+          <ExportDrawer open={exportOpen} onClose={() => setExportOpen(false)}>
+            <ExportPanel
+              target={{
+                kind: 'tactic',
+                name: tactic.name,
+                shareToken: tactic.share_token,
+                sharePath: '/t',
+                cardPath: `/tactics/${tactic.id}/card`,
+                onEnableSharing: () => enableTacticSharing(tactic.id),
+                onDisableSharing: () => disableTacticSharing(tactic.id),
+              }}
+              onExportPng={handleExportPng}
+              onExportGif={(filename) => void handleExportGif(filename)}
+              gifProgress={gifProgress}
+            />
+          </ExportDrawer>
+        </>
       }
     />
   )
