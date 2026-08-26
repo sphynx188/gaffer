@@ -1,6 +1,6 @@
 import { LandingNav } from './LandingNav'
 import { Footer } from './Footer'
-import { WaitlistForm } from './WaitlistForm'
+import { Hero } from './Hero'
 
 // The public marketing page (landing-page spec, 2026-08-26). Dark-only via
 // .landing-dark (index.css) regardless of the visitor's stored theme.
@@ -11,10 +11,7 @@ export function LandingPage() {
     <div id="top" className="landing-dark min-h-svh scroll-smooth bg-surface text-ink">
       <LandingNav />
       <main>
-        <section className="flex min-h-svh flex-col items-center justify-center gap-6 px-6">
-          <h1 className="text-4xl font-semibold tracking-tight">Gaffer</h1>
-          <WaitlistForm />
-        </section>
+        <Hero />
       </main>
       <Footer />
     </div>
