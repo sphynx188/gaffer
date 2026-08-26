@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Layers, Pause, Play, Repeat, SkipBack, SkipForward } from 'lucide-react'
+import { ChevronDown, ChevronUp, Footprints, Layers, Pause, Play, Repeat, SkipBack, SkipForward, Spline } from 'lucide-react'
 import type { Keyframe } from '../../../store'
 import { formatClock, stepKeyframe } from './cursor'
 import type { TimelinePlayback } from './useTimelinePlayback'
@@ -20,6 +20,19 @@ interface TimelineBarProps {
   onToggleExpanded: () => void
   // `K`, and the context-aware button in the track editor, share this.
   onToggleKeyframe?: () => void
+
+  // Player paths (`T`) and ghost trails (`G`), rework plan Stage 5.5. Optional
+  // and independent of each other and of onion skin — a coach turns on the one
+  // that answers the question they have. A host that doesn't pass them simply
+  // doesn't get the buttons.
+  playerPaths?: boolean
+  onTogglePlayerPaths?: () => void
+  ghostTrails?: boolean
+  onToggleGhostTrails?: () => void
+
+  // Ctrl+C / Ctrl+V over the keyframe under the playhead (Stage 5.6).
+  onCopyKeyframe?: () => void
+  onPasteKeyframe?: () => void
   className?: string
 }
 
@@ -36,11 +49,25 @@ export function TimelineBar({
   expanded,
   onToggleExpanded,
   onToggleKeyframe,
+  playerPaths,
+  onTogglePlayerPaths,
+  ghostTrails,
+  onToggleGhostTrails,
+  onCopyKeyframe,
+  onPasteKeyframe,
   className,
 }: TimelineBarProps) {
   // Wired here rather than left to the host: the bar is the part of the
   // timeline that's always on screen, so the shortcuts exist wherever it does.
-  useTimelineKeys({ playback, keyframes, onToggleKeyframe })
+  useTimelineKeys({
+    playback,
+    keyframes,
+    onToggleKeyframe,
+    onTogglePlayerPaths,
+    onToggleGhostTrails,
+    onCopyKeyframe,
+    onPasteKeyframe,
+  })
 
   const previous = stepKeyframe(keyframes, playback.currentTime, -1)
   const next = stepKeyframe(keyframes, playback.currentTime, 1)
@@ -129,6 +156,32 @@ export function TimelineBar({
         <Layers className="h-3.5 w-3.5" />
         Onion skin
       </button>
+
+      {onTogglePlayerPaths && (
+        <button
+          type="button"
+          onClick={onTogglePlayerPaths}
+          aria-pressed={playerPaths}
+          className={playerPaths ? TOGGLE_ON : TOGGLE_OFF}
+          title="Show the route each moving player takes (T)"
+        >
+          <Spline className="h-3.5 w-3.5" />
+          Paths
+        </button>
+      )}
+
+      {onToggleGhostTrails && (
+        <button
+          type="button"
+          onClick={onToggleGhostTrails}
+          aria-pressed={ghostTrails}
+          className={ghostTrails ? TOGGLE_ON : TOGGLE_OFF}
+          title="Trail faded copies behind whatever is moving (G)"
+        >
+          <Footprints className="h-3.5 w-3.5" />
+          Trails
+        </button>
+      )}
 
       <button
         type="button"

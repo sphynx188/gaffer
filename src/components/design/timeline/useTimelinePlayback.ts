@@ -11,11 +11,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 2] as const
 export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number]
 
-// One press of the left/right arrow keys. Not tied to the rAF rate — it's a
-// scrubbing granularity, chosen fine enough to land on a moment between two
-// keyframes and coarse enough that holding the key gets somewhere. The `,`/`.`
-// shortcuts are the coarse movement.
-export const FRAME_SECONDS = 1 / 30
+// Re-exported from frames.ts, where it now lives alongside the frames<->seconds
+// helpers that share its 30 fps basis (Stage 5.3). Kept exported here so every
+// existing importer carries on working unchanged.
+export { FRAME_SECONDS } from './frames'
 
 export interface TimelinePlayback {
   currentTime: number

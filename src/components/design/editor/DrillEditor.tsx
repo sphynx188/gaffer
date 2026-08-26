@@ -9,6 +9,7 @@ import { frameAt } from '../canvas/interpolate'
 import { TimelineBar } from '../timeline/TimelineBar'
 import { TimelineEditor } from '../timeline/TimelineEditor'
 import { onionFramesFor } from '../timeline/onionSkin'
+import { motionPathsFor, trailFramesFor } from '../timeline/motion'
 import { useTimelinePlayback } from '../timeline/useTimelinePlayback'
 import { useKeyframeToggle } from '../timeline/useKeyframeToggle'
 import { useDrillTimelineHost } from './useDrillTimelineHost'
@@ -72,6 +73,10 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [routeDraft, setRouteDraft] = useState<PhasePoint[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [onionSkin, setOnionSkin] = useState(false)
+  // Player paths and ghost trails (rework plan Stage 5.5). Independent of each
+  // other and of onion skin; each costs nothing while off.
+  const [playerPaths, setPlayerPaths] = useState(false)
+  const [ghostTrails, setGhostTrails] = useState(false)
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [propsOpen, setPropsOpen] = useState(false)
@@ -130,6 +135,14 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const onion = useMemo(
     () => (onionSkin ? onionFramesFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
     [onionSkin, drill.scene, drill.keyframes, playback.currentTime]
+  )
+  const paths = useMemo(
+    () => (playerPaths ? motionPathsFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
+    [playerPaths, drill.scene, drill.keyframes, playback.currentTime]
+  )
+  const trails = useMemo(
+    () => (ghostTrails ? trailFramesFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
+    [ghostTrails, drill.scene, drill.keyframes, playback.currentTime]
   )
   const timelineHost = useDrillTimelineHost(drill)
   const keyframeToggle = useKeyframeToggle(timelineHost, frame, playback)
@@ -483,6 +496,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
             pitch={drill.pitch}
             frame={frame}
             onionFrames={onion}
+            motionPaths={paths}
+            trailFrames={trails}
             maxWidth={720}
             maxHeight={Math.max(260, viewportHeight - 260)}
             editable
@@ -556,6 +571,10 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         keyframes={drill.keyframes}
         onionSkin={onionSkin}
         onToggleOnionSkin={() => setOnionSkin((v) => !v)}
+        playerPaths={playerPaths}
+        onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
+        ghostTrails={ghostTrails}
+        onToggleGhostTrails={() => setGhostTrails((v) => !v)}
         expanded={timelineOpen}
         onToggleExpanded={() => setTimelineOpen((v) => !v)}
         onToggleKeyframe={keyframeToggle.toggle}

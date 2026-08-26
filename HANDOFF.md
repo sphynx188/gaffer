@@ -276,6 +276,74 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 5: timeline, phases and visualisations
+
+Stage 5 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md), in two
+commits — the parameterisation on its own, then everything tactics-facing.
+
+### What happened, in order
+
+1. **5.1 `TimelineHost`, as its own commit with the drill editor verified green
+   either side.** The coupling was far narrower than expected: of the nine files
+   in `timeline/`, only `TimelineEditor.tsx` and `useKeyframeToggle.ts` touched
+   the store. The other seven were already pure and are untouched.
+2. **5.3** `timeline/frames.ts` — 30 fps helpers; `FRAME_SECONDS` moved there.
+   Keyframe drags snap to 1/30s. Seconds remain the stored unit.
+3. **5.5** `timeline/motion.ts` — `motionPathsFor` / `trailFramesFor`, pure over
+   what `frameAt` already produces, rendered by one new `MotionLayer`.
+4. **5.2** `PhaseTrack.tsx` + `phases.ts` — bands, edge-drag retiming clamped
+   against neighbours, and the Add Phase dialog.
+5. **5.4** zoom, **5.6** Ctrl+C/Ctrl+V, then `useTacticTimelineHost` and
+   `TacticTimeline` for Stage 7 to mount.
+
+### What Worked
+
+- **Doing 5.1 first and alone.** It made the rest mechanical, and the drill
+  editor was re-verified against real data (setDuration 5s→8s through the real
+  input, balanceTiming spreading to 0/2.667/5.333/8, two undos restoring
+  exactly) before anything tactics-specific existed.
+- **One MotionLayer rather than two.** PitchCanvas documents a seven-layer Konva
+  ceiling and was using six; paths and trails share a layer and carry opacity
+  per shape, which a trail needs anyway since it fades with distance.
+- **Enforcing "bands may not overlap" at the gesture.** Stage 2's phase actions
+  shipped without the constraint; clamping the drag against neighbours keeps
+  their contract as specified while making overlap unreachable.
+
+### What Didn't Work / Watch Out For
+
+- **rAF is suspended in this harness.** `document.hidden` is permanently true in
+  the Browser pane, so `requestAnimationFrame` never fires and continuous
+  playback cannot be observed — the clock sits still with Play pressed. Seeking
+  and the transport work fine. "Plays back smoothly" was verified instead by
+  sampling `frameAt` 361 times across the 12s tactic (finer than 30 fps): all 11
+  entities finite in every frame, largest single step 0.2% of the pitch, zero
+  snaps. That is literally what playback renders each frame, but it is not the
+  same as watching it run, and it is worth a human eye at some point.
+- **Phase bands were inclusive at both ends**, so both bands lit whenever the
+  playhead sat exactly on a join. Now half-open `[start, end)`, with the final
+  instant belonging to the band that ends there. Verified: 0→Build-up,
+  4→Press, 8→Transition, 12→Transition, exactly one lit at each.
+- **Two false alarms worth remembering.** (1) A long-lived tab's console keeps
+  every HMR error from every edit — "hooks order changed" and "deps array
+  changed size" both vanish on a fresh tab; always check a new one before
+  believing a React warning. (2) A 0.1 "snap" in the smoothness check turned out
+  to be a keyframe my own earlier Ctrl+V test had pasted at t=4.033 — which
+  incidentally proved copy/paste works.
+- **Synthetic `PointerEvent`s hang the pane.** Use the real controls, or the
+  `computer` tool.
+- Paths/trails are wired into the DRILL editor too, not just left for Stage 7.
+  It is the only live mount of the shared bar, the features are generic, and
+  without it 5.5 would ship as dead code with no way to verify the definition of
+  done's "toggled independently".
+
+## Next Steps
+
+1. **Stage 6 — drawing tools to parity** (9 marking kinds → 14).
+2. **Stage 7** mounts `TacticTimeline`, `SquadPanel` and `FormationPicker`, and
+   is the gate on migration 021.
+
+---
+
 ## Session log — Tactics board rework, Stage 4: squad panel, two teams, roster binding
 
 Stage 4 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md).

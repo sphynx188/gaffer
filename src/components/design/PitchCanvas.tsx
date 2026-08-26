@@ -3,6 +3,7 @@ import type Konva from 'konva'
 import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Stage, Tag, Text, Transformer } from 'react-konva'
 import type { Marking, PhasePoint, PitchConfig } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
+import type { MotionPath } from './timeline/motion'
 import { ANNOTATION, ARROW, BALL, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
 import { EquipmentShape } from './canvas/EquipmentShapes'
 import {
@@ -92,6 +93,13 @@ interface PitchCanvasProps {
   // rather than information about movement.
   onionFrames?: RenderFrame[]
 
+  // Player paths and ghost trails (rework plan Stage 5.5). Both are derived
+  // from what `frameAt` already produces (see timeline/motion.ts) and both are
+  // only ever rendered, never interactive. They share ONE layer — see
+  // MotionLayer below for why that matters.
+  motionPaths?: MotionPath[]
+  trailFrames?: RenderFrame[]
+
   // Staged first point of an in-progress two-click arrow. Only ever rendered.
   pendingArrowStart?: NormalizedPoint | null
   hintText?: string | null
@@ -144,6 +152,13 @@ const MARQUEE_THRESHOLD_PX = 4
 // Onion-skin ghosts sit far enough back to read as "not now" without
 // disappearing against the turf.
 const ONION_OPACITY = 0.28
+
+// A ghost trail fades out as it recedes. The nearest copy is the most solid,
+// and none of them reach onion-skin opacity — a trail says "a moment ago",
+// which is a weaker claim than "a whole keyframe away".
+const TRAIL_MAX_OPACITY = 0.22
+// Movement paths sit above the turf but below everything placed on it.
+const PATH_OPACITY = 0.75
 
 // Nothing in this component may hold a hex value — see pitchTheme.ts.
 const EMPTY_SELECTION: string[] = []
@@ -237,6 +252,8 @@ export function PitchCanvas({
   snapToGrid = false,
   smartGuides = false,
   onionFrames,
+  motionPaths,
+  trailFrames,
   pendingArrowStart,
   hintText,
   stageRef,
@@ -1070,6 +1087,62 @@ export function PitchCanvas({
                   )
                 })
               )}
+            </Layer>
+          )}
+
+          {/* --- MotionLayer: player paths (T) and ghost trails (G), rework
+              plan Stage 5.5. ONE layer for both, deliberately: the comment on
+              EntityLayer below records Konva's seven-layer ceiling, and this
+              canvas was already using six. Paths and trails are both
+              non-interactive movement hints drawn under the live entities, so
+              they share a layer and carry their opacity per shape rather than
+              on the layer — which a trail needs anyway, since it fades with
+              distance. --- */}
+          {((motionPaths && motionPaths.length > 0) || (trailFrames && trailFrames.length > 0)) && (
+            <Layer listening={false}>
+              {trailFrames?.flatMap((ghost, index) =>
+                ghost.entities
+                  // Equipment doesn't run anywhere; trailing a cone is noise.
+                  .filter((entity) => entity.kind !== 'equipment')
+                  .map((entity) => {
+                    const p = toPx(entity)
+                    const isBall = entity.kind === 'ball'
+                    return (
+                      <Circle
+                        key={`trail-${index}-${entity.id}`}
+                        x={p.x}
+                        y={p.y}
+                        radius={isBall ? ballRadius : playerRadius}
+                        opacity={TRAIL_MAX_OPACITY * (1 - index / (trailFrames.length + 1))}
+                        fill={
+                          isBall ? BALL.fill : entity.color ?? teamColors.get(entity.team ?? '') ?? PLAYER.fallback
+                        }
+                      />
+                    )
+                  })
+              )}
+              {motionPaths?.map((path) => {
+                const points = path.points.flatMap((point) => {
+                  const p = toPx(point)
+                  return [p.x, p.y]
+                })
+                const entity = frame?.entities.find((candidate) => candidate.id === path.entityId)
+                return (
+                  <Line
+                    key={`path-${path.entityId}`}
+                    points={points}
+                    stroke={entity?.color ?? teamColors.get(entity?.team ?? '') ?? PLAYER.fallback}
+                    strokeWidth={Math.max(1.5, baseUnit * 0.5)}
+                    opacity={PATH_OPACITY}
+                    lineCap="round"
+                    lineJoin="round"
+                    dash={[baseUnit * 1.2, baseUnit * 1.2]}
+                    // A hand-drawn route is a series of waypoints, so round the
+                    // corners the way `interpolate` actually eases through them.
+                    tension={path.points.length > 2 ? 0.4 : 0}
+                  />
+                )
+              })}
             </Layer>
           )}
 

@@ -1,6 +1,17 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { AlignHorizontalDistributeCenter, Eraser, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import {
+  AlignHorizontalDistributeCenter,
+  Eraser,
+  Maximize2,
+  Plus,
+  Trash2,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react'
 import type { RenderFrame } from '../canvas/interpolate'
+import { snapToFrame } from './frames'
+import { AddPhaseDialog, PhaseTrack } from './PhaseTrack'
+import { firstFreeSpan } from './phases'
 import { formatSegment, segmentSpeeds, type SpeedVerdict } from './speeds'
 import type { TimelineHost } from './TimelineHost'
 import { useKeyframeToggle } from './useKeyframeToggle'
@@ -21,6 +32,13 @@ interface TimelineEditorProps {
 // Tick spacings to choose from, coarsest that still gives a readable ruler.
 const TICK_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60]
 const MAX_TICKS = 10
+
+// Timeline zoom (Stage 5.4). 1 is fit-to-view; above that the track grows wider
+// than its container and scrolls, which is the only way to place a keyframe
+// precisely on a long tactic.
+const ZOOM_MIN = 1
+const ZOOM_MAX = 8
+const ZOOM_STEP = 1.5
 
 // Segment bars carry their verdict as a tinted fill plus a matching border and
 // label — the status tokens design.md reserves for exactly this.
@@ -51,10 +69,18 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
   // move would push a separate undo entry per frame of the drag.
   const [dragging, setDragging] = useState<{ id: string; t: number } | null>(null)
   const [durationDraft, setDurationDraft] = useState<string | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [addingPhase, setAddingPhase] = useState(false)
 
   const { parked, dirty, label, toggle } = useKeyframeToggle(host, frame, playback)
   const duration = host.duration
   const segments = segmentSpeeds(host.scene, host.keyframes, host.pitch)
+
+  // Phases are a tactics concept; a host that doesn't supply them gets no
+  // phase track and no Add Phase button rather than an inert one.
+  const phases = host.phases
+  const canPhase = !!host.addPhase && !!host.updatePhase && !!host.removePhase
+  const freeSpan = phases ? firstFreeSpan(phases, duration) : null
 
   const percentOf = (seconds: number) => (duration > 0 ? clamp((seconds / duration) * 100, 0, 100) : 0)
 
@@ -63,6 +89,44 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
     if (!box || box.width === 0) return 0
     return clamp(((clientX - box.left) / box.width) * duration, 0, duration)
   }
+
+  const zoomBy = (factor: number) => setZoom((z) => clamp(z * factor, ZOOM_MIN, ZOOM_MAX))
+
+  // Ctrl/Cmd + = / - / 0, per the published shortcut reference. preventDefault
+  // matters: without it the browser zooms the whole page instead.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return
+      if (event.key === '=' || event.key === '+') {
+        setZoom((z) => clamp(z * ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))
+        event.preventDefault()
+      } else if (event.key === '-' || event.key === '_') {
+        setZoom((z) => clamp(z / ZOOM_STEP, ZOOM_MIN, ZOOM_MAX))
+        event.preventDefault()
+      } else if (event.key === '0') {
+        setZoom(1)
+        event.preventDefault()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  // `P` adds a phase. Lives here rather than in useTimelineKeys because the
+  // dialog it opens is this component's, and the shortcut should not fire when
+  // the track is collapsed and there is nowhere for the dialog to appear.
+  useEffect(() => {
+    if (!canPhase) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return
+      if (event.key === 'p' || event.key === 'P') setAddingPhase(true)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [canPhase])
 
   const handleTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (dragging) return
@@ -84,7 +148,9 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     if (dragging) {
-      host.moveKeyframe(dragging.id, dragging.t)
+      // Snapped to the 1/30s grid (Stage 5.3), so two keyframes that look
+      // aligned actually are.
+      host.moveKeyframe(dragging.id, snapToFrame(dragging.t))
       setDragging(null)
     }
   }
@@ -111,14 +177,32 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
 
   return (
     <div className={'space-y-3 rounded-xl border border-line bg-panel p-3 ' + (className ?? '')}>
-      <div
-        ref={trackRef}
-        className="relative h-20 cursor-pointer touch-none select-none rounded-md bg-panel-raised"
-        onPointerDown={handleTrackPointerDown}
-        onPointerMove={handleTrackPointerMove}
-        onPointerUp={handleTrackPointerUp}
-        onPointerCancel={handleTrackPointerUp}
-      >
+      {/* The zoom viewport. Everything inside is sized as a percentage of the
+          inner width, so `percentOf` needs no knowledge of the zoom at all —
+          the track simply gets wider and this scrolls. */}
+      <div className="overflow-x-auto">
+        <div style={{ width: `${zoom * 100}%`, minWidth: '100%' }}>
+          {phases && phases.length > 0 && (
+            <div className="mb-1">
+              <PhaseTrack
+                phases={phases}
+                duration={duration}
+                currentTime={playback.currentTime}
+                percentOf={percentOf}
+                timeAt={timeAt}
+                onUpdate={(phaseId, patch) => host.updatePhase?.(phaseId, patch)}
+                onRemove={(phaseId) => host.removePhase?.(phaseId)}
+              />
+            </div>
+          )}
+          <div
+            ref={trackRef}
+            className="relative h-20 cursor-pointer touch-none select-none rounded-md bg-panel-raised"
+            onPointerDown={handleTrackPointerDown}
+            onPointerMove={handleTrackPointerMove}
+            onPointerUp={handleTrackPointerUp}
+            onPointerCancel={handleTrackPointerUp}
+          >
         {/* Ruler */}
         <div className="relative h-5 border-b border-line">
           {ticks.map((tick) => (
@@ -176,7 +260,21 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
         >
           <div className="absolute -left-1 top-0 h-2 w-2 rounded-full bg-accent" />
         </div>
+          </div>
+        </div>
       </div>
+
+      {addingPhase && freeSpan && (
+        <AddPhaseDialog
+          duration={duration}
+          span={freeSpan}
+          onCreate={(phase) => {
+            host.addPhase?.(phase)
+            setAddingPhase(false)
+          }}
+          onCancel={() => setAddingPhase(false)}
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -220,6 +318,59 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
           <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" />
           Balance timing
         </button>
+
+        {canPhase && (
+          <button
+            type="button"
+            onClick={() => setAddingPhase((open) => !open)}
+            disabled={!freeSpan}
+            aria-expanded={addingPhase}
+            className={ACTION}
+            title={freeSpan ? 'Add a phase (P)' : 'No room left on the phase track'}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add phase
+          </button>
+        )}
+
+        {/* Zoom (Stage 5.4). The readout is a percentage the way Teloframe's
+            is, and fit-to-view is the same thing as zoom 1 here because the
+            track is laid out as a percentage of its container. */}
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => zoomBy(1 / ZOOM_STEP)}
+            disabled={zoom <= ZOOM_MIN}
+            className={ACTION}
+            title="Zoom out (Ctrl+-)"
+            aria-label="Zoom out"
+          >
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <span className="w-11 text-center font-mono text-[10px] tabular-nums text-ink-faint">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => zoomBy(ZOOM_STEP)}
+            disabled={zoom >= ZOOM_MAX}
+            className={ACTION}
+            title="Zoom in (Ctrl+=)"
+            aria-label="Zoom in"
+          >
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            disabled={zoom === 1}
+            className={ACTION}
+            title="Fit the whole timeline (Ctrl+0)"
+            aria-label="Fit timeline"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
         <label htmlFor="drill-duration" className="ml-auto text-xs font-medium text-ink-muted">
           Duration

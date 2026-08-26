@@ -235,6 +235,28 @@ Supabase itself; persistence is always the caller's job (see
 `DrillPreview.tsx`'s `persistPhases`). This separation is why the tactics
 board reuses `PitchCanvas` as-is rather than forking it.
 
+`design/timeline/` is shared by both editors via `TimelineHost` — the document
+fields the timeline reads plus its actions, pre-bound to the document, supplied
+by `useDrillTimelineHost` / `useTacticTimelineHost`. **Nothing in `timeline/`
+imports either domain**; keep it that way. Phases and keyframe copy/paste are
+optional on the interface and tactics-only, and the timeline hides the controls
+that need them rather than rendering something inert.
+
+Seconds are the stored time unit and stay that way. `Keyframe.t` is float
+seconds and is load-bearing in `interpolate.ts`, `speeds.ts` and migration 013b.
+Frames (30 fps, `timeline/frames.ts`) are a DISPLAY unit that surfaces in the
+Add Phase dialog and nowhere else; keyframe drags snap to the 1/30s grid.
+
+A tactic phase is a named, coloured band over the keyframe track and is purely
+organisational — it never affects interpolation, which is why `frameAt` has
+never heard of one. Not to be confused with the drill `phases[]` model
+migration 014 dropped, which really was geometry.
+
+`PitchCanvas` documents a seven-layer Konva ceiling and now uses all seven.
+Player paths and ghost trails deliberately share ONE `MotionLayer`, carrying
+opacity per shape rather than per layer. Anything new that needs to draw should
+join an existing layer rather than add an eighth.
+
 `canvas/transposeScene.ts` is shared by both editors and must stay that way.
 Flipping a pitch between portrait and landscape has to move the CONTENT as
 well as the markings: `getPitchMarkings` renders landscape as the portrait
