@@ -276,6 +276,75 @@ in.
 
 ---
 
+## Session log — Public landing page + early-access waitlist
+
+The marketing/home page (spec: docs/superpowers/specs/2026-08-26-landing-page-design.md,
+plan: docs/superpowers/plans/2026-08-26-landing-page.md — both committed).
+Signed-out visitors now get a dark marketing site at `/`; the sign-in screen
+moved to `/login` (signed-in `/login` redirects home). Signed-in routing,
+`/d/:token`, `/t/:token` and password recovery are untouched — verified live,
+not just by build.
+
+### What shipped
+
+- **Routing** (`App.tsx`): the signed-out branch is now routed — `/` →
+  `LandingPage`, `/login` → `Login`, `*` → `/`.
+- **`src/pages/landing/`** (all new): `LandingPage` (composition + dark
+  pinning), `LandingNav`, `Hero`, `HeroPitch` + `demoScene` (the hero runs
+  the REAL engine — `PitchCanvas` + `frameAt` + `useTimelinePlayback` on a
+  hand-authored 13-entity build-up, react-konva lazy-loaded), `LogoWall`,
+  `StatsStrip`, `FeatureSections`, `Testimonials`, `Pricing`, `FinalCta`,
+  `Footer`, `WaitlistForm`, plus `useReveal`/`Reveal` scroll-reveal
+  machinery. All copy is final; all motion respects
+  `prefers-reduced-motion`.
+- **Dark-only marketing surface**: `.landing-dark` in `index.css` pins the
+  dark token values (plus `landing-marquee`/`landing-glow` keyframes), so a
+  light-theme coach still sees the dark landing — verified by setting
+  `gaffer-theme=light` and reloading.
+- **Migration 025 `early_access_signup`** (applied to live + repo file):
+  waitlist table, RLS insert-only for anon/authenticated, NO select policy —
+  read it via dashboard/MCP. `src/lib/waitlist.ts` (`joinWaitlist`) is the
+  one sanctioned direct-supabase call outside the store (needs the 23505
+  code that `runSupabaseAction` flattens; landing must not mount the store).
+  Verified live: insert lands, duplicate shows "already on the list";
+  test rows deleted afterwards.
+
+### Placeholder content — replace before any real marketing use
+
+`LogoWall` (real club names as text wordmarks — deliberately no crest
+artwork), `Testimonials` (invented coaches attributed to real clubs, at
+the owner's explicit request for a private mockup), `Pricing` (planned
+tiers, no billing). Each carries a PLACEHOLDER comment in the file.
+
+### What Worked / Watch Out For
+
+- **Two Claude sessions were editing this repo concurrently** (this one +
+  the tactics Stage 9 session). Consequences hit repeatedly: a transient
+  `tsc` failure from the other session's mid-edit state, a vite 500 from
+  its in-flight `SessionDrillsPanel` → `SessionItemsPanel` rename, and a
+  branch switch I had to revert (creating a `landing-page` branch moved
+  HEAD under the other session's feet — branches are shared repo state;
+  with one working tree there is no branch isolation between sessions).
+  Every commit here stages explicit paths only. My migration was renamed
+  023 → 025 mid-task because the other session's 023/024 already existed.
+- **The Browser pane freezes ALL time-based rendering when hidden**, not
+  just rAF: CSS transitions never advance (Reveal sections sit at opacity
+  0 in screenshots), CSS animations don't run, ResizeObserver callbacks
+  don't fire (the hero canvas stays at its 720px initial width instead of
+  shrinking to a mobile container — the container itself measures
+  correctly, so this is pane-only). Inject `*{transition:none!important}`
+  to screenshot real layouts. Reveal state, marquee/glow animation
+  properties, count-up wiring and `frameAt` motion (sampled t=0→10, ball
+  GK→RB→RW→box, 13/13 entities finite) were all verified structurally;
+  **the user should eyeball the live motion once in a real browser**.
+- **Landing lint trap**: oxlint's `set-state-in-effect` fires on the
+  "reduced-motion → set final state synchronously in effect" pattern.
+  Both hits were rewritten to compute reduced-motion in a `useState`
+  initializer instead (`useReveal`, `StatsStrip`'s `CountUp`).
+- `.claude/launch.json` gained a `gaffer-landing` config (port 5175) so
+  this session's dev server can't collide with the other session's 5173 —
+  in practice the preview tool auto-bumped to another port anyway.
+
 ## Session log — Tactics board rework, Stage 9: library and session integration
 
 Stage 9 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). A
