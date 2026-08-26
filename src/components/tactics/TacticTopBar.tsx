@@ -4,6 +4,7 @@ import {
   Circle,
   Columns2,
   Download,
+  HelpCircle,
   Maximize,
   PanelLeft,
   PanelRight,
@@ -61,6 +62,7 @@ export function TacticTopBar({
   onEnterBoardOnly,
   onExport,
   onPresent,
+  onReplayTour,
 }: {
   tactic: Tactic
   squadOpen: boolean
@@ -73,6 +75,7 @@ export function TacticTopBar({
   onEnterBoardOnly: () => void
   onExport: () => void
   onPresent: () => void
+  onReplayTour: () => void
 }) {
   const updateTactic = useStore((s) => s.updateTactic)
   const saveState = useStore((s) => s.tacticSaveState)
@@ -101,6 +104,7 @@ export function TacticTopBar({
         documentId={tactic.id}
         name={tactic.name}
         label="Tactic name"
+        anchor="tactic-name"
         onCommit={(name) => void updateTactic(tactic.id, { name })}
       />
 
@@ -130,7 +134,7 @@ export function TacticTopBar({
       </button>
 
       {/* Single / Dual (7.4) — a filter over entities by team, not two scenes. */}
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div data-onboarding-anchor="tactic-view" className="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
           onClick={() => setTacticView(tactic.id, 'single')}
@@ -169,6 +173,7 @@ export function TacticTopBar({
 
       <button
         type="button"
+        data-onboarding-anchor="tactic-ball"
         onClick={onAddBall}
         className={EDITOR_TOGGLE_OFF + ' shrink-0'}
         title="Add a ball to the board"
@@ -210,6 +215,7 @@ export function TacticTopBar({
 
       <button
         type="button"
+        data-onboarding-anchor="tactic-present"
         onClick={onPresent}
         className={EDITOR_TOGGLE_OFF + ' shrink-0'}
         title="Present phase by phase, full screen (P)"
@@ -220,6 +226,7 @@ export function TacticTopBar({
 
       <button
         type="button"
+        data-onboarding-anchor="tactic-export"
         onClick={onExport}
         className={EDITOR_ICON_BUTTON + ' shrink-0'}
         aria-label="Export"
@@ -238,9 +245,33 @@ export function TacticTopBar({
         <Maximize className="h-4 w-4" />
       </button>
 
-      {/* Deferred exactly as the drill editor's is: Stage 11 of the drill
-          rework decided against building 3D rather than for it, and Stage 10
-          here revisits the question. Nothing to open yet. */}
+      <button
+        type="button"
+        onClick={onReplayTour}
+        className={EDITOR_ICON_BUTTON + ' shrink-0'}
+        aria-label="Replay the walkthrough"
+        title="Replay the walkthrough"
+      >
+        <HelpCircle className="h-4 w-4" />
+      </button>
+
+      {/* STILL DEFERRED, and now on the record. Stage 10.2 is where this plan
+          revisits 3D, and its own answer is "still recommend deferring —
+          ship Stages 0-9 first". Those shipped; the recommendation did not
+          change, so this button stays disabled.
+        
+          The reason it costs nothing to keep waiting is the whole point of the
+          rework: `scene`/`keyframes` is renderer-agnostic and BOTH editors now
+          feed it, so 3D is a pure addition whenever it is wanted, and building
+          it once against the shared model gives it to drills and tactics
+          together. The fields Teloframe's 3D leaks into 2D — body shape,
+          facing, the goalkeeper's dive — are already carried in
+          `SceneEntity`/`EntityState`, so nothing is being lost in the
+          meantime either.
+        
+          What it would take, from the plan's own estimate: ~8-16h across 3-5
+          sessions. That is an XL item the plan brackets separately from the
+          rest of the stage for exactly that reason. */}
       <button type="button" disabled className={EDITOR_ICON_BUTTON + ' shrink-0'} aria-label="3D view" title="3D view — not built yet">
         <Box className="h-4 w-4" />
       </button>

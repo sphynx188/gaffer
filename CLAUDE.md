@@ -287,6 +287,26 @@ drill rework built the GIF half only, as the half that works everywhere, and
 Stage 8's definition of done asks for "a still, an animation and a one-page
 PDF" — which PNG/GIF/card satisfy.
 
+`design/editor/onboarding/` is shared too. `OnboardingTour.tsx` is purely
+presentational — handed one `TourStep` at a time, it knows nothing about either
+editor — and `useOnboardingTour(steps, seenKey)` takes the step list and the
+localStorage key, so the two editors differ only in content: `tourSteps.ts`
+(drill) and `components/tactics/tacticTourSteps.ts` (tactic), with one seen-key
+each so finishing one doesn't silently skip the other. A step's
+`openTools`/`openProperties` name the SIDE, not the contents — left sheet and
+right sheet — which is what lets both editors reuse them (drill: tool rail /
+properties; tactic: squad / inspector). Any anchor must be `data-onboarding-
+anchor`, and the overlay scrolls it into view before measuring, which is what
+makes the tactics top bar's sideways scroll survivable on a phone.
+
+**3D is still not built, for either editor, and that is a decision rather than
+an omission** — made in the drill rework's Stage 11 and re-affirmed in
+TACTICS_BOARD_REWORK_PLAN.md Stage 10.2 once Stages 0–9 shipped. It stays cheap
+to defer because `scene`/`keyframes` is renderer-agnostic and both editors feed
+it, so 3D is a pure addition that would serve both at once; the fields its 2D
+surface would need (body shape, facing, keeper dive) are already carried on
+`SceneEntity`/`EntityState`. Both top bars keep a disabled 3D button saying so.
+
 `design/timeline/` is shared by both editors via `TimelineHost` — the document
 fields the timeline reads plus its actions, pre-bound to the document, supplied
 by `useDrillTimelineHost` / `useTacticTimelineHost`. **Nothing in `timeline/`

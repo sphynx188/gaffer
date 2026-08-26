@@ -276,6 +276,106 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 10: onboarding, and the 3D answer
+
+Stage 10 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md), the
+last stage. Two items: a walkthrough for the tactics editor, and the 3D
+question the plan reserved this stage to answer.
+
+### 10.1 The tour — reuse, not a second implementation
+
+`OnboardingTour.tsx` needed **no change to be shared**: it was already handed
+one `TourStep` at a time and knows nothing about either editor. Only two things
+were drill-specific, and both became parameters:
+
+- `useOnboardingTour(steps, seenKey)` — was argument-less. One key per EDITOR,
+  not per document, and two of them: `DRILL_TOUR_SEEN_KEY` /
+  `TACTIC_TOUR_SEEN_KEY`, so finishing the drill tour doesn't silently skip the
+  tactics one. Verified independent: the drill tour auto-opened with the tactic
+  key already set.
+- `TACTIC_TOUR_STEPS` in `components/tactics/tacticTourSteps.ts`, in the same
+  `TourStep` shape.
+
+`openTools`/`openProperties` were kept rather than renamed. They name the SIDE
+— left sheet, right sheet — which is exactly what makes them reusable (drill:
+tool rail / properties; tactic: squad / inspector). Renaming them would have
+touched a shipped tour to buy nothing; both files now say so.
+
+Ten steps on the plan's own arc, in its order: **dual view → formation → ball →
+draw → select → keyframe → animate → replay → save → export**. Ten anchors were
+added across `TacticTopBar`, `SquadPanel`, `TacticInspector` and the canvas —
+the plan wanted these added during Stages 4–7 and they weren't, so this is the
+catch-up it warned about. A help icon in the top bar replays it, like the
+drill's.
+
+`keyframe` and `animate` deliberately share the `timeline-bar` anchor: one
+strip, two ideas (where a change is recorded; what playback does), which reads
+better as two cards than one long paragraph.
+
+### Three real bugs, all found on a phone, none visible on desktop
+
+The desktop pass looked perfect and was misleading. At 375px:
+
+1. **Four of ten steps pointed off-screen.** The tactics top bar scrolls
+   sideways (Stage 7 made it do that, because a two-row bar breaks the canvas's
+   260px chrome reserve). At 375px its scrollWidth is 1007 against a 343px
+   viewport, so Ball sat at x=520, Present at 749, Export at 835 — the
+   spotlight rang empty space. Fixed in `OnboardingTour` by scrolling the
+   anchor into view before measuring (`block:'nearest', inline:'nearest'`,
+   synchronous, a no-op when already visible). It helps any future scrolling
+   container and does nothing to the drill tour.
+2. **The `save` step had no anchor at all on a phone.** It pointed at the save
+   indicator, which is `hidden sm:inline` — genuinely `display: none` below
+   `sm`, so `findVisibleAnchor` correctly found nothing and the step degraded
+   to a dimmed screen with no card. Re-anchored to the tactic NAME field, which
+   is always visible and is what a coach edits before wondering whether they
+   need to save; the drill tour's first step makes the same pairing. The
+   `SaveIndicator` anchor prop added for the original version was reverted
+   rather than left dead.
+3. Not a bug, but worth writing down: at mobile width a sheet's contents are
+   **translated off-canvas, not unmounted**, so `offsetParent` is non-null and
+   "is it visible" needs a rect check, not an `offsetParent` check.
+   `findVisibleAnchor`'s own `offsetParent` test is still right for what it
+   does — telling the desktop copy (`display:none` via `lg:`) from the sheet
+   copy — but it is not a test of "on screen".
+
+Verified after the fixes: all ten steps resolve an on-screen anchor at 375px
+AND at desktop width, and the tour completes to "Done", which sets its key.
+The drill tour was re-run end to end as a regression check — its own ten steps,
+its own first step, its own key.
+
+**A verification gotcha that cost time twice:** measuring the tour in a loop
+under-waits. A sheet step needs the 200ms sheet transition PLUS the step's own
+250ms `settleMs` before the anchor is where it will end up; at 800ms the sheet
+steps still measured off-canvas and looked broken. Probed in isolation with
+1200ms they were fine all along. Also: the last step's button says **Done**,
+not Next — a loop that only clicks "Next" stops one step short and reports the
+tour as stuck.
+
+### 10.2 3D — deferred, and now on the record
+
+**Not built. That is the plan's own recommendation, re-affirmed rather than
+skipped.** Stage 10.2's text is "still recommend deferring… ship Stages 0–9
+first"; 0–9 have now shipped and nothing about the reasoning changed. The drill
+rework's Stage 11 reached the same conclusion.
+
+Deferring stays cheap for a specific reason worth keeping in view: the whole
+point of this rework is that `scene`/`keyframes` is renderer-agnostic and both
+editors now feed it, so 3D is a **pure addition** whenever it is wanted, and
+building it once against the shared model gives it to drills and tactics
+together. The fields its 2D surface would leak into — body shape, facing, the
+goalkeeper's dive — are already carried on `SceneEntity`/`EntityState`, so
+nothing is being lost while it waits. The plan's own estimate is ~8–16h across
+3–5 sessions, which is why it brackets 3D separately from the rest of the
+stage. Both top bars keep a disabled 3D button, and the tactics one now records
+this decision in full.
+
+`npm run build` clean, `npm run lint` at its 3 pre-existing warnings.
+
+### With this, the tactics board rework is complete — Stages 0 through 10.
+
+---
+
 ## Session log — Public landing page + early-access waitlist
 
 The marketing/home page (spec: docs/superpowers/specs/2026-08-26-landing-page-design.md,

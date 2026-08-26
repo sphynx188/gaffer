@@ -29,7 +29,8 @@ import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
 import { getPitchMarkings, snapToPitchGrid } from '../pitchGeometry'
 import { OnboardingTour } from './onboarding/OnboardingTour'
-import { useOnboardingTour } from './onboarding/useOnboardingTour'
+import { DRILL_TOUR_SEEN_KEY, useOnboardingTour } from './onboarding/useOnboardingTour'
+import { TOUR_STEPS } from './onboarding/tourSteps'
 
 // The drill editor shell (rework plan Stage 5.2): top bar, left tool rail,
 // pitch, contextual right panel, timeline docked at the bottom. Below `lg` the
@@ -97,7 +98,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // The onboarding walkthrough (rework plan Stage 11.1) — auto-opens once on
   // a coach's first visit to this editor, replayable afterwards from the top
   // bar's help button.
-  const tour = useOnboardingTour()
+  const tour = useOnboardingTour(TOUR_STEPS, DRILL_TOUR_SEEN_KEY)
 
   // Several tour steps point at the rail or the properties panel, which below
   // `lg` only exist on screen inside their own sheet — the sheet is always

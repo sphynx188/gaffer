@@ -22,6 +22,12 @@ import { useTimelinePlayback } from '../design/timeline/useTimelinePlayback'
 import { SquadPanel } from './SquadPanel'
 import { TacticInspector, type InspectorTab } from './TacticInspector'
 import { TacticPresentation } from './TacticPresentation'
+import { TACTIC_TOUR_STEPS } from './tacticTourSteps'
+import { OnboardingTour } from '../design/editor/onboarding/OnboardingTour'
+import {
+  TACTIC_TOUR_SEEN_KEY,
+  useOnboardingTour,
+} from '../design/editor/onboarding/useOnboardingTour'
 import { TacticTopBar } from './TacticTopBar'
 import { useTacticTimelineHost } from './useTacticTimelineHost'
 
@@ -87,6 +93,40 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  // The walkthrough (Stage 10.1). Same hook, same overlay, same `TourStep`
+  // shape as the drill editor's — only the ten steps and the localStorage key
+  // differ, which is exactly what Stage 10.1's "reuse editor/onboarding/*"
+  // asks for. Auto-opens once per browser, and the top bar's help icon
+  // replays it after that.
+  const tour = useOnboardingTour(TACTIC_TOUR_STEPS, TACTIC_TOUR_SEEN_KEY)
+
+  // Below `lg` the squad and inspector are sheets, so a step whose anchor
+  // lives in one has to open it before the overlay measures where to draw.
+  // Above `lg` both panels are permanently visible and setting these would
+  // actually swap the desktop panel out for a drawer — the same trap
+  // DrillEditor documents, avoided the same way.
+  useEffect(() => {
+    if (!tour.open || typeof window === 'undefined') return
+    if (window.innerWidth >= 1024) return
+    setSquadOpen(Boolean(tour.step.openTools))
+    setInspectorOpen(Boolean(tour.step.openProperties))
+  }, [tour.open, tour.step])
+
+  // The drawing tools live behind the inspector's Tools tab, so the `draw`
+  // step has to select that tab or its anchor isn't in the DOM to point at.
+  // Needed on desktop too, unlike the sheets above — the tab is a tab at
+  // every width.
+  useEffect(() => {
+    if (tour.open && tour.step.id === 'draw') setInspectorTab('tools')
+  }, [tour.open, tour.step])
+
+  // Closing or finishing the tour must not leave a sheet stranded open.
+  useEffect(() => {
+    if (tour.open) return
+    setSquadOpen(false)
+    setInspectorOpen(false)
+  }, [tour.open])
 
   // Anything still queued when the coach navigates away is written now rather
   // than lost to the debounce.
@@ -223,7 +263,9 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   // otherwise Escape would leave the presentation AND toggle board-only
   // underneath it, and `F` would flip a layout nobody can see.
   useEffect(() => {
-    if (presenting) return
+    // ...and while the tour is up: `P` would start a presentation on top of
+    // the walkthrough, and Escape belongs to whichever overlay is in front.
+    if (presenting || tour.open) return
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
       const tag = target?.tagName?.toLowerCase()
@@ -235,7 +277,7 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [presenting])
+  }, [presenting, tour.open])
 
   const keyframeId = parkedKeyframe?.id ?? tactic.keyframes[0]?.id ?? null
 
@@ -298,6 +340,7 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     <>
       <PitchCanvas
         stageRef={stageRef}
+        onboardingAnchor="tactic-canvas"
         pitch={tactic.pitch}
         frame={visible}
         onionFrames={onion}
@@ -409,6 +452,7 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
           onEnterBoardOnly={() => setBoardOnly(true)}
           onExport={() => setExportOpen(true)}
           onPresent={() => setPresenting(true)}
+          onReplayTour={tour.restart}
         />
       }
       rail={squad}
@@ -464,6 +508,18 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
               gifProgress={gifProgress}
             />
           </ExportDrawer>
+
+          {tour.open && (
+            <OnboardingTour
+              step={tour.step}
+              stepIndex={tour.stepIndex}
+              stepCount={tour.stepCount}
+              onNext={tour.next}
+              onBack={tour.back}
+              onSkip={tour.skip}
+              settleMs={tour.step.openTools || tour.step.openProperties ? 250 : 0}
+            />
+          )}
         </>
       }
     />

@@ -109,16 +109,18 @@ export function TacticInspector({
             </button>
           </div>
 
-          <MarkingsPanel
-            value={marking}
-            onChange={onMarkingChange}
-            onClearAll={() => {
-              for (const m of tactic.scene.markings) removeTacticMarking(tactic.id, m.id)
-            }}
-            markingCount={tactic.scene.markings.length}
-            onClearDrawings={() => clearTacticDrawings(tactic.id)}
-            drawingCount={drawnCount}
-          />
+          <div data-onboarding-anchor="tactic-tools">
+            <MarkingsPanel
+              value={marking}
+              onChange={onMarkingChange}
+              onClearAll={() => {
+                for (const m of tactic.scene.markings) removeTacticMarking(tactic.id, m.id)
+              }}
+              markingCount={tactic.scene.markings.length}
+              onClearDrawings={() => clearTacticDrawings(tactic.id)}
+              drawingCount={drawnCount}
+            />
+          </div>
         </div>
       )}
 

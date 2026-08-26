@@ -116,6 +116,22 @@ export function OnboardingTour({ step, stepIndex, stepCount, onNext, onBack, onS
     const measure = () => {
       if (cancelled) return
       const el = findVisibleAnchor(step.anchor)
+      if (el) {
+        // Bring the anchor into view before measuring it. The drill editor
+        // never needed this — its only top-bar anchor is the name field, which
+        // sits at the left and is always visible. The tactics top bar SCROLLS
+        // SIDEWAYS on a phone (it carries more controls; see TacticTopBar's
+        // header for why it scrolls rather than wraps), so Ball, Present and
+        // Export are all off-screen at 375px and the spotlight would ring
+        // empty space.
+        //
+        // `nearest`/`nearest` scrolls the minimum on each axis and only
+        // ancestors that actually scroll, so it does nothing at all when the
+        // anchor is already visible. No `behavior: 'smooth'` — the default is
+        // synchronous, so layout has settled by the next line and there is
+        // nothing to wait a frame for.
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
       setAnchorRect(el ? rectOf(el) : null)
     }
 

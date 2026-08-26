@@ -247,25 +247,27 @@ export function SquadPanel({
         </div>
       </div>
 
-      <FormationPicker
-        side={side}
-        formationKey={config.formation}
-        onChange={(key, nextSlots) => applyTacticFormation(tactic.id, side, key, nextSlots, keyframeId)}
-        onSaveCurrentShape={
-          onPitchCount > 0
-            ? (name) => {
-                const shape = sideEntities
-                  .filter(isOnPitch)
-                  .map((e) => ({
-                    role: e.role ?? 'CM',
-                    x: keyframe?.states[e.id]?.x ?? 0.5,
-                    y: keyframe?.states[e.id]?.y ?? 0.5,
-                  }))
-                void createCustomFormation({ name, slots: shape })
-              }
-            : undefined
-        }
-      />
+      <div data-onboarding-anchor="tactic-formation">
+        <FormationPicker
+          side={side}
+          formationKey={config.formation}
+          onChange={(key, nextSlots) => applyTacticFormation(tactic.id, side, key, nextSlots, keyframeId)}
+          onSaveCurrentShape={
+            onPitchCount > 0
+              ? (name) => {
+                  const shape = sideEntities
+                    .filter(isOnPitch)
+                    .map((e) => ({
+                      role: e.role ?? 'CM',
+                      x: keyframe?.states[e.id]?.x ?? 0.5,
+                      y: keyframe?.states[e.id]?.y ?? 0.5,
+                    }))
+                  void createCustomFormation({ name, slots: shape })
+                }
+              : undefined
+          }
+        />
+      </div>
 
       {side === 'away' && (
         <div>

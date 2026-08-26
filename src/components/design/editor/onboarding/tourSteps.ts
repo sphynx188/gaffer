@@ -10,11 +10,21 @@
 // the viewport.
 //
 // `openTools`/`openProperties` mark the steps whose anchor lives inside a
-// mobile-only sheet (ToolRail's drawer, the properties sheet) rather than
-// always being on screen — DrillEditor uses these to open the right sheet
-// before measuring where to draw the callout. On desktop both sheets are
-// irrelevant (the rail and properties panel are always visible there), so
-// these flags are simply ignored above the `lg` breakpoint.
+// mobile-only sheet rather than always being on screen — the editor uses
+// these to open the right sheet before measuring where to draw the callout.
+// On desktop both sheets are irrelevant (the panels are always visible
+// there), so these flags are simply ignored above the `lg` breakpoint.
+//
+// They name the SIDE, not the contents, which is what lets the tactics editor
+// reuse them (TACTICS_BOARD_REWORK_PLAN.md Stage 10.1):
+//   openTools      → the LEFT sheet  — drill: the tool rail · tactic: Squad
+//   openProperties → the RIGHT sheet — drill: properties   · tactic: Inspector
+// The names are the drill editor's because it got here first; renaming them
+// would touch a shipped tour to buy nothing.
+//
+// `TourStep` is the shared shape both editors' step lists are written in —
+// the tactics list lives in components/tactics/tacticTourSteps.ts. The array
+// below is the DRILL editor's content only.
 export interface TourStep {
   id: string
   anchor: string
