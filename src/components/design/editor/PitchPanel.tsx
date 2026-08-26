@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { OverlayKind, PitchConfig, PitchOrientation } from '../../../store'
 import {
   PITCH_FAMILIES,
+  canonicalPresetId,
   configFromPreset,
   findPreset,
   formatDimensions,
@@ -34,6 +35,10 @@ interface PitchPanelProps {
 
 export function PitchPanel({ pitch, onChange }: PitchPanelProps) {
   const active = findPreset(pitch.preset)
+  // Legacy ids ('half', 'quarter') describe a card that exists under a
+  // different name, so resolve before comparing — otherwise every drill saved
+  // before Stage 7 shows no selected card at all.
+  const selectedId = canonicalPresetId(pitch.preset)
   const [family, setFamily] = useState<PitchFamily>(active?.family ?? 'classic')
   const units = pitch.units ?? active?.units ?? 'm'
 
@@ -73,7 +78,7 @@ export function PitchPanel({ pitch, onChange }: PitchPanelProps) {
 
       <div className="grid grid-cols-2 gap-1.5">
         {presetsInFamily(family).map((preset) => {
-          const selected = pitch.preset === preset.id
+          const selected = selectedId === preset.id
           return (
             <button
               key={preset.id}

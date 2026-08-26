@@ -56,6 +56,12 @@ interface DrillDetailsDrawerProps {
 export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, capturing }: DrillDetailsDrawerProps) {
   const updateDrill = useStore((s) => s.updateDrill)
   const setDrillPitch = useStore((s) => s.setDrillPitch)
+  // Metadata commits go straight to the database and only reach local state
+  // once the write succeeds, so a failed one used to leave the typed value
+  // sitting in the field looking saved with nothing anywhere saying otherwise
+  // — the top bar's indicator tracks canvas autosave, not these. Surfacing it
+  // here is the only place the coach is actually looking.
+  const drillsError = useStore((s) => s.drillsError)
   const [tab, setTab] = useState<Tab>('basic')
 
   useEffect(() => {
@@ -117,6 +123,12 @@ export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, c
             </button>
           ))}
         </div>
+
+        {drillsError && (
+          <p role="alert" className="shrink-0 border-b border-line px-4 py-2 text-xs text-bad">
+            {drillsError}
+          </p>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4">
           {tab === 'basic' && (

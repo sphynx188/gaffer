@@ -111,6 +111,24 @@ export function findPreset(id: string): PitchPreset | null {
   return PITCH_PRESETS.find((preset) => preset.id === id) ?? LEGACY_PRESETS[id] ?? null
 }
 
+// Which card in the panel a stored preset id corresponds to. Legacy ids keep
+// their own labels above (a drill saved as a half pitch should still read
+// "Half pitch" in the library), but they match no card in PITCH_PRESETS, so a
+// panel comparing raw ids showed nothing selected at all — for every drill
+// that predates Stage 7, which is all eleven of them.
+//
+// 'three_quarter' is deliberately absent: 68 × 79 was an artefact of the old
+// four-value enum, not a space anyone picked, and no modern preset describes
+// it. It resolves to no card, which is honest — it really is a custom size.
+const LEGACY_CANONICAL: Record<string, string> = {
+  half: 'attacking_half',
+  quarter: 'final_third',
+}
+
+export function canonicalPresetId(id: string): string {
+  return LEGACY_CANONICAL[id] ?? id
+}
+
 export function presetLabel(id: string): string {
   return findPreset(id)?.label ?? 'Custom'
 }

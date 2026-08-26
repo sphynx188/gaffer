@@ -63,13 +63,31 @@ export function ToolRail(props: ToolRailProps) {
 
   // Click-away closes an open panel, matching Dropdown.tsx's own popover
   // behaviour so every popover in the app dismisses the same way.
+  //
+  // DrillEditor renders one `rail` element in TWO places — the desktop
+  // column and the always-mounted mobile Sheet — so two ToolRail instances
+  // exist at once, both with layout 'rail' whenever the Tools sheet is shut.
+  // Each used to register this listener against its own containerRef, and the
+  // hidden copy never contains the visible copy's panel: clicking any option
+  // made the hidden instance call onPanelChange(null), unmounting the panel
+  // mid-pointerdown so the `click` never landed and the option never applied.
+  // Every rail panel was unusable on desktop as a result.
+  //
+  // A hidden copy has no business policing clicks, so it stands down.
+  // `offsetParent` is null exactly when an ancestor is `display: none` —
+  // which is how the two copies are told apart (`hidden lg:block` on the
+  // desktop column, `lg:hidden` on the Sheet). Same test OnboardingTour uses
+  // to pick the on-screen anchor out of that same duplicated tree.
+  const { panel, onPanelChange } = props
   useEffect(() => {
-    if (!props.panel || layout !== 'rail') return
+    if (!panel || layout !== 'rail') return
     const onPointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) props.onPanelChange(null)
+      const container = containerRef.current
+      if (!container || container.offsetParent === null) return
+      if (!container.contains(event.target as Node)) onPanelChange(null)
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') props.onPanelChange(null)
+      if (event.key === 'Escape') onPanelChange(null)
     }
     document.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('keydown', onKeyDown)
@@ -77,7 +95,11 @@ export function ToolRail(props: ToolRailProps) {
       document.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [props, layout])
+    // Depends on the two values actually used, not the whole `props` object —
+    // that one is rebuilt on every DrillEditor render, which tore this
+    // listener down and re-registered it dozens of times a second while the
+    // playhead ran.
+  }, [panel, onPanelChange, layout])
 
   const togglePanel = (panel: Exclude<RailPanel, null>) =>
     props.onPanelChange(props.panel === panel ? null : panel)

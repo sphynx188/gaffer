@@ -529,7 +529,17 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         </div>
 
         {/* Properties — desktop only; below lg it's the right-hand sheet. */}
-        <div data-onboarding-anchor="properties-panel" className="hidden w-64 shrink-0 rounded-xl border border-line bg-panel p-3 lg:block">{properties}</div>
+        {/* Capped and scrolled on the same reserve the canvas uses. Without
+            it, selecting an entity grew this panel past 800px — taller than
+            the pitch — and pushed the docked timeline off the bottom of the
+            screen, which is exactly what that reserve exists to prevent. */}
+        <div
+          data-onboarding-anchor="properties-panel"
+          className="hidden w-64 shrink-0 overflow-y-auto rounded-xl border border-line bg-panel p-3 lg:block"
+          style={{ maxHeight: Math.max(260, viewportHeight - 260) }}
+        >
+          {properties}
+        </div>
       </div>
 
       <TimelineBar
