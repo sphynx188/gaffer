@@ -5,6 +5,7 @@ import { createPlayerNoteSlice, type PlayerNoteSlice } from './slices/playerNote
 import { createSessionSlice, type SessionSlice } from './slices/sessionSlice'
 import { createDrillSlice, type DrillSlice } from './slices/drillSlice'
 import { createSessionDrillSlice, type SessionDrillSlice } from './slices/sessionDrillSlice'
+import { createSessionTacticSlice, type SessionTacticSlice } from './slices/sessionTacticSlice'
 import { createAvailabilitySlice, type AvailabilitySlice } from './slices/availabilitySlice'
 import { createTacticSlice, type TacticSlice } from './slices/tacticSlice'
 import { createFormationSlice, type FormationSlice } from './slices/formationSlice'
@@ -20,6 +21,7 @@ export type StoreState = TeamSlice &
   SessionSlice &
   DrillSlice &
   SessionDrillSlice &
+  SessionTacticSlice &
   AvailabilitySlice &
   TacticSlice &
   FormationSlice
@@ -31,6 +33,7 @@ export const useStore = create<StoreState>()((...args) => ({
   ...createSessionSlice(...args),
   ...createDrillSlice(...args),
   ...createSessionDrillSlice(...args),
+  ...createSessionTacticSlice(...args),
   ...createAvailabilitySlice(...args),
   ...createTacticSlice(...args),
   ...createFormationSlice(...args),

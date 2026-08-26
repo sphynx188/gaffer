@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useStore } from '../store'
 import type { RecurringSessionInput, SessionWithRelations } from '../store'
 import { AvailabilityPanel } from './AvailabilityPanel'
-import { SessionDrillsPanel } from './SessionDrillsPanel'
+import { SessionItemsPanel } from './SessionItemsPanel'
 import { Skeleton } from './ui/Skeleton'
 import {
   addDays,
@@ -63,19 +63,21 @@ const EMPTY_SESSIONS: SessionWithRelations[] = []
 // an empty string, so it round-trips cleanly through Postgres `text`).
 //
 // Phase 2d — Save as reusable / attach to session (US-14, US-15): adds a
-// "Drills" toggle next to "Availability" on each SessionRow, mirroring that
-// exact expandable-panel pattern, which mounts SessionDrillsPanel — pick a
-// drill, attach it with a planned duration/notes for this session, reorder
-// or remove it. `session.session_drills.length` in the summary line below
-// updates the moment a drill is attached/detached (sessionDrillSlice patches
-// the nested array directly), not just after the next full page reload.
+// "Line-up" toggle next to "Availability" on each SessionRow, mirroring that
+// exact expandable-panel pattern, which mounts SessionItemsPanel — pick a
+// drill OR a tactic (TACTICS_BOARD_REWORK_PLAN.md Stage 9.4), attach it with
+// a planned duration/notes for this session, reorder it across types, or
+// remove it. The counts in the summary line below read both nested arrays, so
+// they update the moment anything is attached or detached (each slice patches
+// its nested array directly), not just after the next full page reload.
 //
 // Phase 3.2 — Duplicate a past session (US-16): adds a "Duplicate" toggle
-// next to Availability/Drills/Edit on each SessionRow, which opens a small
+// next to Availability/Line-up/Edit on each SessionRow, which opens a small
 // inline form for the new date (defaulting to one week later) and calls
 // sessionSlice.duplicateSession — the `duplicate_session` Postgres RPC
 // (supabase/migrations/003_duplicate_session_rpc.sql) copies the session's
-// drill line-up atomically; availability is deliberately NOT copied (the
+// whole line-up atomically, drills and tactics alike since migration 024;
+// availability is deliberately NOT copied (the
 // new session gets fresh unconfirmed rows, same as any new session). A
 // successful duplicate jumps the week view to the new session's date, same
 // as handleCreate already does for a session created outside the current
@@ -330,7 +332,7 @@ function SessionRow({
 }) {
   const [editing, setEditing] = useState(false)
   const [availabilityOpen, setAvailabilityOpen] = useState(false)
-  const [drillsOpen, setDrillsOpen] = useState(false)
+  const [lineUpOpen, setLineUpOpen] = useState(false)
   const [date, setDate] = useState(session.date)
   const [duration, setDuration] = useState(String(session.duration_minutes))
   const [startTime, setStartTime] = useState(session.start_time ? toTimeInputValue(session.start_time) : '')
@@ -339,7 +341,7 @@ function SessionRow({
   const [saving, setSaving] = useState(false)
 
   // Phase 3.2 — Duplicate a past session (US-16). Mirrors the expandable-
-  // panel-below-the-row pattern Availability/Drills already use, rather than
+  // panel-below-the-row pattern Availability/Line-up already use, rather than
   // a bare `prompt()` for the new date — every other input in this app is a
   // controlled form field. Defaults to one week after the source session's
   // own date (the most common "repeat this session next week" case), still
@@ -394,6 +396,14 @@ function SessionRow({
     // tracked by responded_at being set (availabilitySlice.updateAvailability
     // always stamps it).
     const respondedCount = session.availability.filter((a) => a.responded_at).length
+
+    // The line-up is drills AND tactics as of TACTICS_BOARD_REWORK_PLAN.md
+    // Stage 9.4, so the summary counts both — and totals the planned minutes
+    // across both, which is the number a coach uses to check a session's plan
+    // actually fits the session's length.
+    const lineUp = [...session.session_drills, ...session.session_tactics]
+    const itemCount = lineUp.length
+    const plannedTotal = lineUp.reduce((sum, row) => sum + (row.planned_duration_minutes ?? 0), 0)
     return (
       <li className="rounded-md border border-line bg-panel-raised px-3 py-2">
         <div className="flex flex-wrap items-start justify-between gap-2">
@@ -405,8 +415,9 @@ function SessionRow({
             </p>
             <p className="text-xs text-ink-muted">{session.coaching_notes || '—'}</p>
             <p className="mt-1 text-xs text-ink-muted">
-              {respondedCount}/{session.availability.length} attendance recorded ·{' '}
-              {session.session_drills.length} drill(s) attached
+              {respondedCount}/{session.availability.length} attendance recorded · {itemCount} item
+              {itemCount === 1 ? '' : 's'} in the line-up
+              {plannedTotal > 0 && ` · ${plannedTotal} min planned`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -419,10 +430,10 @@ function SessionRow({
             </button>
             <button
               type="button"
-              onClick={() => setDrillsOpen((open) => !open)}
+              onClick={() => setLineUpOpen((open) => !open)}
               className="text-sm text-ink-muted underline underline-offset-2"
             >
-              {drillsOpen ? 'Hide drills' : 'Drills'}
+              {lineUpOpen ? 'Hide line-up' : 'Line-up'}
             </button>
             <button
               type="button"
@@ -441,7 +452,7 @@ function SessionRow({
           </div>
         </div>
         {availabilityOpen && <AvailabilityPanel session={session} />}
-        {drillsOpen && <SessionDrillsPanel session={session} />}
+        {lineUpOpen && <SessionItemsPanel session={session} />}
         {duplicating && (
           <form
             onSubmit={handleDuplicateSubmit}
@@ -472,8 +483,8 @@ function SessionRow({
               Cancel
             </button>
             <p className="w-full text-xs text-ink-muted">
-              Copies the drill line-up ({session.session_drills.length} drill(s)) to the new date. Attendance is
-              not copied — the new session starts with fresh, unconfirmed attendance.
+              Copies the line-up ({itemCount} item{itemCount === 1 ? '' : 's'}, drills and tactics alike) to the
+              new date. Attendance is not copied — the new session starts with fresh, unconfirmed attendance.
             </p>
           </form>
         )}

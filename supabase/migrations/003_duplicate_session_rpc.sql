@@ -1,5 +1,25 @@
 -- Migration 003 — duplicate_session RPC (Phase 3.2, US-16)
 --
+-- ============================================================================
+-- SUPERSEDED 2026-08-26 by migration 024, which is now the live definition of
+-- this function. Do not read the body below as current.
+--
+-- Two things were wrong with it by then, both found by running
+-- TACTICS_BOARD_REWORK_PLAN.md Stage 9's Verify step against the live app:
+--
+--   1. BROKEN SINCE MIGRATION 009. The insert reads `physical_load` and
+--      `equipment`; 009 dropped both columns from `session` and never
+--      redefined this function, so every call from 009 onward failed with
+--      `column "physical_load" of relation "session" does not exist`. The
+--      Duplicate button was dead for the whole of 009-023.
+--   2. It never copied `start_time` (added after this file was written) and,
+--      as of Stage 9, never copied the `session_tactics` line-up either.
+--
+-- 024 fixes all three. Everything below is kept as the historical record of
+-- WHY the function exists at all — the atomicity and SECURITY INVOKER
+-- reasoning is unchanged and still worth reading.
+-- ============================================================================
+--
 -- Context: gaffer_project_plan_final.md §4 flagged this from the start as
 -- one of the two deliberate exceptions to "no custom API layer, PostgREST
 -- directly" — duplicating a session copies a variable number of

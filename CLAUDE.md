@@ -170,7 +170,16 @@ Core tables: `team` → `team_coaches` (membership/role) / `player` (with
 (team-owned or `team_id = null` for coach-wide reusable drills) /
 `session_drills` (join table ordering drills within a session) / `tactic`
 (always team-scoped, unlike drill — no coach-owned case) / `session_tactics`
-(the tactic equivalent of `session_drills`, added by migration 020). RLS is
+(the tactic equivalent of `session_drills`, added by migration 020).
+
+**`session_drills` and `session_tactics` share ONE `order_index` sequence.**
+They are two tables because they reference two different documents, but the
+coach sees one ordered line-up (`SessionItemsPanel`), so the indices are
+contiguous ACROSS both: an attach lands at the combined length, a reorder swaps
+indices between adjacent rows whatever their type, and a detach renumbers what
+is left. The renumber is load-bearing, not tidiness — leave a gap and the next
+attach collides with an existing index and the merge order goes ambiguous.
+`duplicate_session` copies both line-ups verbatim, preserving the interleave. RLS is
 enabled on every table; policies live in `supabase/rls_policies.sql`, built
 on two `security definer` helper functions (`is_team_member`,
 `is_team_owner`) — every new table's RLS should reuse those rather than
@@ -345,6 +354,16 @@ flex children, which happened once already (roster columns misaligning
 between header and rows because the header had 4 cells and rows had 5).
 
 ### PWA / offline
+
+One storage bucket, `drill-thumbnails` (migration 017), holds BOTH drill and
+tactic thumbnails at `<document id>.png` — migration 024 widened its RLS to
+admit tactic ids. The name is a misnomer kept deliberately: renaming would
+break every `thumbnail_url` already stored. Its policies must keep migration
+019's `... in (select d.id::text from ...)` shape rather than a correlated
+`exists (... where id::text = split_part(name, ...))` — both `drill` and
+`tactic` have their own `name` column, which silently shadows the storage
+object's `name` inside a correlated subquery. That bug has been written once
+already; 019 and 024 both spell out why.
 
 `vite-plugin-pwa` (config in `vite.config.ts`) precaches the app shell and
 uses NetworkFirst caching for GET requests to the Supabase REST API only.

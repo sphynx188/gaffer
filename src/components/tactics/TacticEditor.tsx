@@ -25,6 +25,10 @@ import { TacticPresentation } from './TacticPresentation'
 import { TacticTopBar } from './TacticTopBar'
 import { useTacticTimelineHost } from './useTacticTimelineHost'
 
+// Matches the drill editor's: wide enough for a library card on a retina
+// screen, small enough that the upload is instant.
+const THUMBNAIL_WIDTH = 480
+
 // The tactics editor (TACTICS_BOARD_REWORK_PLAN.md Stage 7), built on the same
 // `EditorLayout` the drill editor uses. Everything below the layout is
 // composition over parts Stages 3-6 already built: SquadPanel and
@@ -49,6 +53,8 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const removeTacticMarking = useStore((s) => s.removeTacticMarking)
   const updateTacticMarking = useStore((s) => s.updateTacticMarking)
   const flushTacticSave = useStore((s) => s.flushTacticSave)
+  const uploadTacticThumbnail = useStore((s) => s.uploadTacticThumbnail)
+  const tacticSaveState = useStore((s) => s.tacticSaveState)
   const enableTacticSharing = useStore((s) => s.enableTacticSharing)
   const disableTacticSharing = useStore((s) => s.disableTacticSharing)
   const showToast = useToast()
@@ -125,6 +131,39 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   // the Konva stage is only reachable from this component — the same split
   // DrillEditor makes, for the same reason.
   const stageRef = useRef<Konva.Stage | null>(null)
+
+  // Thumbnails (Stage 9.2). Auto-capture on save when the tactic has none —
+  // the drill editor's rule, condition for condition, so the two libraries
+  // fill in the same way:
+  //   * something must have been edited and settled in THIS session, which
+  //     also sidesteps capturing a stage that hasn't been measured yet on
+  //     first paint;
+  //   * the playhead must be back at the start, since what gets captured is
+  //     literally what is on screen;
+  //   * a tactic that already has one is left alone.
+  // There is no manual re-capture button, unlike the drill's Details drawer:
+  // a tactic has no details drawer to put one in, and Stage 9 doesn't ask for
+  // one. Editing a tactic that has no thumbnail is the only trigger.
+  const editedRef = useRef(false)
+  const capturedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (tacticSaveState === 'dirty' || tacticSaveState === 'saving') {
+      editedRef.current = true
+      return
+    }
+    if (tacticSaveState !== 'saved' || !editedRef.current) return
+    if (tactic.thumbnail_url || capturedFor.current === tactic.id) return
+    if (tactic.scene.entities.length === 0 || playback.currentTime > 0) return
+    const stage = stageRef.current
+    if (!stage || stage.width() === 0) return
+    capturedFor.current = tactic.id
+    const pixelRatio = Math.min(1, THUMBNAIL_WIDTH / stage.width())
+    void uploadTacticThumbnail(tactic.id, stage.toDataURL({ pixelRatio, mimeType: 'image/png' }))
+    // Deliberately narrow: depending on every value read inside would re-run
+    // this on each frame of playback rather than on the transitions it cares
+    // about. Same exemption, same reason, as DrillEditor's.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tacticSaveState, tactic.id, tactic.thumbnail_url, tactic.scene.entities.length, playback.currentTime])
 
   const handleExportPng = (filename: string) => {
     const stage = stageRef.current

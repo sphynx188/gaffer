@@ -2,7 +2,7 @@ import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
 import { addDays, parseLocalDate, toISODate } from '../../lib/date'
-import type { Session, Availability, SessionDrill } from '../types'
+import type { Session, Availability, SessionDrill, SessionTactic } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewSessionInput {
@@ -47,9 +47,14 @@ export interface RecurringSessionInput {
 export interface SessionWithRelations extends Session {
   availability: Availability[]
   session_drills: SessionDrill[]
+  // TACTICS_BOARD_REWORK_PLAN.md Stage 9.3, embedded the same way and for the
+  // same reason. The two arrays are stored separately because they are two
+  // tables; the coach sees ONE ordered line-up, merged in SessionItemsPanel
+  // over a single `order_index` sequence shared across both.
+  session_tactics: SessionTactic[]
 }
 
-const SESSION_SELECT = '*, availability(*), session_drills(*)'
+const SESSION_SELECT = '*, availability(*), session_drills(*), session_tactics(*)'
 
 // Calendar (cross-team weekly view) only needs the columns it actually
 // renders — a lighter select than SESSION_SELECT, and deliberately a
@@ -199,7 +204,8 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
             // straight through as "the current running order," so it must
             // come back pre-sorted from the very first fetch, not only after
             // a later attach/reorder patches it client-side.
-            .order('order_index', { ascending: true, referencedTable: 'session_drills' }),
+            .order('order_index', { ascending: true, referencedTable: 'session_drills' })
+            .order('order_index', { ascending: true, referencedTable: 'session_tactics' }),
         "Couldn't load sessions, try again."
       )
       if (latestFetchTeamId !== teamId) return // superseded by a newer team switch
@@ -232,7 +238,7 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
         : []
 
       const session: SessionWithRelations | null = inserted
-        ? { ...inserted, availability, session_drills: [] }
+        ? { ...inserted, availability, session_drills: [], session_tactics: [] }
         : null
       set({
         sessionsLoading: false,
@@ -283,6 +289,7 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
           ...updated,
           availability: existing?.availability ?? [],
           session_drills: existing?.session_drills ?? [],
+          session_tactics: existing?.session_tactics ?? [],
         }
         return {
           sessionsLoading: false,
@@ -342,10 +349,11 @@ export const createSessionSlice: StateCreator<StoreState, [], [], SessionSlice> 
             .from('session')
             .select(SESSION_SELECT)
             .eq('id', newSession.id)
-            .order('order_index', { ascending: true, referencedTable: 'session_drills' }),
+            .order('order_index', { ascending: true, referencedTable: 'session_drills' })
+            .order('order_index', { ascending: true, referencedTable: 'session_tactics' }),
         "Session duplicated, but couldn't load it — refresh to see it."
       )
-      const session = full?.[0] ?? { ...newSession, availability, session_drills: [] }
+      const session = full?.[0] ?? { ...newSession, availability, session_drills: [], session_tactics: [] }
 
       set({
         sessionsLoading: false,

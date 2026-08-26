@@ -276,6 +276,135 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 9: library and session integration
+
+Stage 9 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). A
+coach can browse tactics as cards, open one, and drop it into a session
+alongside drills in a single ordered line-up.
+
+### 9.1 Tactics library
+
+`/tactics` became a card grid — thumbnail, name, a formation badge per side,
+phase count, duration — replacing the plain list Stage 7 left there. Two
+filters, name and phase of play, both client-side over the array already in the
+store. **Only two, deliberately**: the plan asks for exactly those, and a
+tactic carries light metadata by design (decided 2026-08-26), so
+`DrillLibrary`'s other seven filters have nothing to read. Name search also
+matches both formation labels, so typing "4-4-2" finds every tactic built on
+that shape. The create form stays — unlike a drill, a tactic has no other
+front door.
+
+### 9.2 Thumbnails
+
+`uploadTacticThumbnail` is `uploadDrillThumbnail` against the same bucket, and
+`TacticEditor` auto-captures on save when empty using the drill editor's rule
+condition for condition (edited this session · playhead at 0 · has entities ·
+none already). No manual re-capture button: a tactic has no details drawer to
+put one in and the stage doesn't ask for one.
+
+Migration 024 widened the `drill-thumbnails` bucket's RLS to admit
+`<tactic id>.png`. Before it the upload failed closed — the id matched no
+drill. The bucket name is now a misnomer; renaming it would break every
+`thumbnail_url` already stored, so it stays.
+
+**The policies keep migration 019's `in (select ...)` shape, and 024's header
+says loudly why.** 017 wrote `split_part(name, '.', 1)` inside a correlated
+subquery over `drill`, whose own `name` column silently shadowed the storage
+object's. `tactic` has a `name` column too — the identical bug is one
+"simplification" away.
+
+### 9.3 `sessionTacticSlice`
+
+Mirrors `sessionDrillSlice` exactly, as the plan instructs: same three actions,
+same two pairs of keyed loading/error records, same nested-rows shape, same
+wording. A separate slice rather than a generalisation, because the two write
+different tables and the store's rule is that every action names what it
+touches. The generalisation the plan actually wants is one layer up, in the UI.
+
+### 9.4 One line-up, two tables — the judgement call
+
+`SessionDrillsPanel` → `SessionItemsPanel`, holding drills AND tactics in one
+ordered list. The plan's execution note suggested "a small discriminated-union
+row type before touching the component", and that is what carries it: both join
+tables normalise into a single `SessionItem` ONCE, at the top of the panel.
+Sorting, numbering, reordering, the row component and the totals all read
+`SessionItem` and never ask which table a row came from. **Four `kind` branches
+in the whole file**, each one line: `saveItem`, `reindex`, `removeItem`, and
+the row's loading/error selector.
+
+**One `order_index` sequence shared across the two tables.** Each table has its
+own column, but the coach sees one list, so the indices are contiguous across
+both: attach lands at the combined length, reorder swaps between adjacent rows
+of any type, detach renumbers. The renumber is not tidiness — remove the middle
+of 0,1,2 and you get 0,2, and the next attach at length 2 COLLIDES with the
+existing 2. That is what makes "position in the list" well-defined across two
+tables, and it is what Stage 9's Verify step checks.
+
+`SessionPlanner`'s summary now reads both arrays: item count plus total planned
+minutes across both kinds. The "Drills" toggle became "Line-up".
+
+### Verify — the plan's own step, run live
+
+Two drills and one tactic on a real session, then reorder across types:
+
+| | line-up | contiguous | total |
+|---|---|---|---|
+| after attaching | `D@0 Test drill passing, D@1 ma, T@2 4-33` | 0,1,2 ✓ | 35 min |
+| after moving the tactic up | `D@0 Test drill passing, T@1 4-33, D@2 ma` | 0,1,2 ✓ | 35 min |
+
+`35 min` is 20 + 15 (the first drill has no planned minutes) — the total sums
+all three attachments, across both tables. A SQL assertion confirmed
+`count = count(distinct order_index) and min = 0 and max = count - 1`.
+
+Also verified beyond the plan's step: removing the MIDDLE item renumbered 0,2
+back to 0,1, and the next attach then landed cleanly at 2 — the collision the
+renumber exists to prevent. Thumbnail auto-capture produced a 20KB PNG at
+`<tactic id>.png` and rendered on the library card. All scratch data was
+restored afterwards and confirmed by SQL, including deleting the test
+thumbnail through the Storage API.
+
+### A pre-existing bug this stage's verification exposed
+
+**`duplicate_session` has been broken since migration 009.** Migration 003 is
+its only definition and its insert reads `physical_load` and `equipment`; 009
+dropped both columns from `session` and never redefined the function. Every
+call from 009 onward failed with `column "physical_load" of relation "session"
+does not exist` — the Duplicate button was dead for the whole of 009-023, and
+nothing caught it because there is no test suite and nobody clicked it.
+
+Found by clicking it. Fixed in 024, which was already rewriting that exact
+function to copy the tactic line-up; shipping a knowingly broken body would
+have been worse than the small scope creep. The rewrite also copies
+`start_time`, added after 003 and never carried across even when the function
+worked. 003 now carries a SUPERSEDED banner, the same treatment 013b and 020b
+got.
+
+`npm run build` clean, `npm run lint` at its 3 pre-existing warnings.
+
+### Gotchas
+
+- **`li` nesting makes `closest('li')` lie.** A first attempt to click the
+  tactic row's "Move up" silently hit the SessionRow's own `li`, whose first
+  descendant Move-up belongs to row 01 and is disabled — so nothing happened
+  and it looked like the reorder was broken. It wasn't. Select the button
+  first, then walk up: `[...querySelectorAll('button[aria-label="Move up"]')]
+  .map(b => b.closest('li'))`.
+- **The Browser pane's console keeps errors across navigations.** After fixing
+  `duplicate_session` the same `physical_load` error was still listed, which
+  read as "the fix didn't work". It had worked — the message was history. Two
+  independent checks settled it: calling the RPC directly in SQL, and finding
+  the duplicated session actually present in the table. Same family as the
+  stale-HMR trap, and worth the same reflex: **confirm against the database,
+  not the console**.
+- **Renaming a component file leaves the old module 404-ing in every live
+  tab.** `SessionDrillsPanel.tsx` kept failing to hot-reload long after it
+  ceased to exist.
+- **`storage.objects` refuses direct SQL DELETE** (`protect_delete()`); use
+  the Storage API. Doing so as anon returns 403, which is itself a useful
+  confirmation that 024's widened policies stayed `to authenticated`.
+
+---
+
 ## Session log — Tactics board rework, Stage 8: export, share and presentation
 
 Stage 8 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). A

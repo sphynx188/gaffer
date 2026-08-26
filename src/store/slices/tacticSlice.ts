@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { createClient } from '@supabase/supabase-js'
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
-import { runSupabaseAction } from '../supabaseAction'
+import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
 import { mintShareToken } from '../shareToken'
 import * as scene from '../sceneActions'
 import { assignToFormation, type FormationSlot } from '../../components/tactics/formations'
@@ -56,6 +56,9 @@ export interface NewTacticInput {
 // debounce without noticing. Same rule, same reason, as DrillUpdateInput.
 export interface TacticUpdateInput {
   name?: string
+  // Written only by uploadTacticThumbnail, never typed into a form — the same
+  // carve-out drillSlice makes for the drill's.
+  thumbnail_url?: string | null
   // Written only by enableTacticSharing/disableTacticSharing, never typed into
   // a form — the same carve-out DrillUpdateInput makes. It is a real column
   // rather than editor content, so it does not go through the autosave flush
@@ -146,6 +149,12 @@ function restoreDrawing(tactic: Tactic, drawn: Marking[]): Tactic {
 
 const UNDO_LIMIT = 50
 const AUTOSAVE_IDLE_MS = 800
+
+// Migration 017's bucket, shared with drills — Stage 9.2 says to reuse the
+// drill capture path, and migration 024 widened its RLS to admit tactic ids.
+// The name is a slight misnomer now; renaming would break every thumbnail_url
+// already stored.
+const THUMBNAIL_BUCKET = 'drill-thumbnails'
 
 function emptyStacks(): TacticStacks {
   return { timeline: { past: [], future: [] }, drawing: { past: [], future: [] } }
@@ -287,6 +296,9 @@ export interface TacticSlice {
   disableTacticSharing: (tacticId: string) => Promise<boolean>
   /** Reads one tactic by token as an anonymous visitor would. */
   fetchSharedTactic: (token: string) => Promise<Tactic | null>
+
+  /** Uploads a captured board PNG and stores its public URL. Returns the URL. */
+  uploadTacticThumbnail: (tacticId: string, dataUrl: string) => Promise<string | null>
 
   setTacticSide: (tacticId: string, side: 'home' | 'away', patch: Partial<TacticSide>) => void
 
@@ -616,6 +628,36 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
         return null
       }
       return data?.[0] ?? null
+    },
+
+    uploadTacticThumbnail: async (tacticId, dataUrl) => {
+      // Byte for byte drillSlice.uploadDrillThumbnail, against the same bucket
+      // — Stage 9.2's "reuse the drill capture path" taken literally. Migration
+      // 024 is what lets a `<tactic id>.png` object past the bucket's insert
+      // policy; before it, this call failed closed.
+      const path = `${tacticId}.png`
+      const upload = async () => {
+        const blob = await (await fetch(dataUrl)).blob()
+        // Storage errors aren't PostgrestErrors but carry the same `message`,
+        // which is all runSupabaseAction reads — funnelling through the one
+        // wrapper keeps CLAUDE.md's rule intact rather than opening a second
+        // path to Supabase.
+        const result = await supabase.storage
+          .from(THUMBNAIL_BUCKET)
+          .upload(path, blob, { contentType: 'image/png', upsert: true })
+        return result as unknown as SupabaseCallResult<{ path: string }>
+      }
+      const { error } = await runSupabaseAction(upload, "Couldn't save the tactic thumbnail, try again.")
+      if (error) {
+        set({ tacticsError: error })
+        return null
+      }
+      const { data: publicData } = supabase.storage.from(THUMBNAIL_BUCKET).getPublicUrl(path)
+      // Stable path + upsert, so without a cache-buster a re-capture keeps
+      // showing the browser's copy of the old image.
+      const url = `${publicData.publicUrl}?v=${Date.now()}`
+      const updated = await get().updateTactic(tacticId, { thumbnail_url: url })
+      return updated ? url : null
     },
 
     deleteTactic: async (id) => {
