@@ -276,6 +276,76 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 6: drawing tools to parity
+
+Stage 6 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). Five
+new marking kinds, the full tool shortcut map, and one latent bug that wiring
+the stage's definition of done exposed.
+
+### What happened, in order
+
+1. **`Marking.kind` 8 -> 13** — arc, shape, multi, spotlight, highlight.
+2. **Canvas**: arc bows between two points (sampled quadratic, since Konva has
+   no quadratic primitive); shape is a closed polygon outline where zone is a
+   shaded region; multi is an arrow over every tapped leg.
+3. **Spotlight/highlight** composite above the entities at the end of
+   EntityLayer.
+4. **`useMarkingKeys`** applies `M A L V N C R Z D X H U S I`; the bindings sit
+   on the tools in `markingTools.tsx`, and the rail now shows each key.
+5. **`onClearDrawings`** as an optional prop on the shared MarkingsPanel.
+
+### What Worked
+
+- **Every new tool slotted into an existing gesture family.** Arc, spotlight
+  and highlight are all "drag out from a start point"; shape and multi are
+  polylines exactly as zone and curve already were. No third gesture, and the
+  draw machine needed only two array entries changed.
+- **The spotlight veil is one path, not a composite operation.** Rect wound one
+  way, lit circle wound the other, so the circle becomes a hole under the
+  nonzero fill rule. `destination-out` would have erased the entities already
+  drawn beneath it in the same layer.
+- **Drawing all five new tools with real canvas gestures**, not store calls —
+  which is what proved the draw machine handles them, and is how the round-trip
+  test got honest data.
+
+### What Didn't Work / Watch Out For
+
+- **Marking transform was dead for EVERY kind, and had been since it shipped.**
+  PitchCanvas has carried a Transformer since the drill rework's Stage 3.5, but
+  it only renders when `onMarkingsTransform` is passed and nothing ever passed
+  one. Stage 6's DoD requires all fourteen tools to transform, so it is wired
+  now — a five-line change using the existing `updateMarking`.
+- **Wiring it exposed a second, worse bug.** `handleTransformEnd` applied the
+  node's ABSOLUTE transform to points that are already absolute, so any
+  positioned node — Ellipse, Circle, Rect — got translated twice and slid off
+  the pitch (observed: a highlight's y clamped to 1 and the shape vanished).
+  Correct for Line-based kinds, which sit at the origin with their geometry in
+  their points, which is why it looked fine in review. Now applies the DELTA,
+  `current x inverse(base)`, captured on `transformstart`. Verified: a 1.5x
+  scale gives exactly 1.5x in both axes with the centre held to 3 decimal
+  places and nothing clamped.
+- **A translucent shape must not swallow clicks.** Spotlight and highlight each
+  render an unlistening fill plus a stroked rim that carries the handlers —
+  otherwise a coach could not select the very player they had just spotlighted.
+- **There are 8 Konva layers, not 7.** EntityLayer's comment says "inside
+  Konva's seven-layer ceiling"; adding MotionLayer in Stage 5 took it to eight
+  counting InteractionLayer. Spotlight and highlight therefore render at the end
+  of EntityLayer rather than in a ninth. Worth a look if canvas performance ever
+  becomes a question.
+- Synthetic `PointerEvent`s do not reach Konva — it binds its own listeners.
+  Use the `computer` tool for anything that has to hit the canvas.
+
+## Next Steps
+
+1. **Stage 7 — editor shell, inspector and views.** Depends on 4, 5 and 6, all
+   now done. It mounts SquadPanel, FormationPicker and TacticTimeline, deletes
+   TacticBoard.tsx, and is the gate on migration 021.
+2. Stage 7.3's inspector extends PropertiesPanel with Scale, Marker Style, Role
+   Tag, Highlight and Status Ring — note those are per-ENTITY fields added in
+   Stage 1, unrelated to this stage's `highlight` marking kind.
+
+---
+
 ## Session log — Tactics board rework, Stage 5: timeline, phases and visualisations
 
 Stage 5 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md), in two

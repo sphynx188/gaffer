@@ -257,6 +257,21 @@ Player paths and ghost trails deliberately share ONE `MotionLayer`, carrying
 opacity per shape rather than per layer. Anything new that needs to draw should
 join an existing layer rather than add an eighth.
 
+`Marking.kind` covers 13 drawable kinds, all storing geometry in the same
+`points` array — which is what lets selection, the Konva Transformer and
+deletion work on every kind without knowing which is which. Two of them,
+`spotlight` and `highlight`, are emphasis rather than diagram and composite
+ABOVE the entities (at the end of EntityLayer, not in a layer of their own);
+`isOverlayMarking` is the one place that split is decided. Each is drawn twice
+— an unlistening fill and a stroked rim carrying the handlers — so a
+translucent shape can't swallow clicks on the player underneath it.
+
+Tool shortcuts live on the tools themselves in `markingTools.tsx` and are
+applied by `useMarkingKeys`, so a key and its tool can't drift apart. They
+don't collide with the timeline's keys: `useTimelineKeys` returns early on
+Ctrl/Cmd and `useMarkingKeys` ignores any modified press, which is what keeps
+plain `C` and `V` free for Circle and Curve.
+
 `canvas/transposeScene.ts` is shared by both editors and must stay that way.
 Flipping a pitch between portrait and landscape has to move the CONTENT as
 well as the markings: `getPitchMarkings` renders landscape as the portrait

@@ -60,6 +60,8 @@ export {
   DRILL_PHASE_OF_PLAY_LABELS,
   SESSION_BLOCKS,
   SESSION_BLOCK_LABELS,
+  OVERLAY_MARKING_KINDS,
+  isOverlayMarking,
 } from './types'
 export type { SessionWithRelations, CalendarSession, RecurringSessionInput } from './slices/sessionSlice'
 export type {

@@ -85,6 +85,21 @@ export const SELECTION = {
   marqueeFill: 'rgba(254, 253, 248, 0.12)',
 } as const
 
+// Spotlight and highlight (rework plan Stage 6.1/6.4). Emphasis rather than
+// diagram: a spotlight dims the pitch everywhere OUTSIDE its circle, and a
+// highlight tints the region inside its own. Both composite above the
+// entities, which is why their fills are translucent — a player under either
+// one has to stay recognisable, or the tool has hidden the thing it was meant
+// to draw attention to.
+export const EMPHASIS = {
+  // The veil drawn over everything a spotlight isn't lighting. Dark enough to
+  // push the rest of the pitch back, light enough to keep it legible.
+  spotlightDim: 'rgba(6, 8, 10, 0.55)',
+  spotlightRim: 'rgba(254, 253, 248, 0.55)',
+  highlightFill: 'rgba(250, 204, 21, 0.22)',
+  highlightRim: 'rgba(250, 204, 21, 0.8)',
+} as const
+
 // How much room each equipment type needs around its origin, as a multiple of
 // the base unit EquipmentShapes draws at. PitchCanvas uses it for the drag
 // bound and the selection halo, so a full goal doesn't get a halo sized for a

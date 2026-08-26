@@ -22,6 +22,7 @@ import { downloadBlob, downloadDataUrl } from '../export/exportFile'
 import { recordGif } from '../export/recordGif'
 import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
 import { markingToolSpec, type MarkingTool } from './markingTools'
+import { useMarkingKeys } from './useMarkingKeys'
 import type { GridSettings } from './GridPanel'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
@@ -57,6 +58,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const setEntityPosition = useStore((s) => s.setEntityPosition)
   const addMarking = useStore((s) => s.addMarking)
   const removeMarking = useStore((s) => s.removeMarking)
+  const updateMarking = useStore((s) => s.updateMarking)
   const setDrillPitch = useStore((s) => s.setDrillPitch)
   const updateKeyframeState = useStore((s) => s.updateKeyframeState)
   const flushDrillSave = useStore((s) => s.flushDrillSave)
@@ -403,6 +405,20 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     if (removed > 0) showToast(removed === 1 ? 'Removed' : `${removed} removed`)
   }
 
+  // The tool shortcut map (Stage 6.2). 'select' drops back to the selection
+  // tool; every other key arms its drawing tool and switches the canvas into
+  // marking mode, which is exactly what clicking the rail does.
+  useMarkingKeys({
+    onSelectTool: (next) => {
+      if (next === 'select') {
+        setTool('select')
+        return
+      }
+      setMarking(next)
+      setTool('marking')
+    },
+  })
+
   const clearMarkings = () => {
     const count = drill.scene.markings.length
     for (const item of drill.scene.markings) removeMarking(drill.id, item.id)
@@ -513,6 +529,16 @@ export function DrillEditor({ drill }: { drill: Drill }) {
             selectedIds={selectedIds}
             onSelectionChange={tool === 'select' ? setSelectedIds : undefined}
             onDeleteSelection={removeSelection}
+            // PitchCanvas has carried the Transformer since the drill rework's
+            // Stage 3.5, but it only renders it when this callback is present
+            // and nothing ever passed one — so resizing and rotating a marking
+            // was built and left unplugged for every kind. Stage 6's definition
+            // of done asks that all fourteen tools transform, so it is wired
+            // here; the canvas already bakes the result back into normalized
+            // points, which is why this only has to store them.
+            onMarkingsTransform={(updates) => {
+              for (const update of updates) updateMarking(drill.id, update.id, { points: update.points })
+            }}
             pendingArrowStart={pendingArrowStart}
             hintText={placementHint}
           />

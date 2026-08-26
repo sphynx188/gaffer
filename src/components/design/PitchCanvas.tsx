@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
-import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Stage, Tag, Text, Transformer } from 'react-konva'
+import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Shape, Stage, Tag, Text, Transformer } from 'react-konva'
 import type { Marking, PhasePoint, PitchConfig } from '../../store'
+import { isOverlayMarking } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
 import type { MotionPath } from './timeline/motion'
-import { ANNOTATION, ARROW, BALL, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
+import { ANNOTATION, ARROW, BALL, EMPHASIS, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
 import { EquipmentShape } from './canvas/EquipmentShapes'
 import {
   GRID_STEP_METERS,
@@ -126,12 +127,28 @@ const ZOOM_STEP = 1.08
 
 // The drawing tools the markings panel arms. Everything but 'ruler' commits a
 // Marking; the ruler only ever reports a distance on screen.
-export type DrawTool = 'arrow' | 'line' | 'curve' | 'circle' | 'rect' | 'freehand' | 'zone' | 'ruler'
+export type DrawTool =
+  | 'arrow'
+  | 'line'
+  | 'curve'
+  | 'arc'
+  | 'circle'
+  | 'rect'
+  | 'freehand'
+  | 'zone'
+  | 'shape'
+  | 'multi'
+  | 'spotlight'
+  | 'highlight'
+  | 'ruler'
 
 // Tools drawn by pressing, dragging and releasing. The rest are polylines
-// built tap by tap, or freehand.
-const DRAG_TOOLS: DrawTool[] = ['arrow', 'line', 'circle', 'rect', 'ruler']
-const POLYLINE_TOOLS: DrawTool[] = ['curve', 'zone']
+// built tap by tap, or freehand. Every new tool from Stage 6.1 slots into one
+// of these two families rather than needing a third gesture — arc, spotlight
+// and highlight are all "drag out from a start point", and shape and multi are
+// polylines exactly as zone and curve already were.
+const DRAG_TOOLS: DrawTool[] = ['arrow', 'line', 'arc', 'circle', 'rect', 'spotlight', 'highlight', 'ruler']
+const POLYLINE_TOOLS: DrawTool[] = ['curve', 'zone', 'shape', 'multi']
 
 // How close two entities have to be on one axis for a smart guide to appear
 // and snap them, in normalized units.
@@ -165,6 +182,33 @@ const EMPTY_SELECTION: string[] = []
 
 function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
+}
+
+// An arc is stored as its two endpoints and drawn as a bow between them
+// (Stage 6.1). The control point sits on the perpendicular bisector, offset by
+// a fixed fraction of the chord — so a short arc bows a little and a long one
+// bows a lot, and the shape reads the same at any pitch size. Konva has no
+// quadratic primitive, so it's sampled into a polyline.
+const ARC_BOW = 0.22
+const ARC_SEGMENTS = 24
+
+function arcPoints(from: PhasePoint, to: PhasePoint): PhasePoint[] {
+  const midX = (from.x + to.x) / 2
+  const midY = (from.y + to.y) / 2
+  // Perpendicular to the chord, so the bow always leans the same way relative
+  // to the direction it was drawn in.
+  const controlX = midX - (to.y - from.y) * ARC_BOW
+  const controlY = midY + (to.x - from.x) * ARC_BOW
+  const points: PhasePoint[] = []
+  for (let i = 0; i <= ARC_SEGMENTS; i++) {
+    const t = i / ARC_SEGMENTS
+    const inverse = 1 - t
+    points.push({
+      x: inverse * inverse * from.x + 2 * inverse * t * controlX + t * t * to.x,
+      y: inverse * inverse * from.y + 2 * inverse * t * controlY + t * t * to.y,
+    })
+  }
+  return points
 }
 
 function clamp01(n: number) {
@@ -696,9 +740,34 @@ export function PitchCanvas({
     transformer.nodes(nodes)
   }, [selection, frame, onMarkingsTransform])
 
+  // What each selected node looked like before the coach grabbed a handle.
+  // Needed because a marking's points are stored in ABSOLUTE pitch
+  // coordinates, so baking a transform means applying only what the gesture
+  // changed — not the node's own resting position on top of it.
+  const transformBase = useRef(new Map<string, { transform: Konva.Transform; x: number; y: number }>())
+
+  const handleTransformStart = () => {
+    transformBase.current.clear()
+    for (const id of selection) {
+      const node = markingNodes.current.get(id)
+      if (node) {
+        transformBase.current.set(id, { transform: node.getTransform().copy(), x: node.x(), y: node.y() })
+      }
+    }
+  }
+
   // Bakes the Transformer's scale/rotation back into each marking's own
   // normalized points and resets the node, so the transform lives in the
   // data rather than accumulating on the Konva node.
+  //
+  // The transform applied is the DELTA — `current x inverse(base)` — rather
+  // than the node's absolute transform. A polyline sits at the origin with its
+  // geometry in its points, so for those two are the same; but an Ellipse, a
+  // Circle or a Rect carries its position in x/y, and using the absolute
+  // transform there translated every point a second time and dragged the shape
+  // off the pitch. That bug was latent until Stage 6 wired this callback up for
+  // the first time — the capability shipped with the drill rework's Stage 3.5,
+  // but nothing ever passed `onMarkingsTransform`, so it never ran.
   const handleTransformEnd = () => {
     if (!onMarkingsTransform) return
     const updates: Array<{ id: string; points: PhasePoint[] }> = []
@@ -706,19 +775,24 @@ export function PitchCanvas({
       const node = markingNodes.current.get(id)
       const marking = frameMarkings.find((m) => m.id === id)
       if (!node || !marking) continue
-      const transform = node.getTransform().copy()
+      const base = transformBase.current.get(id)
+      const delta = node.getTransform().copy()
+      if (base) delta.multiply(base.transform.copy().invert())
       updates.push({
         id,
         points: marking.points.map((point) => {
-          const moved = transform.point(toPx(point))
+          const moved = delta.point(toPx(point))
           return { x: clamp01(moved.x / width), y: clamp01(moved.y / height) }
         }),
       })
+      // Back to rest. React re-renders from the new points immediately, but
+      // leaving the gesture on the node would compound it into the next one.
       node.scaleX(1)
       node.scaleY(1)
       node.rotation(0)
-      node.position({ x: 0, y: 0 })
+      node.position({ x: base?.x ?? 0, y: base?.y ?? 0 })
     }
+    transformBase.current.clear()
     if (updates.length > 0) onMarkingsTransform(updates)
   }
 
@@ -746,7 +820,12 @@ export function PitchCanvas({
   const equipment = entities.filter((entity) => entity.kind === 'equipment')
   const balls = entities.filter((entity) => entity.kind === 'ball')
   const textMarkings = frameMarkings.filter((marking) => marking.kind === 'text')
-  const shapeMarkings = frameMarkings.filter((marking) => marking.kind !== 'text')
+  // Spotlight and highlight are emphasis rather than diagram, so they leave
+  // the markings layer and composite above the entities instead (Stage 6.4).
+  const overlayMarkings = frameMarkings.filter(isOverlayMarking)
+  const shapeMarkings = frameMarkings.filter(
+    (marking) => marking.kind !== 'text' && !isOverlayMarking(marking)
+  )
 
   const teamColors = assignTeamColors(
     players.map((player) => player.team ?? ''),
@@ -793,6 +872,7 @@ export function PitchCanvas({
     draggable: false,
     onClick: interactive ? handleMarkingClick(markingId) : undefined,
     onTap: interactive ? handleMarkingClick(markingId) : undefined,
+    onTransformStart: handleTransformStart,
     onTransformEnd: handleTransformEnd,
   })
 
@@ -961,6 +1041,31 @@ export function PitchCanvas({
                   />
                 )
               }
+              // A multi-segment arrow is an arrow over every leg the coach
+              // tapped, with the head on the last one.
+              if (marking.kind === 'multi' && marking.points.length >= 2) {
+                const style = ARROW[marking.style?.dash ? 'ball' : 'player']
+                return (
+                  <Arrow
+                    key={marking.id}
+                    {...markingHandlers(marking.id)}
+                    points={marking.points.flatMap((point) => {
+                      const p = toPx(point)
+                      return [p.x, p.y]
+                    })}
+                    stroke={selected ? SELECTION.halo : marking.style?.stroke ?? style.stroke}
+                    fill={selected ? SELECTION.halo : marking.style?.stroke ?? style.stroke}
+                    dash={style.dash}
+                    strokeWidth={(marking.style?.width ?? 1) * arrowStrokeWidth}
+                    pointerLength={baseUnit * 2.2}
+                    pointerWidth={baseUnit * 2.2}
+                    hitStrokeWidth={Math.max(arrowStrokeWidth, baseUnit * 4)}
+                    lineJoin="round"
+                    lineCap="round"
+                  />
+                )
+              }
+
               if (marking.points.length < 2) return null
               const stroke = selected ? SELECTION.halo : marking.style?.stroke ?? ARROW.player.stroke
               const strokeWidth = (marking.style?.width ?? 1) * arrowStrokeWidth
@@ -1004,21 +1109,35 @@ export function PitchCanvas({
                 )
               }
 
-              // Lines, curves, freehand strokes and zones are all polylines
-              // over their own points; what differs is whether they close and
-              // how much they're smoothed.
-              const closed = marking.kind === 'zone'
+              // An arc bows between its two endpoints; everything else is a
+              // polyline over the points as stored.
+              const drawn = marking.kind === 'arc'
+                ? arcPoints(marking.points[0], marking.points[marking.points.length - 1])
+                : marking.points
+
+              // Lines, arcs, curves, freehand strokes, zones and shapes are all
+              // polylines; what differs is whether they close, whether they're
+              // filled, and how much they're smoothed. A zone shades the area
+              // it encloses; a shape is the same polygon drawn as an outline,
+              // which is the distinction Teloframe draws between the two.
+              const closed = marking.kind === 'zone' || marking.kind === 'shape'
               const smoothed = marking.kind === 'curve' || marking.kind === 'freehand'
+              const fill =
+                marking.kind === 'zone'
+                  ? marking.style?.fill ?? SELECTION.marqueeFill
+                  : marking.kind === 'shape'
+                    ? marking.style?.fill
+                    : undefined
               return (
                 <Line
                   key={marking.id}
                   {...markingHandlers(marking.id)}
-                  points={marking.points.flatMap((point) => {
+                  points={drawn.flatMap((point) => {
                     const p = toPx(point)
                     return [p.x, p.y]
                   })}
                   closed={closed}
-                  fill={closed ? marking.style?.fill ?? SELECTION.marqueeFill : undefined}
+                  fill={fill}
                   stroke={stroke}
                   strokeWidth={strokeWidth}
                   dash={dash}
@@ -1224,6 +1343,94 @@ export function PitchCanvas({
                   />
                   <Text text={note.text ?? ''} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
                 </Label>
+              )
+            })}
+
+            {/* --- Emphasis: spotlight and highlight (Stage 6.4). These are
+                presentational rather than geometric, so they belong ABOVE the
+                entities rather than under them with the other markings.
+                They render at the end of this layer rather than in a new one:
+                document order inside a layer already puts them above every
+                player, and PitchCanvas is deliberately frugal with Konva
+                layers (see EntityLayer's own note on the ceiling).
+
+                Each is drawn twice — an unlistening fill, and a stroked rim
+                that carries the click and transform handlers. Without that
+                split the translucent fill would swallow every click inside it,
+                and a coach could not select the very player they had just
+                spotlighted. The rim is the handle; the interior stays live. */}
+            {overlayMarkings.map((marking) => {
+              if (marking.points.length < 2) return null
+              const selected = isSelected(marking.id)
+              const a = toPx(marking.points[0])
+              const b = toPx(marking.points[marking.points.length - 1])
+
+              if (marking.kind === 'spotlight') {
+                // Stored as [centre, edge], so the drag radius is the distance
+                // between them.
+                const radius = Math.hypot(b.x - a.x, b.y - a.y)
+                if (radius < 1) return null
+                return (
+                  <Group key={marking.id} listening={interactive}>
+                    <Shape
+                      listening={false}
+                      sceneFunc={(context, shape) => {
+                        // The veil is one path: the whole pitch wound one way
+                        // with the lit circle wound the other, so the circle
+                        // becomes a hole under the nonzero fill rule. Doing it
+                        // this way rather than with a composite operation
+                        // keeps the erase from reaching the entities already
+                        // drawn beneath it in this same layer.
+                        context.beginPath()
+                        context.rect(0, 0, width, height)
+                        context.arc(a.x, a.y, radius, 0, Math.PI * 2, true)
+                        context.closePath()
+                        context.fillStrokeShape(shape)
+                      }}
+                      fill={EMPHASIS.spotlightDim}
+                    />
+                    <Circle
+                      {...markingHandlers(marking.id)}
+                      x={a.x}
+                      y={a.y}
+                      radius={radius}
+                      fillEnabled={false}
+                      stroke={selected ? SELECTION.halo : marking.style?.stroke ?? EMPHASIS.spotlightRim}
+                      strokeWidth={(marking.style?.width ?? 1) * arrowStrokeWidth}
+                      hitStrokeWidth={Math.max(arrowStrokeWidth, baseUnit * 4)}
+                    />
+                  </Group>
+                )
+              }
+
+              // Highlight: stored as two opposite corners, like a box.
+              const cx = (a.x + b.x) / 2
+              const cy = (a.y + b.y) / 2
+              const radiusX = Math.abs(b.x - a.x) / 2
+              const radiusY = Math.abs(b.y - a.y) / 2
+              if (radiusX < 1 || radiusY < 1) return null
+              return (
+                <Group key={marking.id} listening={interactive}>
+                  <Ellipse
+                    listening={false}
+                    x={cx}
+                    y={cy}
+                    radiusX={radiusX}
+                    radiusY={radiusY}
+                    fill={marking.style?.fill ?? EMPHASIS.highlightFill}
+                  />
+                  <Ellipse
+                    {...markingHandlers(marking.id)}
+                    x={cx}
+                    y={cy}
+                    radiusX={radiusX}
+                    radiusY={radiusY}
+                    fillEnabled={false}
+                    stroke={selected ? SELECTION.halo : marking.style?.stroke ?? EMPHASIS.highlightRim}
+                    strokeWidth={(marking.style?.width ?? 1) * arrowStrokeWidth}
+                    hitStrokeWidth={Math.max(arrowStrokeWidth, baseUnit * 4)}
+                  />
+                </Group>
               )
             })}
           </Layer>

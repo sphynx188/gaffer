@@ -262,13 +262,50 @@ export interface Keyframe {
 // Arrows, lines, shapes, zones, freehand, text. Static by default;
 // `keyframeId` binds a marking to one keyframe — which is what lets the
 // migration carry today's per-phase arrows and annotations across losslessly.
+// The 13 drawable kinds (TACTICS_BOARD_REWORK_PLAN.md Stage 6.1 takes the set
+// to parity with Teloframe's tool rail). Every kind stores its geometry in the
+// same `points` array, which is what lets selection, the Transformer and
+// deletion work on all of them without knowing which is which.
+//
+//   arrow line curve freehand   open strokes
+//   arc                          a bowed connector between two points
+//   circle rect                  bounding box, two opposite corners
+//   zone shape                   closed polygons — zone shades, shape outlines
+//   multi                        multi-segment arrow, head on the last leg
+//   text                         a placed note
+//   spotlight highlight          presentational, NOT geometry — see below
+//
+// `spotlight` and `highlight` are the odd two out: they are emphasis rather
+// than diagram, so they composite ABOVE the entities rather than under them
+// (Stage 6.4). Everything else renders beneath, where a marking belongs.
 export interface Marking {
   id: string
-  kind: 'arrow' | 'line' | 'curve' | 'circle' | 'rect' | 'freehand' | 'zone' | 'text'
+  kind:
+    | 'arrow'
+    | 'line'
+    | 'curve'
+    | 'arc'
+    | 'circle'
+    | 'rect'
+    | 'freehand'
+    | 'zone'
+    | 'shape'
+    | 'multi'
+    | 'text'
+    | 'spotlight'
+    | 'highlight'
   points: PhasePoint[]
   style?: { stroke?: string; dash?: boolean; fill?: string; width?: number }
   text?: string
   keyframeId?: string | null
+}
+
+// The two kinds that render above the entities instead of below them. Exported
+// so the canvas and anything that partitions markings agree on the split.
+export const OVERLAY_MARKING_KINDS = ['spotlight', 'highlight'] as const
+
+export function isOverlayMarking(marking: Marking): boolean {
+  return marking.kind === 'spotlight' || marking.kind === 'highlight'
 }
 
 export interface DrillScene {
