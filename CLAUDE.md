@@ -93,6 +93,23 @@ Every tactic action carries a `Tactic` infix (`addTacticEntity`, `undoTactic`,
 `tacticSaveState`) because there is one shared store and `drillSlice` already
 owns the bare names — a duplicate key would silently shadow it.
 
+`src/components/tactics/formations.ts` holds the 29 built-in formations plus
+the slot-assignment algorithm. Its coordinate convention is fixed and every
+consumer depends on it: **landscape full pitch, home attacking +x, low `y` =
+left touchline**, normalized 0-1. The away side mirrors `x -> 1 - x` only —
+mirroring `y` too would rotate the shape rather than reflect it. `PlayerRole`
+is deliberately not widened for wide midfielders or wing-backs; those slots
+borrow `LW`/`RW` and `LB`/`RB` and are distinguished by their depth.
+
+`assignToFormation` scores every (entity, slot) pair by role affinity first
+and distance second, then takes the cheapest available pair repeatedly —
+globally, not per entity, so the result doesn't depend on array order. **The
+goalkeeper slot is reserved**: an entity with no role fits every *outfield*
+slot equally, but must never outbid a known keeper for the one position that
+isn't interchangeable. Without that guard an unroled outfielder standing a few
+metres closer to goal takes it and the keeper ends up at right-back — which
+happened, and is the specific failure Stage 3's definition of done names.
+
 `selectedTeamId` (`teamSlice`) is the single source of truth for "current
 team" scope, persisted to `localStorage` and reconciled against the
 RLS-scoped team list on every `fetchTeams`. Never derive current-team as

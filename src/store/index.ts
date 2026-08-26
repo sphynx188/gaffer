@@ -39,6 +39,7 @@ export type {
   TacticPhase,
   TacticSide,
   SessionTactic,
+  CustomFormation,
   PlayerRole,
   MarkerStyle,
   StatusRing,
@@ -69,3 +70,4 @@ export type {
 } from './slices/drillSlice'
 export type { NewTacticInput, TacticUpdateInput, TacticUndoScope } from './slices/tacticSlice'
 export type { SceneDocument } from './sceneActions'
+export type { NewFormationInput } from './slices/formationSlice'

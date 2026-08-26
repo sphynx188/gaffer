@@ -502,6 +502,19 @@ export interface TacticBoard {
   annotations: PhaseAnnotation[]
 }
 
+// A shape a coach saved for themselves (Stage 3.4, migration 022). Per coach
+// rather than per team — a shape is a way of thinking about the game, not a
+// property of one squad. `slots` is the same FormationSlot[] the 29 built-ins
+// use (see components/tactics/formations.ts), so a custom formation and a
+// built-in are interchangeable everywhere downstream.
+export interface CustomFormation {
+  id: string
+  owner_id: string
+  name: string
+  slots: { role: PlayerRole; x: number; y: number }[]
+  created_at: string
+}
+
 // Mirrors SessionDrill exactly, so the session planner can hold both kinds of
 // item in one list (Stage 9.4) rather than growing a parallel panel.
 export interface SessionTactic {

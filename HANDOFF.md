@@ -276,6 +276,77 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 3: formations
+
+Stage 3 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). 29
+built-in formations, a role-aware slot assignment, the picker component, and
+custom formations saved per coach.
+
+### What happened, in order
+
+1. **`src/components/tactics/formations.ts`** — the 29 formations, authored
+   against a landscape full pitch with home attacking +x, through a small
+   `line(x, [[role, y], …])` helper so each formation reads as its shape and
+   "exactly 11 slots" is structurally obvious.
+2. **`assignToFormation`** — pure, scoring every (entity, slot) pair by role
+   affinity then distance and taking the cheapest available pair repeatedly.
+3. **`applyTacticFormation`** in tacticSlice, through the existing
+   `commit(…, 'timeline', …)` so it's undoable and autosaved.
+4. **Migration 022 + `formationSlice`** for custom formations.
+5. **`FormationPicker.tsx`** — Stage 4 mounts it; Stage 4 owns SquadPanel.
+
+### What Worked
+
+- **The contact sheet.** Rendering all 29 as SVG plan views and looking at
+  them is what the plan means by "budget a review pass" — it immediately
+  showed the 5-x wing-backs sitting as high as a 3-5-2's, crowding them
+  against the midfield flank. Split into `WB_HIGH` (3-5-2, level with the
+  midfield) and `WB_FLAT` (a genuine back five).
+- **Testing against the live store, not just headlessly.** See below — this is
+  the whole story of this stage.
+
+### What Didn't Work / Watch Out For
+
+- **The headless test passed a keeper-in-midfield bug, and the live test
+  caught it.** `roleCost` returned 0 for an entity with *no* role against
+  every slot including the goalkeeper's, so an unroled outfielder standing a
+  few metres closer to goal outbid the actual keeper for it — and the keeper,
+  then blocked and paying a mismatch everywhere, took right-back. The headless
+  suite missed it because its cases either gave every entity an explicit role
+  or put them all on identical coordinates, where a tie-break happened to
+  favour the keeper. Fixed by reserving the GK slot: `keeperSlot !==
+  keeperEntity` costs a mismatch before the blank-slate rule is reached. The
+  regression case (keeper flagged, everyone else unroled, keeper *furthest*
+  from their own goal, distinct positions) now runs across all 29 × 2 sides.
+- **`4-4-1-2`'s digits sum to 11 outfield players**, which is impossible —
+  every other formation in the source list sums to 10. Implemented as the
+  midfield diamond the name describes (CDM, CM, CM, CAM + 2 strikers), noted
+  in the file. It ends up close to 4-1-2-1-2, which is honest: they are nearly
+  the same shape.
+- **RLS on `formation` does not reuse `is_team_owner`**, as 3.4 asks. That
+  helper takes a `check_team_id` and this table is keyed on `owner_id` — there
+  is no team to pass. Uses `owner_id = (select auth.uid())`, the same shape
+  `team_insert_self_owner` already uses. CLAUDE.md's rule is about *membership*
+  checks; this is single-user ownership.
+- **The picker shows a diagram of the SELECTED formation, not one per row.**
+  3.3 asks for a thumbnail per formation, but `Dropdown` is the app's one
+  dropdown pattern (design.md) and its rows are `{value, label}` text by
+  construction; teaching it per-row rendering would fork a component every
+  picker shares.
+- **jsonb reorders object keys** (`x, y, role`), so asserting a slots
+  round-trip with `JSON.stringify` fails while every value is identical.
+  Compare fields, not strings.
+
+## Next Steps
+
+1. **Stage 4 — squad panel, two teams, roster binding.** It mounts
+   `FormationPicker` (one per side) and calls `applyTacticFormation`. Both are
+   built and tested.
+2. The Stage 2 test residue on the "4-2-2" tactic is cleaned up — it and the
+   `formation` table are both back to empty.
+
+---
+
 ## Session log — Tactics board rework, Stage 2: tacticSlice on entities and keyframes
 
 Stage 2 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). The

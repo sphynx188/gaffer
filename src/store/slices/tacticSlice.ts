@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
 import * as scene from '../sceneActions'
+import { assignToFormation, type FormationSlot } from '../../components/tactics/formations'
 import type { NewEntityInput } from '../sceneActions'
 // Type-only, so no runtime coupling between the slices: `SaveState` is a
 // store-level concept both editors' save indicators read, and drillSlice is
@@ -274,6 +275,30 @@ export interface TacticSlice {
   removeTacticPhase: (tacticId: string, phaseId: string) => void
 
   setTacticSide: (tacticId: string, side: 'home' | 'away', patch: Partial<TacticSide>) => void
+
+  // Re-shapes one side onto a formation's slots (Stage 3.2). Writes positions
+  // into `keyframeId` ONLY — changing formation part-way through an animation
+  // is a legitimate coaching move ("we start in a 4-4-2 and shift to a 4-2-4"),
+  // not a reason to reset every other keyframe.
+  //
+  // Only that side's entities that are ON the pitch at this keyframe are
+  // considered: a player toggled off (`hidden`) isn't in the shape, and
+  // slotting them would silently put them back on it. Extra players beyond the
+  // eleventh keep their current position rather than being stacked on a slot
+  // someone else already has.
+  //
+  // Each assigned entity also takes its slot's `role`. That is what makes
+  // "role affinity first" mean anything on the NEXT apply — every tactic
+  // backfilled by 020b starts with no roles at all — and it is the per-tactic
+  // role assignment Stage 4.4 describes. `sides[side].formation` is updated in
+  // the same commit, so the picker and the pitch can never disagree.
+  applyTacticFormation: (
+    tacticId: string,
+    side: 'home' | 'away',
+    formationKey: string,
+    slots: FormationSlot[],
+    keyframeId: string
+  ) => void
   setTacticView: (tacticId: string, view: 'single' | 'dual') => void
   setTacticPitch: (tacticId: string, pitch: PitchConfig) => void
   setTacticDuration: (tacticId: string, seconds: number) => void
@@ -734,6 +759,44 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
         ...t,
         sides: { ...t.sides, [side]: { ...t.sides[side], ...patch } },
       }))
+    },
+
+    applyTacticFormation: (tacticId, side, formationKey, slots, keyframeId) => {
+      commit(tacticId, 'timeline', (t) => {
+        const keyframe = t.keyframes.find((k) => k.id === keyframeId)
+        if (!keyframe) return t
+        const onPitch = t.scene.entities.filter(
+          (e) => e.kind === 'player' && e.team === side && !keyframe.states[e.id]?.hidden
+        )
+        const assignments = assignToFormation(onPitch, keyframe.states, slots)
+        if (assignments.length === 0) {
+          // Nothing to re-shape, but the coach still picked a formation and
+          // expects the panel to show it.
+          return t.sides[side].formation === formationKey
+            ? t
+            : { ...t, sides: { ...t.sides, [side]: { ...t.sides[side], formation: formationKey } } }
+        }
+        const byEntity = new Map(assignments.map((a) => [a.entityId, a.slot]))
+        return {
+          ...t,
+          sides: { ...t.sides, [side]: { ...t.sides[side], formation: formationKey } },
+          scene: {
+            ...t.scene,
+            entities: t.scene.entities.map((e) => {
+              const slot = byEntity.get(e.id)
+              return slot ? { ...e, role: slot.role } : e
+            }),
+          },
+          keyframes: t.keyframes.map((k) => {
+            if (k.id !== keyframeId) return k
+            const states = { ...k.states }
+            for (const [entityId, slot] of byEntity) {
+              states[entityId] = { ...states[entityId], x: slot.x, y: slot.y }
+            }
+            return { ...k, states }
+          }),
+        }
+      })
     },
 
     setTacticView: (tacticId, view) => {
