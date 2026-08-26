@@ -11,6 +11,7 @@ import { TimelineEditor } from '../timeline/TimelineEditor'
 import { onionFramesFor } from '../timeline/onionSkin'
 import { useTimelinePlayback } from '../timeline/useTimelinePlayback'
 import { useKeyframeToggle } from '../timeline/useKeyframeToggle'
+import { useDrillTimelineHost } from './useDrillTimelineHost'
 import { useToast } from '../../ui/useToast'
 import { EditorTopBar } from './EditorTopBar'
 import { PropertiesPanel } from './PropertiesPanel'
@@ -130,7 +131,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     () => (onionSkin ? onionFramesFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
     [onionSkin, drill.scene, drill.keyframes, playback.currentTime]
   )
-  const keyframeToggle = useKeyframeToggle(drill, frame, playback)
+  const timelineHost = useDrillTimelineHost(drill)
+  const keyframeToggle = useKeyframeToggle(timelineHost, frame, playback)
 
   // Switching drills, or arming a different tool, abandons anything half-drawn
   // rather than letting it be consumed by whatever comes next.
@@ -558,7 +560,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         onToggleExpanded={() => setTimelineOpen((v) => !v)}
         onToggleKeyframe={keyframeToggle.toggle}
       />
-      {timelineOpen && <TimelineEditor drill={drill} playback={playback} frame={frame} />}
+      {timelineOpen && <TimelineEditor host={timelineHost} playback={playback} frame={frame} />}
 
       {/* Floating dock — the phone control surface. Space is reserved below the
           timeline so the dock never covers it. */}

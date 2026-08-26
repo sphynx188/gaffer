@@ -1,9 +1,8 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { AlignHorizontalDistributeCenter, Eraser, Trash2 } from 'lucide-react'
-import { useStore } from '../../../store'
-import type { Drill } from '../../../store'
 import type { RenderFrame } from '../canvas/interpolate'
 import { formatSegment, segmentSpeeds, type SpeedVerdict } from './speeds'
+import type { TimelineHost } from './TimelineHost'
 import { useKeyframeToggle } from './useKeyframeToggle'
 import type { TimelinePlayback } from './useTimelinePlayback'
 
@@ -11,7 +10,7 @@ import type { TimelinePlayback } from './useTimelinePlayback'
 // bar per segment carrying the speed that segment demands.
 
 interface TimelineEditorProps {
-  drill: Drill
+  host: TimelineHost
   playback: TimelinePlayback
   // What's on the pitch right now. Add/Update capture it, and the dirty dot
   // compares it against whatever the parked keyframe stores.
@@ -45,13 +44,7 @@ function tickStepFor(duration: number): number {
   return duration / MAX_TICKS
 }
 
-export function TimelineEditor({ drill, playback, frame, className }: TimelineEditorProps) {
-  const moveKeyframe = useStore((s) => s.moveKeyframe)
-  const deleteKeyframe = useStore((s) => s.deleteKeyframe)
-  const clearKeyframes = useStore((s) => s.clearKeyframes)
-  const balanceTiming = useStore((s) => s.balanceTiming)
-  const setDuration = useStore((s) => s.setDuration)
-
+export function TimelineEditor({ host, playback, frame, className }: TimelineEditorProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
   // A keyframe being dragged shows where it would land without writing there
   // yet. moveKeyframe is a committed mutation — calling it on every pointer
@@ -59,9 +52,9 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
   const [dragging, setDragging] = useState<{ id: string; t: number } | null>(null)
   const [durationDraft, setDurationDraft] = useState<string | null>(null)
 
-  const { parked, dirty, label, toggle } = useKeyframeToggle(drill, frame, playback)
-  const duration = drill.duration_seconds
-  const segments = segmentSpeeds(drill.scene, drill.keyframes, drill.pitch)
+  const { parked, dirty, label, toggle } = useKeyframeToggle(host, frame, playback)
+  const duration = host.duration
+  const segments = segmentSpeeds(host.scene, host.keyframes, host.pitch)
 
   const percentOf = (seconds: number) => (duration > 0 ? clamp((seconds / duration) * 100, 0, 100) : 0)
 
@@ -91,7 +84,7 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
     if (dragging) {
-      moveKeyframe(drill.id, dragging.id, dragging.t)
+      host.moveKeyframe(dragging.id, dragging.t)
       setDragging(null)
     }
   }
@@ -108,7 +101,7 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
   const commitDuration = () => {
     if (durationDraft === null) return
     const parsed = Number(durationDraft)
-    if (Number.isFinite(parsed) && parsed > 0) setDuration(drill.id, parsed)
+    if (Number.isFinite(parsed) && parsed > 0) host.setDuration(parsed)
     setDurationDraft(null)
   }
 
@@ -154,7 +147,7 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
         </div>
 
         {/* Keyframe diamonds, draggable to retime. */}
-        {drill.keyframes.map((keyframe) => {
+        {host.keyframes.map((keyframe) => {
           const at = dragging?.id === keyframe.id ? dragging.t : keyframe.t
           const isParked = parked?.id === keyframe.id
           return (
@@ -198,7 +191,7 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
 
         <button
           type="button"
-          onClick={() => parked && deleteKeyframe(drill.id, parked.id)}
+          onClick={() => parked && host.deleteKeyframe(parked.id)}
           disabled={!parked}
           className={ACTION}
           title={parked ? 'Delete the keyframe under the playhead' : 'Park the playhead on a keyframe to delete it'}
@@ -209,8 +202,8 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
 
         <button
           type="button"
-          onClick={() => clearKeyframes(drill.id)}
-          disabled={drill.keyframes.length === 0}
+          onClick={() => host.clearKeyframes()}
+          disabled={host.keyframes.length === 0}
           className={ACTION}
         >
           <Eraser className="h-3.5 w-3.5" />
@@ -219,10 +212,10 @@ export function TimelineEditor({ drill, playback, frame, className }: TimelineEd
 
         <button
           type="button"
-          onClick={() => balanceTiming(drill.id)}
-          disabled={drill.keyframes.length < 2}
+          onClick={() => host.balanceTiming()}
+          disabled={host.keyframes.length < 2}
           className={ACTION}
-          title="Spread the keyframes evenly across the drill"
+          title="Spread the keyframes evenly across the timeline"
         >
           <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" />
           Balance timing

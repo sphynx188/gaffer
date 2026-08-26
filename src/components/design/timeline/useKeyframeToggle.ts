@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from 'react'
-import { useStore } from '../../../store'
-import type { Drill, DrillScene, EntityState, Keyframe } from '../../../store'
+import type { DrillScene, EntityState, Keyframe } from '../../../store'
 import type { RenderFrame } from '../canvas/interpolate'
 import { keyframeAt } from './cursor'
+import type { TimelineHost } from './TimelineHost'
 import type { TimelinePlayback } from './useTimelinePlayback'
 
 // Teloframe's context-aware primary control: "Add Keyframe" when the playhead
@@ -67,31 +67,28 @@ export interface KeyframeToggle {
 }
 
 export function useKeyframeToggle(
-  drill: Drill | null,
+  host: TimelineHost | null,
   frame: RenderFrame | null,
   playback: TimelinePlayback
 ): KeyframeToggle {
-  const addKeyframe = useStore((s) => s.addKeyframe)
-  const updateKeyframeState = useStore((s) => s.updateKeyframeState)
-
   const parked = useMemo(
-    () => (drill ? keyframeAt(drill.keyframes, playback.currentTime) : null),
-    [drill, playback.currentTime]
+    () => (host ? keyframeAt(host.keyframes, playback.currentTime) : null),
+    [host, playback.currentTime]
   )
 
   const dirty = parked !== null && frame !== null && framePlacementDiffers(frame, parked)
 
   const toggle = useCallback(() => {
-    if (!drill || !frame) return
+    if (!host || !frame) return
     if (parked) {
-      updateKeyframeState(drill.id, parked.id, captureKeyframeStates(drill.scene, frame, parked.states))
+      host.updateKeyframeState(parked.id, captureKeyframeStates(host.scene, frame, parked.states))
       return
     }
     // Hands the interpolated frame in rather than letting the store guess:
     // without it a keyframe added mid-segment would capture the previous
-    // keyframe's positions and the drill would visibly snap there.
-    addKeyframe(drill.id, playback.currentTime, captureKeyframeStates(drill.scene, frame))
-  }, [drill, frame, parked, playback.currentTime, addKeyframe, updateKeyframeState])
+    // keyframe's positions and the document would visibly snap there.
+    host.addKeyframe(playback.currentTime, captureKeyframeStates(host.scene, frame))
+  }, [host, frame, parked, playback.currentTime])
 
   return { parked, dirty, label: parked ? 'Update keyframe' : 'Add keyframe', toggle }
 }
