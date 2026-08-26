@@ -23,6 +23,7 @@ import { markingToolSpec, type MarkingTool } from './markingTools'
 import type { GridSettings } from './GridPanel'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
+import { getPitchMarkings, snapToPitchGrid } from '../pitchGeometry'
 import { OnboardingTour } from './onboarding/OnboardingTour'
 import { useOnboardingTour } from './onboarding/useOnboardingTour'
 
@@ -244,10 +245,15 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         event.clientY >= box.top &&
         event.clientY <= box.bottom
       ) {
-        place(drag.placement, {
+        // Dropped from the rail rather than tapped, so this never goes
+        // through PitchCanvas and has to snap for itself — otherwise
+        // "snap to grid" held for the tap gesture and silently didn't for
+        // the drag one.
+        const dropped = {
           x: Math.min(1, Math.max(0, (event.clientX - box.left) / box.width)),
           y: Math.min(1, Math.max(0, (event.clientY - box.top) / box.height)),
-        })
+        }
+        place(drag.placement, grid.snapToGrid ? snapToPitchGrid(dropped, getPitchMarkings(drill.pitch)) : dropped)
       }
       setDrag(null)
     }

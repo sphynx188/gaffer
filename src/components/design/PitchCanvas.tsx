@@ -5,7 +5,14 @@ import type { Marking, PhasePoint, PitchConfig } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
 import { ANNOTATION, ARROW, BALL, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
 import { EquipmentShape } from './canvas/EquipmentShapes'
-import { assignTeamColors, getPitchAspectRatio, getPitchMarkings, getPitchOverlays } from './pitchGeometry'
+import {
+  GRID_STEP_METERS,
+  assignTeamColors,
+  getPitchAspectRatio,
+  getPitchMarkings,
+  getPitchOverlays,
+  snapToPitchGrid,
+} from './pitchGeometry'
 
 type PixelPoint = { x: number; y: number }
 type NormalizedPoint = { x: number; y: number }
@@ -117,10 +124,6 @@ export type DrawTool = 'arrow' | 'line' | 'curve' | 'circle' | 'rect' | 'freehan
 // built tap by tap, or freehand.
 const DRAG_TOOLS: DrawTool[] = ['arrow', 'line', 'circle', 'rect', 'ruler']
 const POLYLINE_TOOLS: DrawTool[] = ['curve', 'zone']
-
-// Grid spacing in metres. Five is the number a coach already thinks in — a
-// rondo box is 10 or 15 a side — so intersections land where they'd pace them.
-const GRID_STEP_METERS = 5
 
 // How close two entities have to be on one axis for a smart guide to appear
 // and snap them, in normalized units.
@@ -300,13 +303,8 @@ export function PitchCanvas({
   const gridStepX = markings.widthMeters > 0 ? GRID_STEP_METERS / markings.widthMeters : 0
   const gridStepY = markings.lengthMeters > 0 ? GRID_STEP_METERS / markings.lengthMeters : 0
 
-  const snapped = (point: NormalizedPoint): NormalizedPoint => {
-    if (!snapToGrid || gridStepX <= 0 || gridStepY <= 0) return point
-    return {
-      x: clamp01(Math.round(point.x / gridStepX) * gridStepX),
-      y: clamp01(Math.round(point.y / gridStepY) * gridStepY),
-    }
-  }
+  const snapped = (point: NormalizedPoint): NormalizedPoint =>
+    snapToGrid ? snapToPitchGrid(point, markings) : point
 
   // Nudges a dragged position onto the nearest other entity's axis when it's
   // already nearly aligned, and reports the guides to draw. Skipped entirely
@@ -431,7 +429,7 @@ export function PitchCanvas({
     if (!stage || e.target !== stage) return
     const pointer = stage.getRelativePointerPosition()
     if (!pointer) return
-    onCanvasClick(fromPx(pointer))
+    onCanvasClick(snapped(fromPx(pointer)))
   }
 
   // --- zoom & pan (Stage 3.6) ---------------------------------------------

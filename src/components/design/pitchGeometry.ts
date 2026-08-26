@@ -227,6 +227,37 @@ export function getPitchMarkings(config: PitchConfig): PitchMarkings {
   return config.orientation === 'landscape' ? transpose(canonical) : canonical
 }
 
+// Grid spacing in metres. Five is the number a coach already thinks in — a
+// rondo box is 10 or 15 a side — so intersections land where they'd pace them.
+//
+// Lives here rather than in PitchCanvas because snapping happens in two
+// places: the canvas's own drag/draw gestures, and the editor's
+// drag-a-tool-from-the-rail drop, which never touches the canvas component.
+// One constant, one rounding rule, so both land on the same intersections.
+export const GRID_STEP_METERS = 5
+
+/**
+ * Rounds a normalized 0-1 point onto the nearest 5m grid intersection.
+ *
+ * Takes the *marking* dimensions rather than the raw PitchConfig because
+ * landscape transposes the two axes — snapping against the untransposed
+ * config would round x against the length and y against the width, which
+ * puts the intersections in the wrong places on exactly half the pitches.
+ */
+export function snapToPitchGrid(
+  point: { x: number; y: number },
+  markings: PitchDimensions
+): { x: number; y: number } {
+  const stepX = markings.widthMeters > 0 ? GRID_STEP_METERS / markings.widthMeters : 0
+  const stepY = markings.lengthMeters > 0 ? GRID_STEP_METERS / markings.lengthMeters : 0
+  if (stepX <= 0 || stepY <= 0) return point
+  const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
+  return {
+    x: clamp01(Math.round(point.x / stepX) * stepX),
+    y: clamp01(Math.round(point.y / stepY) * stepY),
+  }
+}
+
 export function getPitchAspectRatio(config: PitchConfig): number {
   const { widthMeters, lengthMeters } = getPitchMarkings(config)
   return widthMeters / lengthMeters
