@@ -3,6 +3,7 @@ import { Footer } from './Footer'
 import { Hero } from './Hero'
 import { LogoWall } from './LogoWall'
 import { StatsStrip } from './StatsStrip'
+import { FeatureSections } from './FeatureSections'
 
 // The public marketing page (landing-page spec, 2026-08-26). Dark-only via
 // .landing-dark (index.css) regardless of the visitor's stored theme.
@@ -16,6 +17,7 @@ export function LandingPage() {
         <Hero />
         <LogoWall />
         <StatsStrip />
+        <FeatureSections />
       </main>
       <Footer />
     </div>
