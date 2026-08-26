@@ -67,6 +67,32 @@ Every slice funnels Supabase calls through `runSupabaseAction`
 message translation happens. Components never call `supabase.from(...)`
 directly — they call a store action.
 
+`src/store/sceneActions.ts` holds the scene reducers both `drillSlice` and
+`tacticSlice` call — `addEntity`, `moveKeyframe`, `setPitch` and the rest, as
+pure `(document, args) => document` functions over a `SceneDocument`
+(`{scene, keyframes, duration_seconds, pitch}`, which `Drill` and `Tactic`
+both structurally satisfy). **Nothing in that file knows about Zustand**, and
+it should stay that way: the extraction deliberately stops at the reducers,
+because the slices' commit/undo/autosave machinery genuinely differs (a
+tactic keeps two undo stacks, a drill one). Its one hard convention is that
+every reducer returns the *same object reference* when it has nothing to do —
+both slices' `commit()` tests `next === current` to skip the undo push and
+the write, which is what makes a press-and-release that moved nothing cost
+neither an undo slot nor a Supabase call.
+
+Both editors follow the same persistence split: uncommitted mutations
+(`dragmove`) touch local state only, and one committed mutation (`dragend`)
+pushes an undo snapshot and schedules a debounced (~800 ms) write, so a
+continuous drag costs exactly one `PATCH`. `tacticSlice` keeps **two** undo
+stacks — one for free-drawn markings, one for everything else — so clearing
+drawings can never rewind the animation. They own disjoint halves of
+`scene.markings`: a marking bound to a keyframe belongs to the timeline
+scope (it dies with its keyframe), a free-drawn one to the drawing scope.
+
+Every tactic action carries a `Tactic` infix (`addTacticEntity`, `undoTactic`,
+`tacticSaveState`) because there is one shared store and `drillSlice` already
+owns the bare names — a duplicate key would silently shadow it.
+
 `selectedTeamId` (`teamSlice`) is the single source of truth for "current
 team" scope, persisted to `localStorage` and reconciled against the
 RLS-scoped team list on every `fetchTeams`. Never derive current-team as

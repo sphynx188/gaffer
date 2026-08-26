@@ -2,7 +2,8 @@ import type { StateCreator } from 'zustand'
 import { createClient } from '@supabase/supabase-js'
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../lib/supabase'
 import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
-import { transposeKeyframes, transposeScene } from '../../components/design/canvas/transposeScene'
+import * as scene from '../sceneActions'
+import type { NewEntityInput } from '../sceneActions'
 import type {
   Drill,
   DrillCoaching,
@@ -17,7 +18,6 @@ import type {
   PhasePoint,
   PitchConfig,
   PitchOrientation,
-  SceneEntity,
   SessionBlock,
 } from '../types'
 import type { StoreState } from '../useStore'
@@ -79,9 +79,10 @@ export interface DrillUpdateInput {
 // for the next attempt, never that it was dropped.
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error'
 
-// Everything about a new entity except the two things addEntity derives
-// itself (its id, and its `number` when it's a player).
-export type NewEntityInput = Partial<Omit<SceneEntity, 'id' | 'kind'>>
+// Re-exported from sceneActions, where it now lives alongside the reducers
+// that consume it (Stage 2.4). Kept exported from here so every existing
+// importer — and store/index.ts — carries on working unchanged.
+export type { NewEntityInput }
 
 // The four columns that make up a drill's editable content — the unit both
 // the undo stack and the autosave queue work in.
@@ -115,27 +116,6 @@ function mintShareToken(): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-// Keyframe times are rounded to the millisecond. Two keyframes are never
-// allowed to share a `t` (addKeyframe and moveKeyframe both refuse), and
-// that guard is only reliable if float noise from balanceTiming's division
-// can't produce a near-but-not-equal duplicate.
-function roundTime(seconds: number): number {
-  return Math.round(seconds * 1000) / 1000
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max)
-}
-
-// Every generated id (new entity, new keyframe, new marking) goes through
-// here — one place to swap the id strategy later if
-// `crypto.randomUUID` ever isn't available (it is in every browser this app
-// targets: Vercel-hosted HTTPS, modern iOS/Android/desktop browsers).
-function generateId(prefix: string): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
 function snapshotOf(drill: Drill): DrillSnapshot {
   return {
     scene: drill.scene,
@@ -160,66 +140,10 @@ function snapshotsMatch(a: DrillSnapshot, b: DrillSnapshot): boolean {
   )
 }
 
-function sortKeyframes(keyframes: Keyframe[]): Keyframe[] {
-  return [...keyframes].sort((a, b) => a.t - b.t)
-}
-
-// Squad numbers are per team, so team A and team B both start at 1 — matching
-// how a coach numbers two bibbed groups rather than one continuous run.
-function nextNumberFor(entities: SceneEntity[], team: string | undefined): number {
-  let highest = 0
-  for (const entity of entities) {
-    if (entity.kind !== 'player' || entity.team !== team) continue
-    if (typeof entity.number === 'number' && entity.number > highest) highest = entity.number
-  }
-  return highest + 1
-}
-
-// The states a new keyframe inherits when the caller doesn't supply any: a
-// copy of whichever keyframe is in force at `t` under step semantics. Stage 3
-// introduces `frameAt` and real interpolation; until then this is the honest
-// answer, and `addKeyframe`'s optional `states` argument is how Stage 4 hands
-// in an interpolated frame instead of having this guess.
-function statesHoldingAt(keyframes: Keyframe[], t: number): Record<string, EntityState> {
-  if (keyframes.length === 0) return {}
-  const ordered = sortKeyframes(keyframes)
-  let holding = ordered[0]
-  for (const keyframe of ordered) {
-    if (keyframe.t <= t) holding = keyframe
-    else break
-  }
-  return { ...holding.states }
-}
-
-// Pure, local-only: writes one entity's position into one keyframe and
-// returns a new Drill (never mutates). Returns the drill unchanged when the
-// position already matches, which is what lets a drag that ended where it
-// started avoid burning an undo slot.
-function withEntityPosition(
-  drill: Drill,
-  keyframeId: string,
-  entityId: string,
-  position: PhasePoint
-): Drill {
-  let changed = false
-  const keyframes = drill.keyframes.map((keyframe) => {
-    if (keyframe.id !== keyframeId) return keyframe
-    const previous = keyframe.states[entityId]
-    if (previous && previous.x === position.x && previous.y === position.y) return keyframe
-    changed = true
-    const next: EntityState = { ...previous, x: position.x, y: position.y }
-    // A hidden entity has no position (see EntityState in types.ts), so
-    // giving it one necessarily puts it back on the pitch.
-    if (next.hidden) delete next.hidden
-    return { ...keyframe, states: { ...keyframe.states, [entityId]: next } }
-  })
-  return changed ? { ...drill, keyframes } : drill
-}
-
 // A drill always keeps at least one keyframe from creation — without one
 // there's nowhere for addEntity to record a position.
 function makeInitialKeyframe(): Keyframe {
-  return { id: generateId('keyframe'), t: 0, states: {} }
+  return { id: scene.generateId('keyframe'), t: 0, states: {} }
 }
 
 export interface DrillSlice {
@@ -740,50 +664,18 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     addEntity: (drillId, kind, position, extra) => {
       const drill = get().drills.find((d) => d.id === drillId)
       if (!drill) return null
-      const id = generateId(kind)
-      const base: SceneEntity = { ...extra, id, kind }
-      const entity: SceneEntity =
-        kind === 'player' && base.number === undefined
-          ? { ...base, number: nextNumberFor(drill.scene.entities, base.team) }
-          : base
-      commit(drillId, (d) => ({
-        ...d,
-        scene: { ...d.scene, entities: [...d.scene.entities, entity] },
-        keyframes: d.keyframes.map((keyframe) => ({
-          ...keyframe,
-          states: { ...keyframe.states, [id]: { x: position.x, y: position.y } },
-        })),
-      }))
+      const id = scene.generateId(kind)
+      const entity = scene.buildEntity(drill, id, kind, extra)
+      commit(drillId, (d) => scene.addEntity(d, entity, position))
       return id
     },
 
     updateEntity: (drillId, entityId, patch) => {
-      commit(drillId, (d) => {
-        if (!d.scene.entities.some((e) => e.id === entityId)) return d
-        return {
-          ...d,
-          scene: {
-            ...d.scene,
-            entities: d.scene.entities.map((e) => (e.id === entityId ? { ...e, ...patch } : e)),
-          },
-        }
-      })
+      commit(drillId, (d) => scene.updateEntity(d, entityId, patch))
     },
 
     removeEntity: (drillId, entityId) => {
-      commit(drillId, (d) => {
-        if (!d.scene.entities.some((e) => e.id === entityId)) return d
-        return {
-          ...d,
-          scene: { ...d.scene, entities: d.scene.entities.filter((e) => e.id !== entityId) },
-          keyframes: d.keyframes.map((keyframe) => {
-            if (!(entityId in keyframe.states)) return keyframe
-            const states = { ...keyframe.states }
-            delete states[entityId]
-            return { ...keyframe, states }
-          }),
-        }
-      })
+      commit(drillId, (d) => scene.removeEntity(d, entityId))
     },
 
     setEntityPosition: (drillId, keyframeId, entityId, position, commitEdit = false) => {
@@ -792,7 +684,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       // Captured before the first movement lands, so undo steps back to where
       // the drag began rather than to some point part-way through it.
       if (!pendingEdits.has(drillId)) pendingEdits.set(drillId, snapshotOf(current))
-      const next = withEntityPosition(current, keyframeId, entityId, position)
+      const next = scene.setEntityPosition(current, keyframeId, entityId, position)
 
       if (!commitEdit) {
         if (next !== current) set({ drills: get().drills.map((d) => (d.id === drillId ? next : d)) })
@@ -811,140 +703,57 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     },
 
     addKeyframe: (drillId, t, states) => {
-      const drill = get().drills.find((d) => d.id === drillId)
-      if (!drill) return null
-      const time = roundTime(clamp(t, 0, drill.duration_seconds))
-      if (drill.keyframes.some((k) => k.t === time)) return null
-      const id = generateId('keyframe')
-      const seeded = states ? { ...states } : statesHoldingAt(drill.keyframes, time)
-      commit(drillId, (d) => ({
-        ...d,
-        keyframes: sortKeyframes([...d.keyframes, { id, t: time, states: seeded }]),
-      }))
-      return id
+      const id = scene.generateId('keyframe')
+      let added = false
+      commit(drillId, (d) => {
+        const next = scene.addKeyframe(d, id, t, states)
+        added = next !== d
+        return next
+      })
+      return added ? id : null
     },
 
     updateKeyframeState: (drillId, keyframeId, states) => {
-      commit(drillId, (d) => {
-        if (!d.keyframes.some((k) => k.id === keyframeId)) return d
-        return {
-          ...d,
-          keyframes: d.keyframes.map((k) => (k.id === keyframeId ? { ...k, states: { ...states } } : k)),
-        }
-      })
+      commit(drillId, (d) => scene.updateKeyframeState(d, keyframeId, states))
     },
 
     moveKeyframe: (drillId, keyframeId, t) => {
-      const drill = get().drills.find((d) => d.id === drillId)
-      if (!drill) return
-      const time = roundTime(clamp(t, 0, drill.duration_seconds))
-      if (drill.keyframes.some((k) => k.t === time && k.id !== keyframeId)) return
-      commit(drillId, (d) => {
-        const target = d.keyframes.find((k) => k.id === keyframeId)
-        if (!target || target.t === time) return d
-        return {
-          ...d,
-          keyframes: sortKeyframes(d.keyframes.map((k) => (k.id === keyframeId ? { ...k, t: time } : k))),
-        }
-      })
+      commit(drillId, (d) => scene.moveKeyframe(d, keyframeId, t))
     },
 
     deleteKeyframe: (drillId, keyframeId) => {
-      commit(drillId, (d) => {
-        if (!d.keyframes.some((k) => k.id === keyframeId)) return d
-        return {
-          ...d,
-          keyframes: d.keyframes.filter((k) => k.id !== keyframeId),
-          scene: { ...d.scene, markings: d.scene.markings.filter((m) => m.keyframeId !== keyframeId) },
-        }
-      })
+      commit(drillId, (d) => scene.deleteKeyframe(d, keyframeId))
     },
 
     clearKeyframes: (drillId) => {
-      commit(drillId, (d) => {
-        if (d.keyframes.length === 0) return d
-        return {
-          ...d,
-          keyframes: [],
-          scene: { ...d.scene, markings: d.scene.markings.filter((m) => !m.keyframeId) },
-        }
-      })
+      commit(drillId, (d) => scene.clearKeyframes(d))
     },
 
     balanceTiming: (drillId) => {
-      commit(drillId, (d) => {
-        const count = d.keyframes.length
-        if (count === 0) return d
-        const spacing = count === 1 ? 0 : d.duration_seconds / (count - 1)
-        return {
-          ...d,
-          keyframes: sortKeyframes(d.keyframes).map((keyframe, index) => ({
-            ...keyframe,
-            t: roundTime(index * spacing),
-          })),
-        }
-      })
+      commit(drillId, (d) => scene.balanceTiming(d))
     },
 
     addMarking: (drillId, marking) => {
       if (!get().drills.some((d) => d.id === drillId)) return null
-      const id = generateId('marking')
-      commit(drillId, (d) => ({
-        ...d,
-        scene: { ...d.scene, markings: [...d.scene.markings, { ...marking, id }] },
-      }))
+      const id = scene.generateId('marking')
+      commit(drillId, (d) => scene.addMarking(d, marking, id))
       return id
     },
 
     updateMarking: (drillId, markingId, patch) => {
-      commit(drillId, (d) => {
-        if (!d.scene.markings.some((m) => m.id === markingId)) return d
-        return {
-          ...d,
-          scene: {
-            ...d.scene,
-            markings: d.scene.markings.map((m) => (m.id === markingId ? { ...m, ...patch } : m)),
-          },
-        }
-      })
+      commit(drillId, (d) => scene.updateMarking(d, markingId, patch))
     },
 
     removeMarking: (drillId, markingId) => {
-      commit(drillId, (d) => {
-        if (!d.scene.markings.some((m) => m.id === markingId)) return d
-        return {
-          ...d,
-          scene: { ...d.scene, markings: d.scene.markings.filter((m) => m.id !== markingId) },
-        }
-      })
+      commit(drillId, (d) => scene.removeMarking(d, markingId))
     },
 
     setDrillPitch: (drillId, pitch) => {
-      commit(drillId, (d) => {
-        if (d.pitch === pitch) return d
-        // Flipping orientation has to move the content too, not just the
-        // markings — see canvas/transposeScene.ts for the bug this fixes and
-        // why it's a diagonal mirror rather than a rotation. Done here rather
-        // than in PitchPanel because the panel only ever sees `pitch`, while
-        // this is the one funnel BOTH of its call sites (ToolRail and
-        // DrillDetailsDrawer) go through — and going through `commit` makes
-        // the flip a single undo step instead of leaving the content stranded
-        // one step behind the pitch.
-        if (d.pitch.orientation === pitch.orientation) return { ...d, pitch }
-        return {
-          ...d,
-          pitch,
-          scene: transposeScene(d.scene),
-          keyframes: transposeKeyframes(d.keyframes),
-        }
-      })
+      commit(drillId, (d) => scene.setPitch(d, pitch))
     },
 
     setDuration: (drillId, seconds) => {
-      // drill.duration_seconds is an integer column, so round here rather than
-      // letting Postgres do it and leave local state disagreeing with the row.
-      const value = Math.max(1, Math.round(seconds))
-      commit(drillId, (d) => (d.duration_seconds === value ? d : { ...d, duration_seconds: value }))
+      commit(drillId, (d) => scene.setDuration(d, seconds))
     },
 
     undo: (drillId) => {

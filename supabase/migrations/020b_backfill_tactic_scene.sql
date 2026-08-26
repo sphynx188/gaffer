@@ -13,10 +13,26 @@
 -- and 014's header for the full diff). The same trap is armed here.
 --
 -- This script is safe to re-run ONLY while `board` is still the authoritative
--- copy — that is, only until Stage 2 rewrites tacticSlice onto scene/keyframes.
--- From the first save through the new editor, `board` is stale and re-running
--- this would roll a tactic back to its pre-rework state. If you are reading
--- this after Stage 2 has shipped: do not run it.
+-- copy — that is, only until the tactics editor UI starts saving scene and
+-- keyframes. From that first save `board` is stale, and re-running this would
+-- roll a tactic back to its pre-rework state.
+--
+-- CORRECTED 2026-08-26, during Stage 2. An earlier draft of this header put
+-- that cutoff at Stage 2 ("once tacticSlice is rewritten"), which is wrong and
+-- is exactly the kind of stale gate that made 013b dangerous. Stage 2 adds the
+-- entities+keyframes STORE ACTIONS, but the screen a coach actually uses
+-- (TacticBoard.tsx) still reads and writes `board` — nothing calls the new
+-- actions yet. `board` therefore remains authoritative through Stage 2, and
+-- this script remains both re-runnable and worth re-running right before the
+-- UI switches over.
+--
+-- The real cutoff is STAGE 7, when TacticBoard is replaced by the new editor.
+-- Re-run this one last time immediately before that switch, so anything a
+-- coach did on the old screen in the meantime is carried across; after it, do
+-- not run it again. Migration 021's header carries the same gate, and the
+-- check to run before trusting either is the read-only diff: compute what this
+-- script WOULD write and confirm no tactic's live scene holds more than the
+-- backfill would produce.
 -- ──────────────────────────────────────────────────────────────────────────
 --
 -- The rules, in the plan's order:

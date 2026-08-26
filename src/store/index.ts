@@ -67,4 +67,5 @@ export type {
   DrillUpdateInput,
   SaveState,
 } from './slices/drillSlice'
-export type { NewTacticInput, TacticUpdateInput } from './slices/tacticSlice'
+export type { NewTacticInput, TacticUpdateInput, TacticUndoScope } from './slices/tacticSlice'
+export type { SceneDocument } from './sceneActions'

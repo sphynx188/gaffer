@@ -276,6 +276,82 @@ in.
 
 ---
 
+## Session log — Tactics board rework, Stage 2: tacticSlice on entities and keyframes
+
+Stage 2 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md). The
+store can now build, animate, undo and autosave a tactic. No UI calls any of it
+yet — that's Stages 5-7 — so the shipped tactics screen is unchanged.
+
+### What happened, in order
+
+1. **Wrote `src/store/sceneActions.ts` first**, as the plan's execution note
+   insists: pure `(document, args) => document` reducers over a
+   `SceneDocument`, no Zustand anywhere. `Drill` and `Tactic` both structurally
+   satisfy the interface, so one set of reducers serves both with no adapter.
+2. **Rewired `drillSlice` onto them** — 985 lines down to 794, with zero
+   behaviour change (build clean, same lint output, drill editor verified).
+3. **Rewrote `tacticSlice`** around entities/keyframes/markings/phases/sides,
+   mirroring drillSlice's commit → undo-snapshot → debounced-flush machinery,
+   plus `copyTacticKeyframe`/`pasteTacticKeyframe` and `setTacticOrientation`.
+4. **Two undo stacks**, and then a correction — see below.
+5. **Corrected 020b's and 021's re-run gate** (see What Didn't Work).
+
+### What Worked
+
+- **Extracting the reducers before touching either slice.** Doing it in that
+  order meant drillSlice's rewire was a pure mechanical substitution that the
+  existing drill editor immediately re-verified, so tacticSlice was built on
+  code already proven in production rather than on a fresh copy.
+- **Driving the Verify step through the store directly.** The tactics editor
+  doesn't exist yet, so there is no UI to click. Importing
+  `/src/store/index.ts` through the Vite dev server's module graph gives the
+  live store instance, and instrumenting `window.fetch` counts PATCHes exactly.
+  60 dragmoves + 1 dragend = **1 write**; `saveState` stayed `saved` for the
+  whole drag; a press-and-release that moved nothing cost **0** writes.
+- **Stopping the extraction at the reducers.** The commit/undo/autosave layer
+  genuinely differs between the two slices, so hoisting it too would have
+  produced exactly the unreadable generic "document slice" the plan warns
+  against.
+
+### What Didn't Work / Watch Out For
+
+- **The first two-stack design was wrong, and testing caught it.** Timeline
+  snapshots held the whole scene, so a timeline undo silently wiped arrows the
+  coach had drawn afterwards. The plan only states the other direction
+  ("clearing drawings must not rewind the animation"), which passed — but
+  drawings vanishing looks like data loss. Fixed by making the two stacks own
+  **disjoint** halves of `scene.markings`: keyframe-bound markings belong to
+  the timeline scope (they die with their keyframe), free-drawn ones to the
+  drawing scope. `clearDrawnMarkings` now spares bound markings for the same
+  reason. Both directions verified.
+- **Action names could not match drillSlice's**, as 2.1 asks. One shared store
+  (CLAUDE.md) means `addEntity`/`undo`/`saveState` are taken; a duplicate key
+  would silently shadow drillSlice. Everything carries a `Tactic` infix, which
+  is what this slice already did (`addTacticPlayer`).
+- **`view` is deliberately not undoable.** Plan 2.3's snapshot list omits it,
+  and single/dual is a way of looking at a tactic rather than part of it. It
+  still autosaves, via `commitUntracked`.
+- **020b/021's re-run gate was wrong and is now corrected.** I had written that
+  020b stops being re-runnable "once Stage 2 rewrites tacticSlice". It doesn't:
+  Stage 2 adds store actions that nothing calls, and TacticBoard.tsx still
+  reads and writes `board`, so `board` stays authoritative. The real cutoff is
+  **Stage 7**, and 020b should be re-run one last time immediately before that
+  switch. This is the same class of stale instruction that made 013b dangerous.
+- **A test fixture is left on the "4-2-2" tactic** (1 entity, 2 markings, 2
+  keyframes, 1 phase, landscape, dual view) in the new columns. Its `board` is
+  untouched and empty, so the live screen renders it exactly as before and the
+  residue is invisible in the app; the legitimate 020b re-run before Stage 7
+  clears it. Cleanup was attempted and blocked by the permission classifier.
+
+## Next Steps
+
+1. **Stage 3 — formations.** The 29-formation table plus `setTacticSide`
+   already exists to receive it.
+2. Nothing calls the new tactic actions yet. The first consumer is Stage 5's
+   editor shell; until then `tacticSaveState` stays `saved` in normal use.
+
+---
+
 ## Session log — Tactics board rework, Stage 1: tactic scene, keyframes, sides
 
 Stage 1 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md).

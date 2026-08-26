@@ -23,9 +23,15 @@
 -- ── AND ONE GATE 014 TAUGHT US TO WRITE DOWN ─────────────────────────────
 -- Do NOT "just re-run 020b first" as a safety step before applying this.
 -- That is the trap 013b set for migration 014. 020b derives scene FROM board;
--- once Stage 2 ships, the editor writes scene directly and never touches
--- board, so board becomes the STALE copy and re-running the backfill would
--- roll every tactic back to its pre-rework state.
+-- once the new editor UI ships (Stage 7) it writes scene directly and never
+-- touches board, so board becomes the STALE copy and re-running the backfill
+-- would roll every tactic back to its pre-rework state.
+--
+-- The one legitimate re-run is the LAST one, immediately BEFORE Stage 7
+-- switches the UI over, to carry across anything a coach did on the old
+-- TacticBoard screen in the meantime. Stage 2 does not close that window:
+-- it adds the entities+keyframes store actions, but nothing calls them yet,
+-- so board is still what the live screen reads and writes.
 --
 -- The check to run instead is the read-only diff that caught it last time:
 -- compute what 020b WOULD write, compare it against the live columns, and
