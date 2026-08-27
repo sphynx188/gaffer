@@ -1627,7 +1627,7 @@ git commit -m "feat: demo seed — persona logins, FC Barcelona (demo) + Riversi
 - Create: `DEMO_SCRIPT.md`
 - Modify: `HANDOFF.md` (new session log at top, per house convention)
 
-- [ ] **Step 1: Write `DEMO_SCRIPT.md`** — the persona credentials table,
+- [x] **Step 1: Write `DEMO_SCRIPT.md`** — the persona credentials table,
 then the demo arc as numbered steps with the exact clicks: (1) sign in as
 Barca admin, tour both libraries (folders + collections); (2) `/admin/coaches`
 — create a coach live; (3) `/admin/collections` — grant that coach a
@@ -1641,15 +1641,24 @@ read-only group; (8) revoke at source → Riley reloads, it's gone. Include a
 "reset between rehearsals" appendix: the SQL to delete both demo clubs
 (cascades) + re-run of the two seed steps.
 
-- [ ] **Step 2: Full rehearsal, run once end-to-end** in the Browser pane
+- [x] **Step 2: Full rehearsal, run once end-to-end** in the Browser pane
 following DEMO_SCRIPT.md literally, at desktop width, then spot-check the
 library pages and admin pages at 375×812 (`resize_window` mobile preset;
 known trap: transition-triggering clicks may time out — verify via DOM, not
 the click result). Zero console errors on a fresh tab at each step. Fix
 whatever the rehearsal finds before proceeding — the rehearsal IS the
 acceptance test.
+**Desktop-width rehearsal: done, all 9 steps passed** — see the Amendment
+log entry above for the one real bug found and fixed (multi-club-admin
+library scoping). Zero console errors confirmed on a fresh tab after the
+fix. **Mobile spot-check (375×812): NOT done** — `resize_window` failed with
+"Invalid value for bounds. Bounds must be at least 50% within visible screen
+space" both times it was tried this session (Task 7 and again here); this is
+the same tool-level failure already documented earlier in this log, not a
+new one, and not worked around. Recorded honestly as unverified rather than
+skipped silently — see HANDOFF.md's morning checklist.
 
-- [ ] **Step 3: Final checks + HANDOFF.** `npm run build && npm run lint`
+- [x] **Step 3: Final checks + HANDOFF.** `npm run build && npm run lint`
 (baseline warnings only). Write the HANDOFF.md session log: what shipped
 (task list + commit shas), probe evidence summary, scratch data notes
 (Night Coach auth user; overnight-check user), known gaps (seeded thumbnails

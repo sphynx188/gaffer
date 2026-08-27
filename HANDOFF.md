@@ -276,6 +276,626 @@ in.
 
 ---
 
+## Session log — Club tenancy & library platform, overnight run (2026-08-28, COMPLETE — Tasks 0–13 all shipped)
+
+Unattended overnight run executing
+`docs/superpowers/plans/2026-08-27-club-tenancy-library-platform.md` against
+`docs/superpowers/specs/2026-08-27-club-tenancy-design.md` (v2.1), Tasks 0–13,
+on branch `club-tenancy`. This entry was appended to task-by-task, live, per
+the run's own ground rules (durable state in files, never only in context).
+**All 14 tasks (0–13) completed; every task committed; the demo rehearsal
+ran end-to-end and passed.** The one thing NOT verified is the 375×812
+mobile spot-check — `resize_window` is broken in this environment (see
+Task 13's entry below) — everything else in this log is real, observed
+evidence, not inferred.
+
+**Model/effort note:** the plan's per-task model/effort table (Sonnet for
+recon/mechanical tasks, Opus xhigh for Task 3 RLS) could not be applied —
+this session has no tool to switch its own model/effort mid-run. The entire
+run executes at whatever model this session started with. Extra manual care
+(re-reading policies twice, running the full probe suite, treating any
+ambiguity as stop-the-line) was applied to Task 3 to compensate; this is a
+real limitation, not a silent skip — recorded here per the "never fabricate
+verification" rule.
+
+- **Task 0 (recon) — done, commit `3f19eb9`.** Branch `club-tenancy` created.
+  Baseline `npm run build` clean, `npm run lint` = 3 warnings (matches the
+  documented pre-existing baseline exactly — the uncommitted tree added
+  none). Full recon in
+  `docs/superpowers/plans/2026-08-27-recon-notes.md`; six corrections to the
+  plan's assumptions found and filed in the plan's own Amendment log (real
+  RLS policy names, real storage policy names, two missing columns in the
+  Task 10/12 tactic INSERT lists, `runSupabaseAction`'s real signature vs.
+  the plan's invented one, `Dropdown` vs. the plan's `<select>` prose, a
+  now-confirmed no-op backfill branch). Serena activated (project `gaffer`,
+  `.serena/` already gitignored), onboarding NOT run per instruction.
+  `RECON.LEGACY_ADMIN_EMAIL = maxburatto68@gmail.com`. Zero rows in
+  `early_access_signup` — Task 1's pre-drop dump is skipped as inapplicable.
+
+- **Task 1 (landing page removal) — done, commit `bf8026a`.** Migration 026
+  applied live (table dropped, project `zaougjiavbqdlgweidpc`) and written to
+  `supabase/migrations/026_drop_early_access_signup.sql`. Deleted
+  `src/pages/landing/` (16 files) and `src/lib/waitlist.ts`. `App.tsx`'s
+  signed-out branch restored to the exact pre-landing shape (`git
+  show 96b1c0f^:src/App.tsx`, diffed and confirmed byte-identical in
+  structure) — signed-out renders `Login` directly, no `/login` route,
+  `ResetPassword`/recovery branch untouched. Removed the `gaffer-landing`
+  entry from `.claude/launch.json`.
+  **Verified live** (dev server on :5173, Browser pane via Chrome
+  automation — no `preview_start` tool exists in this environment, used
+  `npm run dev` + Chrome MCP tools instead, functionally equivalent):
+  signed out → sign-in form renders at `/`; `/some-junk-path` also renders
+  the sign-in form (no crash, no stray route); signed back in as the test
+  account (`gaffertest2026v2@gmail.com`) → Coach Dashboard renders with
+  "Test U12 Reds" data, same as before the change. Build clean, lint = 3
+  (baseline, unchanged). **Note:** this session started already signed in
+  as Max's real account (`maxburatto68@gmail.com`) in the automated Chrome
+  profile — it was signed out to run this verification and the tab is now
+  left signed in as the *test* account instead. Max will need to sign back
+  into his own account if he opens this same browser profile/tab.
+
+- **Process note:** a `git add -A src/pages/landing ...` multi-path call hit
+  a "pathspec did not match" fatal error on the already-deleted landing dir
+  and aborted before staging `App.tsx`/`.claude/launch.json`, so commit
+  `bf8026a` (Task 1) silently missed both — caught while staging Task 2, no
+  behavior was actually lost (the dev-server verification ran against the
+  real edited files on disk). Fixed in commit `ba14789`, but that fix-up
+  commit's `git commit` also swept up everything already staged for Task 2
+  at that point (`types.ts`, `index.ts`, migration 027, the plan's checkbox
+  edits) — so **Task 2 is also fully committed under `ba14789`**, not a
+  separate commit as the plan specifies. Recorded here rather than rewriting
+  history (a `reset`/rebase mid-run is exactly the kind of destructive git
+  op the ground rules rule out for a cosmetic fix). No file is missing or
+  duplicated — every Task 1 and Task 2 change is present in the branch,
+  just merged across two commits instead of three.
+
+- **Task 2 (tenancy schema) — done, folded into commit `ba14789` (see process
+  note above).** Migration 027 applied live: 7 new tables
+  (`club`/`club_member`/`collection`/`collection_drill`/`collection_tactic`/
+  `collection_access`/`club_license`), RLS enabled with **no policies** on
+  all seven (default-deny, correct — Task 3 adds policies next), `drill`/
+  `tactic` gained `club_id uuid not null` + `created_by uuid not null`,
+  `tactic.team_id` now nullable. Backfill probes (via `execute_sql`,
+  matching the recon prediction exactly): `drill_nulls=0, drills=17`;
+  `tactic_nulls=0, tactics=5`; 3 `club` rows, one per team-owning account,
+  each with exactly one `club_member(role='admin')` row. The "coach-wide
+  drill → legacy admin" UPDATE step confirmed as a no-op on this data (0
+  drills had `team_id is null`), kept in the migration as a safety net per
+  the recon note. `src/store/types.ts`: added `club_id`/`created_by` to
+  `Drill`, widened `Tactic.team_id` to `string | null` and added
+  `club_id`/`created_by`, added `ClubRole`/`Club`/`ClubMembership`/
+  `ClubMemberRow`/`Collection`/`ClubLicense`; re-exported from
+  `src/store/index.ts`. **Verified live**: build clean, lint = 3 (baseline).
+  Signed in as the test account, `/drills` still lists all 9 of its drills
+  after the migration (old team-based RLS still governs reads until Task 3 —
+  the app doesn't reference the new columns yet, so nothing observably
+  changed). **Known transient gap, by design**: `drill.club_id`/
+  `tactic.club_id` are `not null` with no DB default, so any drill/tactic
+  *creation* between now and Task 5 (which is the task that starts writing
+  `club_id` from `selectedClubId`) would fail at the DB with a not-null
+  violation. Nothing in this run creates a drill/tactic in that window, so
+  it's inert here — flagged for the record, not a bug to fix out of order.
+
+- **Task 3 (RLS core, THE stop-the-line task) — done, commit `101612b`.**
+  Migration 028 applied live: helpers `is_club_member`/`is_club_admin`/
+  `can_read_collection`/`drill_in_readable_collection`/
+  `tactic_in_readable_collection` (all `security definer`, `set search_path
+  = ''`, schema-qualified), RPC `create_club`, full policy set on all 7 new
+  tables, drill/tactic policies switched from team to club/collection
+  (dropped `drill_all_members_or_unscoped`/`tactic_all_members` — the real
+  recon-confirmed names, not the plan's guesses), storage policies on
+  `drill-thumbnails` rewritten to club-visibility (dropped the real
+  `drill_thumbnail_select/insert/update/delete` names).
+  **Bug found and fixed during review, before applying**: the plan-draft
+  `collection_access_revoke` policy let a receiving club's admin delete ANY
+  grant on a collection licensed to them, including the source club's own
+  home-coach grants — a cross-tenant write into another tenant's internal
+  permissions. Fixed to require the deleted row belong to a member of the
+  caller's own club, mirroring the grant policy's existing join. Full
+  reasoning in migration 028's header and the plan's Amendment log.
+  **Verified live, in full** (all results also recorded in the migration
+  header):
+  - Per-persona SQL sweep (`set_config request.jwt.claims`): legacy admin
+    sees exactly its own 8 drills/3 tactics/1 club; test account sees
+    exactly its own 9 drills/2 tactics/1 club; a made-up uuid sees 0
+    everywhere. **No cross-tenant row observed in any sweep.**
+  - Share-token re-probe (018/023 suite): minted a real drill token and a
+    real tactic token, curl'd with the anon key — valid token → exactly 1
+    row each; tampered token (flipped last char) → `[]`; no token → `[]`.
+    Anon sweep across 15 other tables while holding a valid drill token —
+    every one `[]`. Tokens nulled back out afterward, confirmed 0 live.
+  - Live app sanity: signed in as the test account, `/drills` still lists
+    all 9; opened "Full Portrait Test" in the editor, dragged an entity,
+    saw the "Thumbnail captured" autosave toast, reloaded — the moved
+    position persisted (confirms the `drill_club_update` policy path end to
+    end, not just the read side).
+  - `get_advisors(security)` independent second opinion: no RLS-disabled
+    finding on any of the 7 new tables; only WARN-level notices that every
+    new `security definer` helper is anon/authenticated-callable via RPC —
+    same pattern as the pre-existing `is_team_member`/`is_team_owner`
+    helpers, and every one of them keys off `auth.uid()` (null for anon,
+    can never match a NOT NULL `user_id` column), so an anon call always
+    gets `false`/an exception, no information disclosure. One unrelated
+    pre-existing Auth dashboard setting (leaked-password protection, not
+    migration-controlled).
+  Build clean, lint = 3 (baseline). **No stop-the-line triggered.**
+
+- **Task 4 (clubSlice, bootstrap, Create-your-club, club switcher) — done,
+  commit `490d688`.** New `src/store/slices/clubSlice.ts` (full API per the
+  plan: `fetchMemberships`/`selectClub`/`createClub`/`fetchClubData` +
+  8 collection/access/license CRUD actions + `createCoach` + `grantLicense`/
+  `revokeLicense`/`copyCollectionToClub`; `selectMyRole`/`canEditDoc`
+  exported helpers) — written against `runSupabaseAction`'s REAL signature
+  (recon correction #4), following `teamSlice.ts`'s idioms exactly, not the
+  plan's invented callback shape. `selectedClubId` persists to
+  `localStorage` under `gaffer-selected-club`, reconciled on every
+  `fetchMemberships`. New `src/components/CreateClub.tsx` (a centered
+  `Card`, matches `Login.tsx`'s input/button classes). `App.tsx`: bootstrap
+  effect calls `fetchMemberships()` keyed on `session.user.id` (not the
+  whole `session` object — avoids refiring on hourly token refresh);
+  `memberships.length === 0` renders `CreateClub` instead of the routed
+  app. `AppShell.tsx`: a `ClubSwitcher` mounted in the header's right
+  cluster (`Dropdown` per design.md, not a `<select>` — recon correction
+  #5; static text for exactly one membership) — added ALONGSIDE
+  `TeamSwitcher`, which stays until Task 7 removes it, per the plan's own
+  file scope for this task.
+  **Two lint warnings appeared** during first-pass build
+  (`set-state-in-effect`, `exhaustive-deps` on the bootstrap effect) —
+  fixed by tracking `fetchedForUserId: string | null` instead of a bare
+  boolean flag, so "has the first fetch settled" is derived during render
+  rather than toggled with a synchronous `setState` inside the effect.
+  Back to baseline (3) after the fix.
+  **Verified live, in full**: test account signs in → "My Club" renders as
+  static text in the header (exactly one membership) → dashboard loads as
+  before, nothing broken. Signed up a real throwaway account
+  (`overnight-check@gafferdemo.app` / `Check2026!`) → `CreateClub` screen
+  rendered correctly (screenshot-confirmed); created "Scratch FC" → routed
+  app rendered with its empty state ("Create your first team", dormant
+  team module, expected). Cleaned up: `delete from club where id = ...`
+  cascaded the `club_member` row too (confirmed 0 orphans by SQL) — the
+  auth user itself was left in place (`617d9cda-90db-4979-bf88-e00dcf498411`,
+  `overnight-check@gafferdemo.app`), deleting an auth user isn't reachable
+  client-side, noted here as scratch per the plan's own instruction. Signed
+  back into the test account afterward. Build clean, lint = 3 (baseline).
+
+- **Task 5 (drill library rescope) — done, commit `b7a0ea5`.**
+  `drillSlice.ts`: `fetchDrills()` now parameterless (RLS-only visibility,
+  `_teamId?` kept for the two still-active shelved callers
+  `TeamOverviewPage`/`SessionItemsPanel`); the team-switch "superseded"
+  guard generalized to a monotonic call-id since there's no scope arg to
+  key it off any more; `createDrill` writes `club_id` from
+  `selectedClubId`, never `team_id`; `duplicateDrill` drops
+  `team_id: source.team_id` (createDrill already lands the copy in the
+  caller's club with `created_by`/`share_token`/`thumbnail_url` correct by
+  construction). `CreateDrillForm.tsx` lost its `teamId` prop to match.
+  Un-gated the 3 call-site-trap pages (`DesignPage`, `DrillEditorPage`,
+  `DrillCardPage`) — each previously gated its fetch on `selectedTeamId`,
+  which stops being set once Task 7 shelves team selection; left alone
+  they'd have gone silently empty, invisible to build/lint. New
+  `buildLibraryGroups.ts` + `LibraryGroups.tsx` (split across two files,
+  not the plan's one — an oxlint react-refresh rule and a case-insensitive-
+  filesystem collision risk both pushed that way; full reasoning in the
+  plan's Amendment log) and `DrillViewPage.tsx` (reuses `SharedDrill`,
+  newly exported from `SharedDrillPage.tsx`).
+  **Deliberate deviation from the plan's literal wording**, recorded in
+  the Amendment log: instead of replacing the drill-card's onClick with
+  routing (which would have stranded the tree's pre-existing Duplicate/
+  Delete panel — its only UI path anywhere in the app), added an explicit
+  "Open in editor"/"View" link to the existing preview panel and gated its
+  Delete button on `canEditDoc`. Also added a "+ New drill" link from the
+  library to `/design` — the only create-drill entry point in the app
+  (one call site, confirmed by grep), which loses its last nav link in
+  Task 7.
+  **Verified live**: `/drills` lists all 9 test-account drills under "My
+  drills", no team gate; `/design` renders and creates unconditionally —
+  created "Overnight Verify Drill" live, SQL-confirmed
+  `team_id NULL, club_id = 88482373-... (the test account's club),
+  created_by = e13c5237-...` exactly as expected, then deleted it (scratch,
+  not seed data). `/drills/<id>/view` (the `canEditDoc`-false path — can't
+  be exercised via a real click yet, no non-admin persona exists until
+  Task 12) visited directly: renders the read-only board correctly
+  (confirmed the entity position from Task 3's editor-save verification
+  persisted), "Duplicate to my drills" button present. Zero console errors
+  confirmed on a **fresh tab** (the same tab that was live-edited during
+  this task showed stale HMR-churn "Failed to reload" errors from
+  mid-edit — the documented Browser-pane trap; a fresh tab load was clean).
+  Build clean, lint = 3 (baseline; one new `react(only-export-components)`
+  warning appeared and was fixed by the file split above, not left in).
+
+- **Task 6 (tactic library rescope, roster-free editor) — done, commit
+  `bcf1a3a`.** `tacticSlice.ts`: `fetchTactics()` parameterless (same
+  monotonic-call-id guard pattern as drillSlice); `createTactic` writes
+  `club_id` + `team_id: null` always (rosters shelved this cycle); new
+  `duplicateTactic` — **couldn't reuse the createTactic+updateTactic path
+  duplicateDrill uses**, since `TacticUpdateInput` deliberately excludes
+  every content field by design ("one path through the autosave flush"),
+  so it builds a direct `insert` instead, stripping `player_id` from
+  entities and nulling both sides' `teamId` (same cross-club-dangling-
+  reference concern migration 029/Task 10 handles at the SQL level — this
+  can duplicate a tactic reached via a licensed collection, which may
+  belong to a different club). `TacticsPage.tsx` rescoped in full: grouped
+  via `buildLibraryGroups`/`LibraryGroups` (reused from Task 5 unchanged),
+  card-click routes on `canEditDoc` (this file's existing structure — a
+  plain `Link`-wrapped card, no separate preview panel — supported literal
+  click-routing without stranding anything, unlike DrillLibrary; delete
+  button also gated on it). New `TacticViewPage.tsx` (reuses `SharedTactic`,
+  newly exported from `SharedTacticPage.tsx`) + route.
+  `SquadPanel.tsx`: every roster surface gated behind a single
+  `rosterFree = tactic.team_id == null` (uniform across both sides, not
+  per-side — recorded in the Amendment log why per-side was rejected: no
+  code path can ever produce that mixed state, so it'd be dead UI).
+  **Two more call-site-trap instances found and fixed**, same bug as
+  `fetchTactics`'s but not named in the plan's file list: both
+  `TacticEditorPage.tsx` and `TacticCardPage.tsx` also gated their
+  `fetchCustomFormations()` call on `selectedTeamId`, despite the
+  `formation` table being owner_id-scoped (the plan's own recon note says
+  so) — fixed alongside the calls that were named.
+  **Verified live**: `/tactics` lists both existing tactics under "My
+  tactics"; created "Overnight Verify Tactic" — editor opened with
+  formation tools, "SQUAD (0) — No players yet — add placeholders below."
+  (confirmed **no roster panel content**), added a placeholder entity,
+  reload confirmed it persisted, SQL-confirmed
+  `team_id NULL, club_id = 88482373-... , created_by = e13c5237-...`
+  exactly as expected, then deleted (scratch). Opened the pre-existing
+  "4-4-2 — Defensive Block" tactic (real `team_id`) — renders its 11
+  entities correctly, roster UI section still present (dormant-legal,
+  empty because the `selectedTeamId` flow it depends on is itself
+  dormant — not a regression). Zero console errors confirmed on a fresh
+  tab. Build clean, lint = 3 (baseline).
+
+- **Task 7 (shell rework — team module shelved) — done, commit `c0010cf`.**
+  `AppShell.tsx`: nav collapsed to one flat list, Drill Library + Tactic
+  Library (Admin arrives in Task 8 once `/admin` exists — keeps every
+  commit shippable rather than a dead link). Removed `TEAM_SCOPED_PATHS`,
+  the two-tier nav switch, the breadcrumb team selector, and every
+  `TeamSwitcher` mount (mobile drawer now mounts `ClubSwitcher` in its
+  place, for feature parity). `App.tsx`: `/` and every unmatched path
+  redirect to `/drills`; team-scoped routes
+  (dashboard/overview/roster/sessions/attendance/teams/calendar) removed
+  from the router along with their imports (`noUnusedLocals` requires it —
+  the page files themselves are untouched, just unrouted).
+  **Correction, recorded in the Amendment log**: kept `AppShell`'s
+  `fetchTeams()` call, which the plan's own framing implied removing —
+  `SquadPanel.tsx`'s dormant-legal opposition-team picker (Task 6) reads
+  the store's `teams` array directly, and `AppShell` was the only call
+  site left populating it; removing it would have silently emptied that
+  picker for anyone opening an old, real-`team_id` tactic. Same
+  call-site-trap shape as everything else this plan has caught, one level
+  removed (a shared array losing its populating call, not a fetch losing
+  its scope arg).
+  **`/design` stays routed** despite being historically team-scoped —
+  Task 5 made it the app's only create-a-drill entry point.
+  **Verified live**: `/` redirects to `/drills`; nav shows exactly the two
+  library icons; `/teams` and `/roster` (old team-era URLs) both redirect
+  home; **all four still-active document routes opened and confirmed
+  rendering real content** (not empty) — drill editor
+  (`/design/<drill-id>`), tactic editor (`/tactics/<tactic-id>`), drill
+  card, tactic card — the actual payoff of Tasks 5/6's call-site-trap
+  fixes, not just a green build. Zero console errors on a fresh tab.
+  **One sub-check genuinely blocked, not fabricated**: the 375px hamburger
+  visual check — `resize_window` failed both attempts this session ("Invalid
+  value for bounds. Bounds must be at least 50% within visible screen
+  space", a tool-level error) and `window.resizeTo()` from the page is a
+  no-op (browsers block it for non-popup windows). Confirmed structurally
+  instead: `getComputedStyle` on the hamburger button at the actual
+  (desktop) viewport correctly shows `display: none`, consistent with its
+  unchanged `lg:hidden` class — reasonable evidence the responsive
+  mechanics still work, since Task 7 didn't touch them, but this is NOT
+  the same as having seen it render narrow. **Morning check item**: eyeball
+  the mobile hamburger drawer once on a real phone-width window.
+  Build clean, lint = 3 (baseline).
+
+- **Task 8 (admin console I — Coaches + create-coach Edge Function) — done,
+  commit `67db694`.** `supabase/functions/create-coach/index.ts` deployed
+  live (`verify_jwt: true`) — reviewed carefully before deploying (this is
+  the plan's other auth-sensitive task, a privilege check in a
+  service-role context): verifies the caller's JWT via the anon client,
+  then checks `club_member(role='admin')` **for the caller's own
+  server-verified user id** against the client-supplied `club_id`, using
+  the service-role client (bypasses RLS on purpose — that's the point of
+  the check) — a malicious caller can't spoof "I'm an admin of club X" by
+  just passing an arbitrary `club_id`, since the identity half of the
+  check is never client-controlled. Only after that passes does it create
+  the auth user and insert `club_member(role='coach')`.
+  New `AdminLayout.tsx` (role guard via `selectMyRole`, redirects a
+  non-admin to `/`; sub-nav starts with just "Coaches", Tasks 9/10/11 add
+  their own tab each) and `CoachesPage.tsx` (members table + create-coach
+  form). `AppShell.tsx` gained a role-gated "Admin" nav entry
+  (`isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS`) — belt-and-
+  braces, since `AdminLayout`'s own guard is the real access control.
+  **Verified live, in full**: created "Night Coach"
+  (`overnight.coach@gafferdemo.app` / `OvernightCoach2026!`) as the test
+  account (admin) — appeared in the members table immediately. Signed out,
+  signed in AS Night Coach: empty libraries (no grants yet, correct), **no
+  Admin nav entry**, direct hit on `/admin/coaches` auto-redirected to
+  `/drills` (AdminLayout's guard). **Negative probe correction**: the
+  plan's raw-curl-with-copied-token approach doesn't work against this
+  project — it 401s at the platform gateway itself
+  (`UNAUTHORIZED_ASYMMETRIC_JWT`) before ever reaching the function, which
+  looks like a project-level JWT-signing-keys setting the plan didn't
+  anticipate, not a bug in `create-coach`. Used
+  `supabase.functions.invoke` from the page instead (same signed-in
+  coach) — got the expected `403 {"error":"not an admin of this club"}`.
+  SQL-confirmed no stray user was created by any failed attempt. Kept
+  Night Coach's login for Task 9; noted for Task 12's cleanup pass.
+  Build clean, lint = 3 (baseline).
+
+- **Task 9 (admin collections — CRUD, filing, grants) — done, commit
+  `57f98c7`.** `CollectionsPage.tsx`: collection list (create/rename/
+  delete), two-list filing panels for drills and tactics (in-collection vs
+  available), per-coach access toggles. No new store API — every action is
+  Task 4's clubSlice as written.
+  **Real RLS bug found live, fixed in migration 029** (renumbered from the
+  plan's placeholder — Task 10's migration is now 030, not 029; see that
+  task's entry): creating "Passing Pack" through the actual admin UI
+  failed immediately with `new row violates row-level security policy for
+  table "collection"`. Root cause, isolated by direct SQL experimentation
+  (full trail in 029's header): `INSERT/UPDATE ... RETURNING` on
+  `collection` requires the SELECT policy to also pass for the returned
+  row, and `collection_read`'s only clause (`can_read_collection(id)`)
+  re-queries `collection` BY that id to find its `club_id` — a nested
+  query that, within the SAME command as the row's own INSERT/UPDATE,
+  cannot see the row that command just changed (ordinary Postgres
+  same-command self-visibility, not a config bug). `drill_club_read`/
+  `tactic_club_read` never hit this because each carries a direct
+  `created_by = (select auth.uid())` clause, evaluable from row values
+  with no re-query — `collection_read` had no such fallback. Tried and
+  discarded two dead ends first (converting the helpers to `plpgsql`,
+  marking them `volatile` — neither fixed it) before landing on the real
+  fix: add the same `created_by` fallback drill/tactic already use.
+  Confirmed fixed for both INSERT-returning and UPDATE-returning
+  (rename); re-ran a per-persona sweep afterward — no new cross-tenant
+  visibility introduced.
+  **Verified the full visibility-flip lifecycle live**, per the plan's
+  Step 2: created "Passing Pack" as admin (after the RLS fix — first
+  attempt is what surfaced the bug above), filed 2 drills + 1 tactic,
+  granted to Night Coach — signed in as the coach, both libraries showed
+  exactly the "Passing Pack" group, read-only (the tactic card's `href`
+  and the actual navigation both confirmed to `/tactics/<id>/view`, not
+  the editor); clicked "Duplicate to my tactics" — landed in the new
+  copy's editor, SQL-confirmed `team_id NULL, club_id` = the shared club,
+  `created_by` = the coach's own id, `share_token`/`thumbnail_url` both
+  null. Back as admin: revoked the grant — coach's next load showed the
+  "Passing Pack" group gone from both libraries, their own duplicate
+  still present under "My tactics". Zero console errors on a fresh tab.
+  **Process note**: UI clicks (sign-in, form submits) needed a second
+  click or a coordinate-based retry several times this task — same
+  flakiness pattern noted earlier in the run, not new. Switched to
+  driving sign-in directly via the page's own `supabase.auth.signInWithPassword`
+  through `javascript_tool` for the persona swaps in this task's back half,
+  which was reliable every time.
+  Build clean, lint = 3 (baseline).
+
+- **Task 10 (cross-club copy) — done, commit `1c7f8c9`.** Migration 030
+  (renumbered from the plan's placeholder 029, which Task 9's RLS fix
+  claimed first): `copy_collection_to_club(src_collection, target_club)`,
+  security definer, requires the caller be admin of BOTH clubs. Tactic
+  insert column list corrected against recon — `description`/
+  `phase_of_play` were missing from the plan-draft list, the exact
+  silent-omission risk Task 10's own header calls out. New
+  `TransferPage.tsx`: collection + target-club `Dropdown` pickers, copy
+  button, "Switch to `<club>`" on success.
+  **Second bug found live, this time a UI mislabel**: Task 10's own verify
+  step is the plan's first scenario with an admin of TWO clubs (the test
+  account + scratch "Copy Target FC"), and once that existed,
+  `DrillLibrary`/`TacticsPage` badged the OTHER club's own "Passing Pack"
+  as "Licensed" — wrong, since nothing was ever licensed; it only appeared
+  because RLS merges every administered club's collections into one array
+  (a deliberate, necessary design — see Task 4's Amendment entry — but the
+  Task 5/6 badge heuristic, `club_id !== selectedClubId`, couldn't tell
+  "merged because I admin both" from "here via a real license"). Fixed by
+  keying `licensedCollectionIds` off `licensesIn` (already fetched,
+  already the right shape) instead. Confirmed fixed live after reload —
+  no badge on either "Passing Pack" group.
+  **Verified live in full**: created scratch "Copy Target FC" via SQL
+  (admin membership for the test account), copied "Passing Pack" through
+  the actual UI, switched clubs — both libraries showed the copies;
+  opened one drill in the editor, dragged an entity, "Thumbnail captured"
+  toast confirmed the save (genuinely editable, not a reference). SQL:
+  copied tactic's scene has 0 `player_id` keys; 0 non-null `share_token`
+  across both copied docs; 0 non-null `team_id` on the copied tactic;
+  source club's drill/tactic/collection counts identical before and after
+  (9/3/1). Cleanup: deleting the scratch club initially failed —
+  `drill`/`tactic`'s `club_id` FK isn't `on delete cascade` (unlike
+  `club_member`/`collection`, which are) — so drill/tactic rows for that
+  club had to be deleted explicitly first. Re-confirmed source counts
+  unchanged after cleanup; the app correctly reconciled `selectedClubId`
+  back to "My Club" on the next load once the scratch club was gone. Zero
+  console errors on a fresh tab.
+  Build clean, lint = 3 (baseline).
+
+- **Task 11 (licensing — grant/revoke, dispersal, read-only) — done, commit
+  `9af2cb1`.** `LicensesPage.tsx`: outgoing (grant form + per-license
+  revoke) and incoming (per-coach dispersal, reusing
+  `collection_access`/`grantCollectionAccess`/`revokeCollectionAccess` —
+  spec §9's "one grant mechanism", same toggles `CollectionsPage` uses for
+  home grants). `clubSlice.fetchClubData` gained `licenseClubNames`: target/
+  source club names for a license aren't always one of the caller's own
+  `memberships` in general (only true here because the demo's admin
+  persona happens to administer both clubs), so this does a real query
+  rather than assuming — scoped correctly by `club_member_read`'s own
+  license-aware RLS branch.
+  **Third RLS gap found live, fixed in migration 031**: a plain coach could
+  never read a `club_license` row targeting their own club —
+  `club_license_read`'s receiving-side branch was `is_club_admin
+  (target_club_id)`, not `is_club_member`. This didn't affect the coach's
+  actual ability to read the licensed collection's CONTENT (that path goes
+  through `can_read_collection`, `security definer`, which bypasses
+  `club_license`'s RLS internally regardless of caller role) — but
+  `licensesIn` itself (a plain, non-security-definer query the "Licensed"
+  badge reads directly, added in Task 5/6/10) came back empty for a coach,
+  so the badge silently never rendered for anyone but an admin. Broadened
+  to `is_club_member(target_club_id)`. Accepted a minor, deliberate
+  disclosure: a coach not yet dispersed a collection can now see a bare
+  license id/date targeting their club before they're granted the
+  collection itself — negligible, and the necessary tradeoff for the badge
+  to work for non-admins at all.
+  **Verified the full lifecycle live** with scratch "License Target FC"
+  (test account as its admin, Night Coach's membership moved there
+  temporarily via SQL): granted "Passing Pack" — appeared correctly in the
+  target's Incoming panel ("Passing Pack from My Club"); dispersed to
+  Night Coach — signed in as the coach, **confirmed the "Licensed" badge
+  now renders** (post-031; before the fix it silently didn't); **negative
+  write probe**: called `supabase.from('drill').update(...)` directly as
+  the coach against a licensed drill — `0` rows affected, SQL-confirmed
+  the row's `name` was unchanged (structural read-only, not a UI-only
+  restriction). Revoked at source (switched back to "My Club") — target
+  admin's incoming row flipped to "Revoked"; coach's next load showed the
+  licensed group gone from both libraries, while their own Task-9 tactic
+  duplicate stayed under "My tactics", untouched. Restored Night Coach's
+  membership back to "My Club" and deleted the scratch club afterward
+  (SQL-confirmed both). Zero console errors on a fresh tab.
+  Build clean, lint = 3 (baseline).
+
+- **Task 12 (demo seed — personas, clubs, libraries) — done, commit
+  `319fab8`.** `scripts/seed-demo-users.mjs` run live: created the 4
+  persona logins (`barca.admin`/`barca.u12`/`barca.u18`/
+  `riverside.coach@gafferdemo.app`), real Supabase auth users, real ids
+  logged. `scripts/seed-demo.sql` applied live via `execute_sql`: FC
+  Barcelona (demo) (4 collections — U12 Foundation/U14 Passing Block/U18
+  Tactical/First Team Pressing — 16 drills, 2 tactics, sourced from the
+  legacy account's real 8-drill/3-tactic library) + Riverside Academy
+  (near-empty), grants wired (U12 coach ← first two collections, U18 coach
+  ← last two). **No correction needed this time** — the tactic column-list
+  fix Task 9/10 found the hard way (`description`/`phase_of_play` missing
+  from the plan-draft INSERT lists) was applied here from the start.
+  **Verified by SQL then by eye, in full**: `FC Barcelona (demo)` = 4
+  collections / 16 drills / 2 tactics / 3 members; `Riverside Academy` = 2
+  members; U12 persona's per-persona `can_read` sweep = exactly 8 drills
+  (2 granted collections × 4). Signed into **all four personas live**:
+  admin sees everything grouped (My drills = all 16, plus each of the 4
+  collection groups); U12 coach sees exactly "U12 Foundation" + "U14
+  Passing Block" (8 drills, 2 groups) and nothing else; U18 coach sees
+  exactly "First Team Pressing" + "U18 Tactical" (8 drills) — **critically,
+  neither coach's own-folder content leaks to the other** (confirmed: after
+  the U12 coach duplicated a drill into "My drills", the U18 coach's
+  library showed no trace of it); Riverside coach's library is empty, as
+  designed for a near-empty club. U12 coach's read-only pass: opened "U12 ·
+  ma" (card → preview panel showed "View", not "Open in editor" — correct
+  non-admin/non-creator path), clicked through to the viewer, pressed Play
+  (button flipped to "Pause" — animation genuinely running, not just
+  rendered), then "Duplicate to my drills" — landed in the editor,
+  reloaded the library and confirmed "My drills → U12 · ma (copy)".
+  Cleaned up Task 8's scratch: removed Night Coach's `club_member` row
+  (the auth user itself stays — deleting one isn't reachable client-side,
+  same constraint noted for every other scratch account this run). Zero
+  console errors on a fresh tab. Build clean, lint = 3 (baseline; no code
+  changed this task, scripts + live data only).
+
+- **Task 13 (demo script + rehearsal) — done, commits `19db151` (bug fix)
+  + final commit below.** `DEMO_SCRIPT.md` written (personas, 9-step arc,
+  reset-between-rehearsals SQL appendix). Full rehearsal run live in the
+  Browser pane, driving auth via direct `supabase-js` calls (the session's
+  established workaround for flaky first-click submits) and the real UI for
+  every navigation/admin action, following `DEMO_SCRIPT.md` literally.
+  **All 9 arc steps rehearsed and passed:** (1) admin tour of both
+  libraries; (2) live coach creation at `/admin/coaches`; (3) collection
+  grant at `/admin/collections`; (4) U12 coach's scoped view, read-only
+  drill view, Play (button flipped to Pause — genuinely animating); (5)
+  Duplicate-to-my-drills; (6) U12 coach created "U12 Coach's Own Drill" from
+  `/design` — landed in "My drills" (2 items) and confirmed **invisible**
+  to the U18 coach on reload; (7) Transfer — copied "U14 Passing Block" to
+  Riverside Academy via `/admin/transfer`, switched clubs, confirmed the
+  editable copy (see bug below, found and fixed at this step); (8) Licenses
+  — granted "First Team Pressing" to Riverside, switched clubs, dispersed
+  to Riley Donnelly, signed in as Riley — library showed exactly that one
+  group with a "Licensed" badge, button read "View" not "Open in editor"
+  and no Delete button (read-only, structurally enforced); (9) revoked the
+  license from the Barcelona side — Riley's next reload showed
+  "No drills yet.", confirming the licensed group actually disappears.
+  Zero console errors on a fresh tab, re-checked after the fix below.
+
+  **Real bug found and fixed during Step 7 (Transfer)** — not a security
+  leak, but real: copying "U14 Passing Block" to Riverside Academy and
+  switching clubs (the admin manages both clubs) showed Riverside's "My
+  drills" at 20 items and a doubled "U14 Passing Block" collection, when
+  Riverside should show only the 4-drill copy. Checked the database FIRST
+  via `execute_sql` (`select club_id, count(*) from drill group by
+  club_id`) before touching any code — confirmed 18 drills on Barcelona / 4
+  on Riverside, i.e. the data was correct and RLS was not leaking anything
+  cross-tenant, so stop-the-line did not apply. Root cause was purely
+  client-side: `buildLibraryGroups` (`src/components/design/
+  buildLibraryGroups.ts`) grouped the RLS-scoped-not-club-scoped
+  `docs`/`collections` arrays by `created_by`/"not licensed" with no
+  `club_id === selectedClubId` check — a collection or drill owned by a
+  DIFFERENT club the same admin also runs fell through into "home" by
+  default. Fixed by threading `selectedClubId` into `buildLibraryGroups`
+  and requiring `club_id === selectedClubId` for the "mine" group, admin
+  per-coach folders, and home collections (full root-cause writeup and the
+  "why this class of bug can recur" lesson is in the plan's Amendment log,
+  2026-08-28 entry). Both call sites (`DrillLibrary.tsx`, `TacticsPage.tsx`)
+  updated, committed separately as `19db151` (ahead of this task's own
+  commit, since it's a code fix and the plan's Step 4 only stages docs).
+  Re-verified both directions live: Riverside shows exactly the transferred
+  copy (4 drills, no duplicate collection, tactics page correctly empty);
+  Barcelona unchanged (16 own drills, 4 clean collections, Sam Whitfield's
+  2-drill folder still correct — no regression). `npx tsc -b` clean.
+
+  **Mobile spot-check at 375×812: NOT done.** `resize_window` failed both
+  times it was tried this session (once during Task 7, again here) with
+  "Invalid value for bounds. Bounds must be at least 50% within visible
+  screen space" — a genuine tool-level limitation in this environment, not
+  a code issue and not worked around. Recorded honestly as unverified
+  rather than skipped silently or faked. **First thing to check by hand in
+  the morning if the demo will be shown on a phone.**
+
+  **Reset-between-rehearsals run for real** after the rehearsal: deleted
+  both demo clubs' drill/tactic rows then the clubs themselves (SQL from
+  `DEMO_SCRIPT.md`'s appendix), re-ran `seed-demo-users.mjs` (same 4 user
+  ids returned — confirms idempotency), re-applied `seed-demo.sql`.
+  Verified via `execute_sql`: FC Barcelona (demo) = 3 members / 4
+  collections / 16 drills / 2 tactics; Riverside Academy = 2 members / 0 of
+  everything else — pristine, matches the pre-rehearsal state exactly.
+  **Demo data is currently in this pristine state**, ready for the real
+  pitch, not left in whatever state the last rehearsal step produced.
+
+  Final checks: `npm run build` clean (single JS chunk warning only, not a
+  new problem — pre-existing, unrelated to this work). `npm run lint` = 3
+  warnings, all the documented pre-existing baseline
+  (`AttendancePage.tsx`/`SessionPlanner.tsx` `preserve-manual-memoization`)
+  — zero new warnings from this run's changes.
+
+## Morning checklist for Max
+
+1. **Mobile check** — open the app at a real phone width (or a working
+   resize tool) and eyeball `/drills`, `/tactics`, and `/admin/*` at least
+   once before demoing on a phone. This is the one thing this run could not
+   verify (`resize_window` is broken in this environment — see Task 13's
+   entry above).
+2. **Eyeball the rehearsal flow once yourself** before the real pitch —
+   `DEMO_SCRIPT.md` has the exact 9-step arc and all 4 persona
+   logins/passwords. Demo data is currently pristine (freshly reset, see
+   Task 13's entry) so it's ready to run through as-is.
+3. **Decide on merging `club-tenancy` → `main`.** Every task (0–13) is
+   committed on the branch; nothing was pushed anywhere and nothing touched
+   `main`. `git log --oneline club-tenancy` shows the full task-by-task
+   history plus the one bug-fix commit (`19db151`) found during Task 13's
+   rehearsal.
+4. **Seeded drill/tactic thumbnails are null** (cut-line 1, applied as
+   planned) — cards show a placeholder icon instead of a real thumbnail.
+   Cosmetic only. To fix: open each seeded drill/tactic once in its editor
+   and let the existing thumbnail-capture-on-save path run, or write a
+   one-off script if that's too slow for 18 documents.
+5. **Task 11's licensing UI was NOT cut** — cut-line 2 never triggered,
+   the run had time to build it in full (`/admin/licenses`, grant/disperse/
+   revoke), and Task 13 rehearsed it end-to-end successfully.
+6. **Known scratch data already cleaned up**, nothing left behind requiring
+   action: every task's scratch club/collection/license used for its own
+   verify step was deleted in the same task (see each task's own entry
+   above for confirmation); the only *auth users* that couldn't be deleted
+   client-side (Supabase Auth has no client-reachable delete) are Task 8/9's
+   "Night Coach"/"overnight-check" test accounts and this task's 4 real
+   demo personas — the 4 demo personas are meant to stay (they're what
+   `DEMO_SCRIPT.md` logs in as); the two test accounts are harmless leftover
+   auth users with no club membership and no data, safe to delete from the
+   Supabase dashboard whenever, not urgent.
+7. **Model/effort-switching limitation** (noted at the top of this log) and
+   **`resize_window`'s bounds bug** are both real, reproducible environment
+   limitations worth mentioning if anyone asks why parts of this run's
+   verification look manual — not this session inventing excuses.
+
+---
+
 ## Session log — Tactics board rework, Stage 10: onboarding, and the 3D answer
 
 Stage 10 of [TACTICS_BOARD_REWORK_PLAN.md](TACTICS_BOARD_REWORK_PLAN.md), the
