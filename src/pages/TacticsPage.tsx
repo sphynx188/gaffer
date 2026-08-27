@@ -320,12 +320,6 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
     </button>
   )
 
-  const thumbnail = tactic.thumbnail_url ? (
-    <img src={tactic.thumbnail_url} alt={`${tactic.name} board`} className="h-full w-full object-cover" />
-  ) : (
-    <Shield className={view === 'grid' ? 'h-6 w-6 text-ink-faint' : 'h-4 w-4 text-ink-faint'} />
-  )
-
   // A badge per side, which is the pair a coach actually reads a tactic by —
   // "our 4-3-3 against their 4-4-2".
   const formationBadges = (
@@ -337,20 +331,24 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
   )
 
   if (view === 'list') {
+    // No thumbnail here on purpose (2026-08-28) — list view is for
+    // scanning/searching text fast, so formation badges that were hidden on
+    // small screens in the compact row now always show, alongside the
+    // tactic's description when it has one.
     return (
       <Link
         to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
-        className="flex w-full items-center gap-3 rounded-lg border border-line px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+        className="flex w-full flex-col gap-1 rounded-lg border border-line px-3 py-2.5 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
       >
-        <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-panel-raised">
-          {thumbnail}
-        </div>
-        <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
           <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>
-          <p className="truncate text-xs text-ink-muted">{meta.join(' · ')}</p>
+          {deleteButton}
         </div>
-        <div className="hidden shrink-0 flex-wrap gap-1 sm:flex">{formationBadges}</div>
-        {deleteButton}
+        {tactic.description && <p className="truncate text-xs text-ink-muted">{tactic.description}</p>}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {formationBadges}
+          <span className="text-xs text-ink-faint">{meta.join(' · ')}</span>
+        </div>
       </Link>
     )
   }
@@ -362,7 +360,11 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
     >
       {deleteButton}
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-panel-raised">
-        {thumbnail}
+        {tactic.thumbnail_url ? (
+          <img src={tactic.thumbnail_url} alt={`${tactic.name} board`} className="h-full w-full object-cover" />
+        ) : (
+          <Shield className="h-6 w-6 text-ink-faint" />
+        )}
       </div>
       <div className="min-w-0 space-y-1">
         <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>

@@ -512,31 +512,33 @@ function DrillCard({
     ageBandLabel(drill),
   ].filter(Boolean)
 
-  const thumbnail = drill.thumbnail_url ? (
-    <img src={drill.thumbnail_url} alt={`${drill.name} board`} className="h-full w-full object-cover" />
-  ) : (
-    <LibraryBig className={view === 'grid' ? 'h-6 w-6 text-ink-faint' : 'h-4 w-4 text-ink-faint'} />
-  )
-
   if (view === 'list') {
+    // No thumbnail here on purpose (2026-08-28) — the point of list view is
+    // scanning/searching text fast, and every extra field that fits (session
+    // block, phase of play, objective, on top of the grid card's own meta)
+    // is more useful for that than a small pitch preview would be.
+    const listMeta = [
+      drill.session_block ? SESSION_BLOCK_LABELS[drill.session_block] : null,
+      drill.phase_of_play ? DRILL_PHASE_OF_PLAY_LABELS[drill.phase_of_play] : null,
+      ...meta,
+    ].filter(Boolean)
+
     return (
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
         className={
-          'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ' +
+          'flex w-full flex-col gap-1 rounded-lg border px-3 py-2.5 text-left transition-colors ' +
           (selected ? 'border-accent/40 bg-accent/5' : 'border-line hover:border-accent/40 hover:bg-accent/5')
         }
       >
-        <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-panel-raised">
-          {thumbnail}
-        </div>
-        <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
           <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
-          {meta.length > 0 && <p className="truncate text-xs text-ink-muted">{meta.join(' · ')}</p>}
+          {drill.category && <Badge tone="neutral">{drill.category}</Badge>}
         </div>
-        {drill.category && <Badge tone="neutral">{drill.category}</Badge>}
+        {drill.objective && <p className="truncate text-xs text-ink-muted">{drill.objective}</p>}
+        {listMeta.length > 0 && <p className="truncate text-xs text-ink-faint">{listMeta.join(' · ')}</p>}
       </button>
     )
   }
@@ -552,7 +554,11 @@ function DrillCard({
       }
     >
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-panel-raised">
-        {thumbnail}
+        {drill.thumbnail_url ? (
+          <img src={drill.thumbnail_url} alt={`${drill.name} board`} className="h-full w-full object-cover" />
+        ) : (
+          <LibraryBig className="h-6 w-6 text-ink-faint" />
+        )}
       </div>
       <div className="min-w-0 space-y-1">
         <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
