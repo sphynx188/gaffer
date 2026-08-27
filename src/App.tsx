@@ -7,6 +7,8 @@ import { ResetPassword } from './components/ResetPassword'
 import { CreateClub } from './components/CreateClub'
 import { OfflineBanner } from './components/OfflineBanner'
 import { AppShell } from './layout/AppShell'
+import { HomePage } from './pages/HomePage'
+import { CreatePage } from './pages/CreatePage'
 import { DesignPage } from './pages/DesignPage'
 import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
@@ -116,7 +118,7 @@ function AuthedApp() {
   return (
     <Routes>
       {/* Signed in, a stray /login (bookmark, back button) goes home. */}
-      <Route path="login" element={<Navigate to="/drills" replace />} />
+      <Route path="login" element={<Navigate to="/" replace />} />
       {/* Outside AppShell on purpose: a page whose whole job is to become a
           sheet of paper has no use for a nav rail (rework plan Stage 10.2;
           the tactic card joined it in TACTICS_BOARD_REWORK_PLAN.md 8.1). */}
@@ -126,12 +128,16 @@ function AuthedApp() {
         {/* Club tenancy (2026-08-28, Task 7): the team module is shelved —
             Dashboard/Teams/Calendar/Overview/Roster/Sessions/Attendance
             routes removed (their pages, nav entries and slices stay wired,
-            just unrouted). The drill library is the new home route.
-            `/design` stays routed despite being historically team-scoped:
-            Task 5 made it the app's only create-a-drill entry point
-            (DrillLibrary's "+ New drill" link), so it's load-bearing again
-            under a different name than "team-scoped". */}
-        <Route index element={<Navigate to="/drills" replace />} />
+            just unrouted). `/design` stays routed despite being
+            historically team-scoped: Task 5 made it the app's only
+            create-a-drill entry point (DrillLibrary's "+ New drill" link),
+            so it's load-bearing again under a different name than
+            "team-scoped". HomePage (2026-08-28, post-launch) is the real
+            home route now, replacing the straight-to-/drills redirect;
+            CreatePage is a front door to /design and /tactics's own
+            creation forms, not new creation logic. */}
+        <Route index element={<HomePage />} />
+        <Route path="create" element={<CreatePage />} />
         <Route path="design" element={<DesignPage />} />
         <Route path="design/:drillId" element={<DrillEditorPage />} />
         <Route path="drills" element={<DrillLibraryPage />} />
@@ -140,15 +146,17 @@ function AuthedApp() {
         <Route path="tactics/:tacticId/view" element={<TacticViewPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
         {/* AdminLayout does its own role gate (redirects non-admins to /) —
-            the route itself is open, same shape as every other page here. */}
-        <Route path="admin" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/admin/coaches" replace />} />
+            the route itself is open, same shape as every other page here.
+            Relabeled /admin → /settings (2026-08-28) for the nav; the
+            component/file names underneath stay "Admin*", internal only. */}
+        <Route path="settings" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/settings/coaches" replace />} />
           <Route path="coaches" element={<CoachesPage />} />
           <Route path="collections" element={<CollectionsPage />} />
           <Route path="transfer" element={<TransferPage />} />
           <Route path="licenses" element={<LicensesPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/drills" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   )

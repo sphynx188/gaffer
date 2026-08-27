@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, LibraryBig, LogOut, Menu, Moon, Settings, Shield, Sun, X } from 'lucide-react'
+import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Shield, Sun, X } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
@@ -18,16 +18,24 @@ interface NavItem {
 // Club tenancy (2026-08-28, Task 7): one flat nav for every signed-in
 // route now — the earlier coach-level/team-level two-tier split (and the
 // route-driven TEAM_SCOPED_PATHS switch that chose between them) is gone
-// along with the team module it organized.
+// along with the team module it organized. Home/Create (2026-08-28,
+// post-launch) joined it: Home is the real landing route now (see
+// BrandBlock/BackButton below), Create is a front door to the existing
+// drill/tactic creation entry points, not new creation logic of its own —
+// see CreatePage.tsx. `end: true` on Home keeps it from reading "active" on
+// every other route, since `/` is a prefix of all of them.
 const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'Home', icon: Home, end: true },
+  { to: '/create', label: 'Create', icon: Plus },
   { to: '/drills', label: 'Drill library', icon: LibraryBig },
   { to: '/tactics', label: 'Tactics', icon: Shield },
 ]
 
-// Admin (Task 8): role-gated, appended only for a club admin — /admin/*
-// itself also redirects a non-admin (AdminLayout's own guard), so this is
-// belt-and-braces UI polish, not the actual access control.
-const ADMIN_NAV_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: Settings }
+// Settings (Task 8, relabeled from "Admin" 2026-08-28): role-gated,
+// appended only for a club admin — /settings/* itself also redirects a
+// non-admin (AdminLayout's own guard), so this is belt-and-braces UI
+// polish, not the actual access control.
+const SETTINGS_NAV_ITEM: NavItem = { to: '/settings', label: 'Settings', icon: Settings }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ' +
@@ -73,12 +81,11 @@ function NavList({
 }
 
 // Always the "Gaffer" wordmark, on every route — the one persistent,
-// consistent "where am I" anchor. Links to the drill library, the app's
-// home route since Task 7 (was the coach-level Dashboard before the team
-// module was shelved).
+// consistent "where am I" anchor. Links to "/", the club Home page
+// (2026-08-28) — was the drill library since Task 7, before Home existed.
 function BrandBlock() {
   return (
-    <Link to="/drills" className="shrink-0 text-lg font-semibold tracking-tight text-ink">
+    <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight text-ink">
       Gaffer
     </Link>
   )
@@ -92,12 +99,13 @@ function BrandBlock() {
 // `navigate()` call elsewhere in the app (team pick, session-click
 // deep-links, etc.) already pushes a real history entry, so this always
 // lands on the actual previous screen rather than a fixed "up one level"
-// destination. Hidden on the drill library ("/drills") — that's the app's
-// true landing screen since Task 7, with nothing behind it to go back to.
+// destination. Hidden on Home ("/") — that's the app's true landing screen
+// (2026-08-28; was the drill library before Home existed), with nothing
+// behind it to go back to.
 function BackButton() {
   const navigate = useNavigate()
   const location = useLocation()
-  if (location.pathname === '/drills') return null
+  if (location.pathname === '/') return null
   return (
     <button
       type="button"
@@ -172,15 +180,15 @@ function SignOutFooter({ email }: { email?: string }) {
   )
 }
 
-// One flat nav since Task 7 (Drill Library / Tactics, + Admin for a club
-// admin — see NAV_ITEMS/ADMIN_NAV_ITEM above), rendered as a slim sticky
-// top bar plus an icon rail on desktop/tablet, or a hamburger-triggered
-// slide-in drawer below `lg`.
+// One flat nav since Task 7 (Home / Create / Drill library / Tactics, +
+// Settings for a club admin — see NAV_ITEMS/SETTINGS_NAV_ITEM above),
+// rendered as a slim sticky top bar plus an icon rail on desktop/tablet, or
+// a hamburger-triggered slide-in drawer below `lg`.
 export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
-  const navItems = isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS
+  const navItems = isAdmin ? [...NAV_ITEMS, SETTINGS_NAV_ITEM] : NAV_ITEMS
   const [navOpen, setNavOpen] = useState(false)
 
   // Kept despite the team module being shelved (Task 7): SquadPanel's
