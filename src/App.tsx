@@ -9,6 +9,7 @@ import { OfflineBanner } from './components/OfflineBanner'
 import { AppShell } from './layout/AppShell'
 import { HomePage } from './pages/HomePage'
 import { CreatePage } from './pages/CreatePage'
+import { LibraryLayout } from './pages/LibraryLayout'
 import { DesignPage } from './pages/DesignPage'
 import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
@@ -134,15 +135,26 @@ function AuthedApp() {
             so it's load-bearing again under a different name than
             "team-scoped". HomePage (2026-08-28, post-launch) is the real
             home route now, replacing the straight-to-/drills redirect;
-            CreatePage is a front door to /design and /tactics's own
-            creation forms, not new creation logic. */}
+            CreatePage is a front door to /design and /library/tactics's
+            own creation forms, not new creation logic. */}
         <Route index element={<HomePage />} />
         <Route path="create" element={<CreatePage />} />
         <Route path="design" element={<DesignPage />} />
         <Route path="design/:drillId" element={<DrillEditorPage />} />
-        <Route path="drills" element={<DrillLibraryPage />} />
+        {/* Library (2026-08-28): the former separate "Drill library" and
+            "Tactics" nav entries merged into one, split by a tab bar
+            (LibraryLayout) — each tab keeps its existing page component
+            unchanged. Old /drills and /tactics kept as redirects, same
+            shape as the /login redirect above, since a fair number of
+            in-app links and any external bookmarks still point at them. */}
+        <Route path="library" element={<LibraryLayout />}>
+          <Route index element={<Navigate to="/library/drills" replace />} />
+          <Route path="drills" element={<DrillLibraryPage />} />
+          <Route path="tactics" element={<TacticsPage />} />
+        </Route>
+        <Route path="drills" element={<Navigate to="/library/drills" replace />} />
         <Route path="drills/:drillId/view" element={<DrillViewPage />} />
-        <Route path="tactics" element={<TacticsPage />} />
+        <Route path="tactics" element={<Navigate to="/library/tactics" replace />} />
         <Route path="tactics/:tacticId/view" element={<TacticViewPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
         {/* AdminLayout does its own role gate (redirects non-admins to /) —

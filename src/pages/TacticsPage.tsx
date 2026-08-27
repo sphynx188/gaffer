@@ -8,7 +8,6 @@ import type { DrillPhaseOfPlay, Tactic } from '../store'
 import { DRILL_PHASES_OF_PLAY, DRILL_PHASE_OF_PLAY_LABELS } from '../store'
 import { FORMATIONS } from '../components/tactics/formations'
 import { formatClock } from '../components/design/timeline/cursor'
-import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -17,9 +16,12 @@ import { Dropdown } from '../components/ui/Dropdown'
 import { LibraryGroups } from '../components/design/LibraryGroups'
 import { buildLibraryGroups } from '../components/design/buildLibraryGroups'
 
-// `/tactics` — the tactics library (TACTICS_BOARD_REWORK_PLAN.md Stage 9.1):
-// "card grid reusing DrillLibrary.tsx's patterns: thumbnail, name, formation
-// badge per side, phase count, duration."
+// `/library/tactics` — the tactics library (TACTICS_BOARD_REWORK_PLAN.md
+// Stage 9.1): "card grid reusing DrillLibrary.tsx's patterns: thumbnail,
+// name, formation badge per side, phase count, duration." Nested under
+// LibraryLayout (2026-08-28) alongside DrillLibraryPage — its own
+// PageHeader moved up to the shared layout, same convention as
+// AdminLayout's sub-pages.
 //
 // It replaces the plain list Stage 7.1 left here when the board moved out to
 // `/tactics/:tacticId`. The create form stays — unlike drills, which are
@@ -136,11 +138,9 @@ export function TacticsPage() {
   )
 
   return (
-    <div>
-      <PageHeader title="Tactics" />
-      <Card>
-        <div className="space-y-4">
-          <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-2">
+    <Card>
+      <div className="space-y-4">
+        <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-2">
             <div>
               <label htmlFor="new-tactic-name" className="block text-xs font-medium text-ink-muted">
                 New tactic name
@@ -238,8 +238,7 @@ export function TacticsPage() {
             </>
           )}
         </div>
-      </Card>
-    </div>
+    </Card>
   )
 }
 

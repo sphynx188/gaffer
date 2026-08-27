@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Shield, Sun, X } from 'lucide-react'
+import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
@@ -18,17 +18,18 @@ interface NavItem {
 // Club tenancy (2026-08-28, Task 7): one flat nav for every signed-in
 // route now — the earlier coach-level/team-level two-tier split (and the
 // route-driven TEAM_SCOPED_PATHS switch that chose between them) is gone
-// along with the team module it organized. Home/Create (2026-08-28,
-// post-launch) joined it: Home is the real landing route now (see
-// BrandBlock/BackButton below), Create is a front door to the existing
-// drill/tactic creation entry points, not new creation logic of its own —
-// see CreatePage.tsx. `end: true` on Home keeps it from reading "active" on
-// every other route, since `/` is a prefix of all of them.
+// along with the team module it organized. Home/Create/Library
+// (2026-08-28, post-launch) joined it: Home is the real landing route now
+// (see BrandBlock/BackButton below), Create is a front door to the existing
+// drill/tactic creation entry points (see CreatePage.tsx), and Library
+// merges the former separate "Drill library"/"Tactics" entries into one —
+// the split lives inside LibraryLayout's own tab bar now, not the main nav.
+// `end: true` on Home keeps it from reading "active" on every other route,
+// since `/` is a prefix of all of them.
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: Home, end: true },
   { to: '/create', label: 'Create', icon: Plus },
-  { to: '/drills', label: 'Drill library', icon: LibraryBig },
-  { to: '/tactics', label: 'Tactics', icon: Shield },
+  { to: '/library', label: 'Library', icon: LibraryBig },
 ]
 
 // Settings (Task 8, relabeled from "Admin" 2026-08-28): role-gated,
