@@ -501,7 +501,7 @@ git commit -m "feat: club tenancy schema — clubs, collections, licenses, docum
   exactly. Drill/tactic visibility switches from team to club/collection.
   `drill_shared_read` / `tactic_shared_read` (018/023) are untouched.
 
-- [ ] **Step 1: Write migration 028.** The old team-based drill/tactic policy
+- [x] **Step 1: Write migration 028.** The old team-based drill/tactic policy
 names come from Task 0 recon — drop them by their real names (the `drop
 policy` lines below name the likely candidates; fix to the recon list, and do
 NOT drop the two `_shared_read` policies).
@@ -695,7 +695,7 @@ create policy tactic_club_delete on tactic for delete to authenticated
   using (is_club_admin(club_id) or created_by = (select auth.uid()));
 ```
 
-- [ ] **Step 2: Rewrite the storage policies.** Read the current
+- [x] **Step 2: Rewrite the storage policies.** Read the current
 `drill-thumbnails` policies (Task 0 recon), then in the same migration replace
 their team-based subqueries. Keep 019/024's `in (select ...)` shape — never a
 correlated subquery (`name`-shadowing trap, documented twice in those
@@ -736,7 +736,7 @@ create policy thumbnails_owner_delete on storage.objects for delete to authentic
   ));
 ```
 
-- [ ] **Step 3: Apply, then run the SQL probe suite** via `execute_sql`. The
+- [x] **Step 3: Apply, then run the SQL probe suite** via `execute_sql`. The
 per-persona pattern (repeat per probe user id):
 
 ```sql
@@ -755,7 +755,7 @@ Run for: the legacy admin (expect: all their drills/tactics), the test
 account (expect: only its own), and a made-up uuid (expect: 0 everywhere).
 **Any cross-tenant row = stop-the-line** (Ground Rule 3).
 
-- [ ] **Step 4: Share-token re-probe (018/023 suite, over HTTP).** Enable
+- [x] **Step 4: Share-token re-probe (018/023 suite, over HTTP).** Enable
 sharing on one drill and one tactic (as the test account through the UI or
 by minting tokens via the store path), then with `ANON` and `URL` from
 `.env.local`:
@@ -773,13 +773,13 @@ for t in availability drill_shared_nothing player player_notes session session_d
 (A held *drill* token must expose nothing anywhere except that one drill row.)
 Turn sharing back off afterwards; confirm zero live tokens by SQL.
 
-- [ ] **Step 5: Live app sanity.** Sign in as the test account in the Browser
+- [x] **Step 5: Live app sanity.** Sign in as the test account in the Browser
 pane: drill library still lists its drills (they're `created_by` the test
 account and it is its club's admin — both read branches cover it); open one
 drill in the editor, move an entity, confirm the save persists after reload
 (update policy path). Record all probe outputs in 028's header.
 
-- [ ] **Step 6: Commit.**
+- [x] **Step 6: Commit.**
 
 ```bash
 git add supabase/migrations/028_club_rls.sql
@@ -1733,3 +1733,20 @@ Also confirmed via Serena (unchanged from the 2026-08-27 census): 6 external
 `fetchDrills` call sites, 4 external `fetchTactics` call sites — same file
 sets the plan already lists, exact line numbers drifted a handful of lines
 (immaterial).
+
+**2026-08-28 — Task 3 review: `collection_access_revoke` cross-tenant write
+bug found and fixed before applying migration 028.** The plan-draft policy
+let a receiving (licensee) club's admin delete ANY `collection_access` row
+on a collection licensed to them — including the SOURCE club's own home
+grants to its own coaches, not just the dispersals the receiving admin
+themself created. A licensee admin could therefore reach into the licensor
+club's internal permissions and revoke a coach's home-club access, which is
+a real cross-tenant boundary violation even though it's a write-scope bug
+rather than a read leak (no unauthorized data was exposed by it). Fixed by
+requiring the deleted row's `user_id` belong to a member of the caller's own
+(target) club — the exact same join `collection_access_grant` already uses
+to scope the insert side. Found and fixed during the mandated close review
+of Task 3 (the plan's one stop-the-line task), before the migration was
+applied live; full reasoning is in migration 028's own header comment next
+to the corrected policy. No stop-the-line was triggered — nothing in the
+per-persona/share-token probe suite (run after the fix) showed a read leak.
