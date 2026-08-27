@@ -14,6 +14,7 @@ const SUB_NAV = [
   { to: '/admin/coaches', label: 'Coaches' },
   { to: '/admin/collections', label: 'Collections' },
   { to: '/admin/transfer', label: 'Transfer' },
+  { to: '/admin/licenses', label: 'Licenses' },
 ]
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>

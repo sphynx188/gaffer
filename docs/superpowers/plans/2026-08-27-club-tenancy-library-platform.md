@@ -1450,7 +1450,7 @@ git commit -m "feat: cross-club copy — copy_collection_to_club (migration 030)
   licensed groups (Task 5/6's `licensed` group kind — a collection whose
   `club_id !== selectedClubId` and appears via a grant).
 
-- [ ] **Step 1: Build the page.** Two sections. **Outgoing:** grant form
+- [x] **Step 1: Build the page.** Two sections. **Outgoing:** grant form
 (collection selector + target-club selector — same source as Transfer's) →
 `grantLicense`; table of `licensesOut` with collection name, target club
 name, granted date, and Revoke → `revokeLicense` (sets `revoked_at`, inline
@@ -1459,7 +1459,7 @@ name, source club name, and per-coach dispersal toggles identical to
 CollectionsPage's coach-access panel (bound to the same
 `collectionAccess`/`grantCollectionAccess`/`revokeCollectionAccess`).
 
-- [ ] **Step 2: Verify the whole lifecycle** with scratch "License Target
+- [x] **Step 2: Verify the whole lifecycle** with scratch "License Target
 FC" (created via SQL like Task 10's, test account as its admin, plus move
 Night Coach's membership there for the coach-side check — SQL update, restore
 after): grant → incoming appears for target admin; disperse to the coach →
@@ -1469,7 +1469,7 @@ revoke at source → target admin's incoming row gone, coach's group gone on
 reload, their duplicated-earlier copies unaffected. Restore memberships,
 delete scratch club. Record probe outputs in HANDOFF. Build/lint.
 
-- [ ] **Step 3: Commit.**
+- [x] **Step 3: Commit.**
 
 ```bash
 git add src/pages/admin/LicensesPage.tsx src/pages/admin/AdminLayout.tsx src/App.tsx
@@ -1915,3 +1915,20 @@ l.collection_id))` — so the badge only appears for a collection actually
 reached via an active license, which is what "Licensed" is supposed to
 mean. Confirmed fixed live: reloaded post-fix, both "Passing Pack" groups
 (home + the other administered club's) render with no badge.
+
+**2026-08-28 — Task 11: a third RLS gap found live, migration 031** — a
+plain coach could never see the "Licensed" badge on a genuinely licensed
+collection, because `club_license_read`'s policy restricted the receiving
+side to `is_club_admin(target_club_id)`. `licensesIn` (which the badge
+computation in Tasks 5/6/10 reads directly, per a plain non-security-
+definer query) came back empty for a coach even when a real, active
+license existed and the collection's actual contents were fully visible to
+them (that path goes through `can_read_collection`, `security definer`,
+which bypasses `club_license`'s RLS internally regardless of caller role —
+so the READ worked, only the badge's own supporting data didn't). Fixed by
+broadening the receiving-side branch to `is_club_member(target_club_id)`.
+Accepted a minor, deliberate disclosure: a coach not yet dispersed a
+collection can now see that SOME license row targets their club (a bare
+id/date, via `licensesIn`) before they're granted the collection itself —
+negligible, and the necessary tradeoff for spec §6.3's badge to render for
+anyone but an admin. Full reasoning in 031's own header.

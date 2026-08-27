@@ -97,6 +97,12 @@ export interface ClubSlice {
   collectionAccess: Record<string, string[]> // collectionId -> userIds
   licensesOut: ClubLicense[] // granted BY selectedClubId
   licensesIn: ClubLicense[] // granted TO selectedClubId
+  // Names for clubs referenced by licensesOut/licensesIn that aren't
+  // necessarily one of `memberships` (a license's other party needn't be a
+  // club the caller belongs to) — club_member_read's RLS grants read access
+  // to exactly the clubs a license relationship connects the caller to, so
+  // this is populated from a real query, not assumed from `memberships`.
+  licenseClubNames: Record<string, string>
   clubDataLoading: boolean
   clubDataError: string | null
   clubActionError: string | null
@@ -144,6 +150,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
   collectionAccess: {},
   licensesOut: [],
   licensesIn: [],
+  licenseClubNames: {},
   clubDataLoading: false,
   clubDataError: null,
   clubActionError: null,
@@ -300,6 +307,32 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       ;(collectionAccess[row.collection_id] ??= []).push(row.user_id)
     }
 
+    // Club names for Task 11's Licenses page: outgoing licenses need the
+    // TARGET club's name, incoming need the SOURCE club's (derived from the
+    // licensed collection's club_id, found in `collections` — RLS already
+    // returns a licensed-in collection to the receiving admin, so no extra
+    // lookup for that half). Neither is guaranteed to be one of
+    // `memberships` in general (a license's other party needn't be a club
+    // the caller belongs to), so this is a real query, scoped by
+    // club_member_read's own license-aware branch — it returns exactly the
+    // clubs a license relationship connects the caller to.
+    const collectionClubId = new Map((collectionsRes.data ?? []).map((c) => [c.id, c.club_id]))
+    const neededClubIds = new Set<string>()
+    for (const l of outRes.data ?? []) neededClubIds.add(l.target_club_id)
+    for (const l of inRes.data ?? []) {
+      const sourceClubId = collectionClubId.get(l.collection_id)
+      if (sourceClubId) neededClubIds.add(sourceClubId)
+    }
+    const clubNamesRes =
+      neededClubIds.size > 0
+        ? await runSupabaseAction<{ id: string; name: string }[]>(
+            () => supabase.from('club').select('id, name').in('id', [...neededClubIds]),
+            "Couldn't load license club names, try again."
+          )
+        : { data: [] as { id: string; name: string }[], error: null }
+    const licenseClubNames: Record<string, string> = {}
+    for (const row of clubNamesRes.data ?? []) licenseClubNames[row.id] = row.name
+
     set({
       clubDataLoading: false,
       clubDataError: firstError,
@@ -310,6 +343,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       collectionAccess,
       ...(outRes.data ? { licensesOut: outRes.data } : {}),
       ...(inRes.data ? { licensesIn: inRes.data } : {}),
+      licenseClubNames,
     })
   },
 

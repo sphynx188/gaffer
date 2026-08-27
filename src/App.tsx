@@ -22,6 +22,7 @@ import { AdminLayout } from './pages/admin/AdminLayout'
 import { CoachesPage } from './pages/admin/CoachesPage'
 import { CollectionsPage } from './pages/admin/CollectionsPage'
 import { TransferPage } from './pages/admin/TransferPage'
+import { LicensesPage } from './pages/admin/LicensesPage'
 
 // Redesign: routed with a persistent shell (src/layout/AppShell.tsx) that
 // swaps between a coach-level tab set (Dashboard/Teams/Calendar — cross-
@@ -145,6 +146,7 @@ function AuthedApp() {
           <Route path="coaches" element={<CoachesPage />} />
           <Route path="collections" element={<CollectionsPage />} />
           <Route path="transfer" element={<TransferPage />} />
+          <Route path="licenses" element={<LicensesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/drills" replace />} />
       </Route>
