@@ -1073,7 +1073,7 @@ git commit -m "feat: drill library rescoped to club visibility — folders, coll
   `club_id`, `team_id: null`; the tactic editor fully functional with
   `team_id === null`.
 
-- [ ] **Step 1: Rescope `tacticSlice`** exactly as Task 5 Steps 0/1a/1b did
+- [x] **Step 1: Rescope `tacticSlice`** exactly as Task 5 Steps 0/1a/1b did
 for drills — run the census first (`find_referencing_symbols` on
 `fetchTactics`; expected 6 sites as of 2026-08-28), keep the ignored
 `_teamId?: string` parameter so the shelved `SessionItemsPanel` caller
@@ -1098,7 +1098,7 @@ the `fetchPlayers` call). `createTactic` writes `club_id` + `team_id: null`;
 add `duplicateTactic` mirroring `duplicateDrill` (caller's folder,
 `share_token`/`thumbnail_url` nulled).
 
-- [ ] **Step 2: Roster-free editor.** In the squad panel and anywhere else
+- [x] **Step 2: Roster-free editor.** In the squad panel and anywhere else
 recon found roster reads (`fetchTeamRoster`, `rostersByTeam`,
 `player_id`-binding UI): gate every roster surface behind `tactic.team_id !=
 null` — and since new/copied tactics are always null this cycle, the visible
@@ -1106,19 +1106,19 @@ result is formation-driven generic squads (role + squad-number labels, all
 existing formation/entity behavior intact). Do not delete the roster code
 paths — they are the shelved module's re-entry point.
 
-- [ ] **Step 3: Grouped tactic library + viewer.** `TacticsPage` list area →
+- [x] **Step 3: Grouped tactic library + viewer.** `TacticsPage` list area →
 `LibraryGroups` (same grouping fn); card routing via `canEditDoc` to editor
 or `/tactics/:tacticId/view`; `TacticViewPage` reuses the tactic share
 viewer + "Duplicate to my tactics".
 
-- [ ] **Step 4: Verify.** Build/lint. Browser as test account: tactics page
+- [x] **Step 4: Verify.** Build/lint. Browser as test account: tactics page
 lists the existing tactic under My tactics; create a new tactic → editor
 opens with formation tools, NO roster panel content, place entities, save,
 reload, intact; SQL-check `team_id is null, club_id set`. Open the OLD
 tactic (has `team_id`) → editor still renders it correctly (roster UI may
 show — it is dormant-legal, do not regress it).
 
-- [ ] **Step 5: Commit.**
+- [x] **Step 5: Commit.**
 
 ```bash
 git add src/pages/TacticsPage.tsx src/pages/TacticViewPage.tsx src/store/slices/tacticSlice.ts src/components/tactics/SquadPanel.tsx src/App.tsx
@@ -1787,3 +1787,36 @@ already has a precedent for splitting this exact way (`Badge.tsx` /
 default) now holds the `LibraryGroup` type and the builder function;
 `LibraryGroups.tsx` holds only the component. Task 6 (tactic library) reuses
 both from `buildLibraryGroups.ts`, same as the plan intended from one file.
+
+**2026-08-28 — Task 6: three corrections found while implementing.**
+1. **`duplicateTactic` can't go through `createTactic` + `updateTactic`**,
+   unlike `duplicateDrill`. `TacticUpdateInput` deliberately excludes every
+   content field (scene/keyframes/phases/duration_seconds/pitch/sides/view
+   — "one path through the autosave flush", per its own header comment), so
+   there is no patch call that can seed a duplicate's starting content.
+   Implemented as a direct `insert` instead (mirrors the shape migration
+   029's `copy_collection_to_club` uses at the SQL level for the same
+   reason) — and for the same reason that function strips `player_id`,
+   `duplicateTactic` does too (it can duplicate a tactic reached via a
+   licensed/granted collection, Task 9's "Duplicate to my tactics", which
+   may belong to a different club than the caller's; a roster-bound
+   reference to the source club's team/players would dangle). Also nulls
+   both sides' `teamId` for the same cross-club-dangling reason.
+2. **`TacticEditorPage.tsx` and `TacticCardPage.tsx`'s `fetchCustomFormations`
+   calls were ALSO wrongly gated on `selectedTeamId`**, despite the plan's
+   own recon note that the `formation` table is owner_id-scoped, not
+   team-scoped, and therefore unaffected by tenancy. Since `selectedTeamId`
+   stops being set once Task 7 shelves team selection, this was the exact
+   same call-site-trap failure mode as `fetchTactics` in the same two
+   files, just not named in the plan's file-by-file list — fixed alongside
+   the calls that were named, not left for a later surprise.
+3. **`SquadPanel.tsx`'s roster-free gate** (Step 2) is keyed off a single
+   `rosterFree = tactic.team_id == null` computed once, applied uniformly
+   to both sides — not per-side. The plan's wording ("gate every roster
+   surface behind tactic.team_id != null") doesn't specify whether an
+   away-side team binding should stay available on an otherwise
+   roster-free tactic; decided against it, since a half roster-free /
+   half roster-bound tactic has no way to reach that state through the
+   app (every roster-free tactic starts with team_id null and no code
+   path sets a non-null team_id on it afterward), so allowing it would be
+   dead UI, not a real choice.

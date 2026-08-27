@@ -44,8 +44,12 @@ import type { StoreState } from '../useStore'
 // A coach who clears their drawings must not be able to press Ctrl+Z twice
 // and find themselves back inside the animation's history. See TacticStacks.
 
+// team_id dropped (club tenancy, 2026-08-28): createTactic now writes
+// club_id from the caller's selectedClubId and team_id null — with rosters
+// shelved, new/copied/licensed tactics carry no roster binding this cycle.
+// Tactic.team_id stays on the read type (nullable now, demoted not
+// dropped) but no new code writes it. See clubSlice.ts / migration 027.
 export interface NewTacticInput {
-  team_id: string
   name: string
 }
 
@@ -215,13 +219,18 @@ export interface TacticSlice {
   // closure variable would never re-render it.
   tacticClipboard: Keyframe | null
 
-  // Tactics are always team-scoped (no coach-owned/unscoped case like drill
-  // has), so — unlike drillSlice.fetchDrills — this is a plain team_id
-  // equality filter.
-  fetchTactics: (teamId: string) => Promise<void>
+  // Club tenancy (2026-08-28): visibility is RLS's job now
+  // (tactic_club_read), same as drillSlice.fetchDrills — no scope
+  // argument. `_teamId?` kept, ignored, only so the shelved
+  // SessionItemsPanel caller keeps compiling (`noUnusedParameters`).
+  fetchTactics: (_teamId?: string) => Promise<void>
   createTactic: (input: NewTacticInput) => Promise<Tactic | null>
   updateTactic: (id: string, patch: TacticUpdateInput) => Promise<Tactic | null>
   deleteTactic: (id: string) => Promise<boolean>
+  // Mirrors drillSlice.duplicateDrill exactly: lands the copy in the
+  // caller's own folder (created_by = me, club_id = selectedClubId,
+  // team_id null), share_token/thumbnail_url nulled.
+  duplicateTactic: (tacticId: string) => Promise<Tactic | null>
 
   // ---------------------------------------------------------------------
   // Entities, keyframes and markings. Every action here is *committed*: it
@@ -350,7 +359,9 @@ export interface TacticSlice {
 
 export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = (set, get) => {
   // Same stale-response guard as drillSlice/sessionSlice — see the comment there.
-  let latestFetchTeamId: string | null = null
+  // Monotonic call id (club tenancy, 2026-08-28) — see drillSlice.ts's
+  // identical fetchDrillsCallId for why this replaces a team-id-keyed guard.
+  let fetchTacticsCallId = 0
 
   // Undo/redo stacks, keyed by tactic id. Held in the closure rather than in
   // `set` state for the reason drillSlice gives: nothing renders a stack
@@ -524,14 +535,14 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
     tacticSaveState: 'saved',
     tacticClipboard: null,
 
-    fetchTactics: async (teamId) => {
-      latestFetchTeamId = teamId
+    fetchTactics: async () => {
+      const callId = ++fetchTacticsCallId
       set({ tacticsLoading: true, tacticsError: null })
       const { data, error } = await runSupabaseAction<Tactic[]>(
-        () => supabase.from('tactic').select('*').eq('team_id', teamId).order('created_at', { ascending: true }),
+        () => supabase.from('tactic').select('*').order('created_at', { ascending: true }),
         "Couldn't load tactics, try again."
       )
-      if (latestFetchTeamId !== teamId) return // superseded by a newer team switch
+      if (callId !== fetchTacticsCallId) return // superseded by a newer fetch
       let tactics = data
       if (data) {
         // A refetch must not roll back edits that haven't been flushed yet —
@@ -541,7 +552,7 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
           const pending = pendingSaves.get(tactic.id)
           return pending ? { ...tactic, ...pending } : tactic
         })
-        // Drop history for tactics this team can't see any more.
+        // Drop history for tactics no longer visible (RLS-scoped now).
         const visible = new Set(data.map((t) => t.id))
         for (const tacticId of [...history.keys()]) {
           if (!visible.has(tacticId)) history.delete(tacticId)
@@ -555,18 +566,86 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
     },
 
     createTactic: async (input) => {
+      const clubId = get().selectedClubId
+      if (!clubId) return null
       set({ tacticsLoading: true, tacticsError: null })
       // `keyframes` is seeded rather than left to the column's `[]` default,
       // for the reason makeInitialKeyframe gives. Everything else the row
       // needs (scene, phases, pitch, sides, view, duration) has a sensible
       // column default from migration 020, so it isn't restated here.
+      // club_id from the caller's selected club; team_id is never written
+      // (club tenancy, 2026-08-28 — rosters shelved, see NewTacticInput).
       const seeded = {
         ...input,
+        club_id: clubId,
+        team_id: null,
         keyframes: [makeInitialKeyframe()],
       }
       const { data, error } = await runSupabaseAction<Tactic[]>(
         () => supabase.from('tactic').insert(seeded).select(),
         "Couldn't create tactic, try again."
+      )
+      const tactic = data?.[0] ?? null
+      set({
+        tacticsLoading: false,
+        tacticsError: error,
+        ...(tactic ? { tactics: [...get().tactics, tactic] } : {}),
+      })
+      return tactic
+    },
+
+    // Unlike duplicateDrill, this can't go through createTactic +
+    // updateTactic: TacticUpdateInput deliberately excludes every content
+    // field (scene/keyframes/phases/duration_seconds/pitch/sides/view —
+    // "one path through the autosave flush", see its own comment above), so
+    // there is no patch call that can seed them. A duplicate's INITIAL
+    // content is a different concern from an existing row's content
+    // changing, so this builds its own insert directly instead — the same
+    // shape migration 029's copy_collection_to_club (Task 10) uses at the
+    // SQL level, and for the same reason that one also strips player_id:
+    // this can duplicate a tactic filed in a licensed/granted collection
+    // (Task 9's "Duplicate to my tactics"), which may belong to a different
+    // club than the caller's, and a roster-bound entity/side carrying that
+    // club's team/player ids would dangle. New/duplicated tactics are
+    // always roster-free this cycle regardless (team_id null), so this is
+    // data hygiene, not a visible bug — but the same hygiene Task 10 already
+    // commits to.
+    duplicateTactic: async (tacticId) => {
+      const source = get().tactics.find((t) => t.id === tacticId)
+      if (!source) return null
+      const clubId = get().selectedClubId
+      if (!clubId) return null
+      set({ tacticsLoading: true, tacticsError: null })
+      const strippedScene: DrillScene = {
+        ...source.scene,
+        entities: source.scene.entities.map((e) => {
+          const { player_id: _player_id, ...rest } = e
+          return rest
+        }),
+      }
+      const { data, error } = await runSupabaseAction<Tactic[]>(
+        () =>
+          supabase
+            .from('tactic')
+            .insert({
+              club_id: clubId,
+              team_id: null,
+              name: `${source.name} (copy)`,
+              scene: strippedScene,
+              keyframes: source.keyframes,
+              phases: source.phases,
+              duration_seconds: source.duration_seconds,
+              pitch: source.pitch,
+              sides: {
+                home: { ...source.sides.home, teamId: null },
+                away: { ...source.sides.away, teamId: null },
+              },
+              view: source.view,
+              description: source.description,
+              phase_of_play: source.phase_of_play,
+            })
+            .select(),
+        "Couldn't duplicate tactic, try again."
       )
       const tactic = data?.[0] ?? null
       set({

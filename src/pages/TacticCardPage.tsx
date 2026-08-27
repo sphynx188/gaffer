@@ -56,7 +56,6 @@ const PRINT_STYLES = `
 
 export function TacticCardPage() {
   const { tacticId } = useParams<{ tacticId: string }>()
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
   const tactics = useStore((s) => s.tactics)
   const tacticsLoading = useStore((s) => s.tacticsLoading)
   const fetchTactics = useStore((s) => s.fetchTactics)
@@ -65,11 +64,15 @@ export function TacticCardPage() {
   // Same rule every other screen follows: fetch for itself rather than
   // assuming something else ran first, since this is a deep-linkable route.
   // Custom formations come too, or a side saved onto one prints as blank.
+  // Club tenancy (2026-08-28): both un-gated per the plan's Task 6
+  // call-site census — fetchTactics takes no scope argument any more (RLS
+  // decides visibility), and fetchCustomFormations was wrongly gated on
+  // selectedTeamId despite being owner_id-scoped, not team-scoped (same
+  // fix as TacticEditorPage.tsx).
   useEffect(() => {
-    if (!selectedTeamId) return
-    void fetchTactics(selectedTeamId)
+    void fetchTactics()
     void fetchCustomFormations()
-  }, [selectedTeamId, fetchTactics, fetchCustomFormations])
+  }, [fetchTactics, fetchCustomFormations])
 
   const tactic = tactics.find((t) => t.id === tacticId) ?? null
 
@@ -84,7 +87,7 @@ export function TacticCardPage() {
     }
     return (
       <div className="mx-auto max-w-[820px] space-y-3 p-6">
-        <EmptyState icon={Shield} message="That tactic isn't in this team's list." />
+        <EmptyState icon={Shield} message="That tactic isn't in your library." />
         <Link to="/tactics" className="text-sm font-medium text-accent hover:underline">
           Back to tactics
         </Link>

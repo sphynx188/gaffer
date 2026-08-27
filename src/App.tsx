@@ -21,6 +21,7 @@ import { SharedDrillPage } from './pages/SharedDrillPage'
 import { TeamSettingsPage } from './pages/TeamSettingsPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { TacticsPage } from './pages/TacticsPage'
+import { TacticViewPage } from './pages/TacticViewPage'
 import { TacticEditorPage } from './pages/TacticEditorPage'
 import { TacticCardPage } from './pages/TacticCardPage'
 import { SharedTacticPage } from './pages/SharedTacticPage'
@@ -134,6 +135,7 @@ function AuthedApp() {
         <Route path="drills" element={<DrillLibraryPage />} />
         <Route path="drills/:drillId/view" element={<DrillViewPage />} />
         <Route path="tactics" element={<TacticsPage />} />
+        <Route path="tactics/:tacticId/view" element={<TacticViewPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
         <Route path="teams" element={<TeamSettingsPage />} />
         <Route path="calendar" element={<CalendarPage />} />

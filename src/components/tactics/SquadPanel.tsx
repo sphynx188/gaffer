@@ -106,17 +106,31 @@ export function SquadPanel({
   // bound to, or nothing at all when it is a placeholder side.
   const awayTeamId = tactic.sides.away.teamId
 
+  // Club tenancy (2026-08-28): every new/copied/licensed tactic this cycle
+  // is created with team_id null (rosters shelved — see NewTacticInput,
+  // clubSlice.duplicateTactic, migration 029's copy_collection_to_club), so
+  // this gates every roster surface below rather than just the fetch. An
+  // OLD tactic that predates the rework keeps its real team_id and the
+  // roster-binding UI it always had (dormant-legal, not regressed). Neither
+  // side's roster CODE PATH is deleted — see the plan's own instruction —
+  // just gated the same way `selectedTeamId` used to gate it.
+  const rosterFree = tactic.team_id == null
+
   // The away side's roster comes from the keyed cache so it can never overwrite
   // `players`, which is the selected team's roster (see playerSlice).
   useEffect(() => {
-    if (side === 'away' && awayTeamId) void fetchTeamRoster(awayTeamId)
-  }, [side, awayTeamId, fetchTeamRoster])
+    if (!rosterFree && side === 'away' && awayTeamId) void fetchTeamRoster(awayTeamId)
+  }, [rosterFree, side, awayTeamId, fetchTeamRoster])
 
-  const roster: Player[] =
-    side === 'home' ? players : awayTeamId ? (rostersByTeam[awayTeamId] ?? []) : []
-  const rosterLoading =
-    side === 'home' ? playersLoading : !!awayTeamId && !!rostersByTeamLoading[awayTeamId]
-  const rosterError = side === 'away' && awayTeamId ? rostersByTeamError[awayTeamId] : null
+  const roster: Player[] = rosterFree
+    ? []
+    : side === 'home'
+      ? players
+      : awayTeamId
+        ? (rostersByTeam[awayTeamId] ?? [])
+        : []
+  const rosterLoading = !rosterFree && (side === 'home' ? playersLoading : !!awayTeamId && !!rostersByTeamLoading[awayTeamId])
+  const rosterError = !rosterFree && side === 'away' && awayTeamId ? rostersByTeamError[awayTeamId] : null
 
   const keyframe = tactic.keyframes.find((k) => k.id === keyframeId)
   const sideEntities = tactic.scene.entities.filter((e) => e.kind === 'player' && e.team === side)
@@ -269,7 +283,7 @@ export function SquadPanel({
         />
       </div>
 
-      {side === 'away' && (
+      {side === 'away' && !rosterFree && (
         <div>
           <label htmlFor="away-team" className="block text-xs font-medium uppercase tracking-wide text-ink-muted">
             Opposition
@@ -318,9 +332,11 @@ export function SquadPanel({
 
         {!rosterLoading && rows.length === 0 && (
           <p className="text-sm text-ink-muted">
-            {side === 'home'
-              ? 'No players on this team yet — add them on the Roster page.'
-              : 'No opposition players yet. Bind a team above, or add placeholders.'}
+            {rosterFree
+              ? 'No players yet — add placeholders below.'
+              : side === 'home'
+                ? 'No players on this team yet — add them on the Roster page.'
+                : 'No opposition players yet. Bind a team above, or add placeholders.'}
           </p>
         )}
 
@@ -347,7 +363,7 @@ export function SquadPanel({
           </ul>
         )}
 
-        {(side === 'away' && !awayTeamId) && (
+        {(rosterFree || (side === 'away' && !awayTeamId)) && (
           <button
             type="button"
             onClick={addPlaceholder}

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Shield } from 'lucide-react'
+import { Shield, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
+import { selectMyRole } from '../store/slices/clubSlice'
+import { useSession } from '../hooks/useSession'
 import type { DrillPhaseOfPlay, Tactic } from '../store'
 import { DRILL_PHASES_OF_PLAY, DRILL_PHASE_OF_PLAY_LABELS } from '../store'
 import { FORMATIONS } from '../components/tactics/formations'
@@ -12,6 +14,8 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Badge } from '../components/ui/Badge'
 import { Dropdown } from '../components/ui/Dropdown'
+import { LibraryGroups } from '../components/design/LibraryGroups'
+import { buildLibraryGroups } from '../components/design/buildLibraryGroups'
 
 // `/tactics` — the tactics library (TACTICS_BOARD_REWORK_PLAN.md Stage 9.1):
 // "card grid reusing DrillLibrary.tsx's patterns: thumbnail, name, formation
@@ -42,7 +46,14 @@ function formationLabel(key: string): string {
 
 export function TacticsPage() {
   const navigate = useNavigate()
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
+  const { session } = useSession()
+  const myUserId = session?.user.id ?? null
+  const selectedClubId = useStore((s) => s.selectedClubId)
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  const clubMembers = useStore((s) => s.clubMembers)
+  const collections = useStore((s) => s.collections)
+  const collectionTacticIds = useStore((s) => s.collectionTacticIds)
+  const fetchClubData = useStore((s) => s.fetchClubData)
   const tactics = useStore((s) => s.tactics)
   const tacticsLoading = useStore((s) => s.tacticsLoading)
   const tacticsError = useStore((s) => s.tacticsError)
@@ -54,15 +65,23 @@ export function TacticsPage() {
   const [query, setQuery] = useState('')
   const [phaseOfPlay, setPhaseOfPlay] = useState<DrillPhaseOfPlay | ''>('')
 
+  // Club tenancy (2026-08-28): fetchTactics takes no scope argument any
+  // more (RLS decides visibility) — selectedClubId stays a dependency
+  // purely so switching clubs re-triggers a refetch, same reasoning as
+  // DrillLibrary's identical pair of effects.
   useEffect(() => {
-    if (selectedTeamId) void fetchTactics(selectedTeamId)
-  }, [selectedTeamId, fetchTactics])
+    void fetchTactics()
+  }, [fetchTactics, selectedClubId])
+
+  useEffect(() => {
+    void fetchClubData()
+  }, [fetchClubData, selectedClubId])
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault()
-    if (!selectedTeamId || !name.trim() || submitting) return
+    if (!name.trim() || submitting) return
     setSubmitting(true)
-    const created = await createTactic({ team_id: selectedTeamId, name: name.trim() })
+    const created = await createTactic({ name: name.trim() })
     setSubmitting(false)
     if (created) {
       setName('')
@@ -92,40 +111,56 @@ export function TacticsPage() {
 
   const filtersActive = query.trim() !== '' || phaseOfPlay !== ''
 
+  const licensedCollectionIds = useMemo(
+    () => new Set(collections.filter((c) => c.club_id !== selectedClubId).map((c) => c.id)),
+    [collections, selectedClubId]
+  )
+
+  const groups = useMemo(
+    () =>
+      buildLibraryGroups({
+        docs: filtered,
+        collections,
+        collectionDocIds: collectionTacticIds,
+        licensedCollectionIds,
+        myUserId,
+        isAdmin,
+        members: clubMembers,
+        docLabel: 'tactics',
+      }),
+    [filtered, collections, collectionTacticIds, licensedCollectionIds, myUserId, isAdmin, clubMembers]
+  )
+
   return (
     <div>
       <PageHeader title="Tactics" />
       <Card>
         <div className="space-y-4">
-          {!selectedTeamId && <EmptyState icon={Shield} message="Select a team to build its tactics." />}
-
-          {selectedTeamId && (
-            <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-2">
-              <div>
-                <label htmlFor="new-tactic-name" className="block text-xs font-medium text-ink-muted">
-                  New tactic name
-                </label>
-                <input
-                  id="new-tactic-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. 4-3-3 — Build Up"
-                  className="mt-1 w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!name.trim() || submitting}
-                className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-              >
-                {submitting ? 'Creating…' : 'Create tactic'}
-              </button>
-            </form>
-          )}
+          <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-2">
+            <div>
+              <label htmlFor="new-tactic-name" className="block text-xs font-medium text-ink-muted">
+                New tactic name
+              </label>
+              <input
+                id="new-tactic-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. 4-3-3 — Build Up"
+                className="mt-1 w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!name.trim() || submitting}
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            >
+              {submitting ? 'Creating…' : 'Create tactic'}
+            </button>
+          </form>
 
           {tacticsError && <p className="text-sm text-bad">{tacticsError}</p>}
 
-          {selectedTeamId && tacticsLoading && tactics.length === 0 && (
+          {tacticsLoading && tactics.length === 0 && (
             <div role="status" aria-busy="true" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <span className="sr-only">Loading tactics…</span>
               {SKELETON_CARDS.map((card) => (
@@ -134,7 +169,7 @@ export function TacticsPage() {
             </div>
           )}
 
-          {selectedTeamId && !tacticsLoading && tactics.length === 0 && !tacticsError && (
+          {!tacticsLoading && tactics.length === 0 && !tacticsError && (
             <EmptyState icon={Shield} message="No tactics yet — create one above." />
           )}
 
@@ -186,13 +221,15 @@ export function TacticsPage() {
               {filtered.length === 0 ? (
                 <p className="text-sm text-ink-muted">No tactics match these filters.</p>
               ) : (
-                <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {filtered.map((tactic) => (
-                    <li key={tactic.id}>
-                      <TacticCardTile tactic={tactic} />
-                    </li>
-                  ))}
-                </ul>
+                <LibraryGroups
+                  groups={groups}
+                  renderCard={(id) => {
+                    const tactic = filtered.find((t) => t.id === id)
+                    if (!tactic) return null
+                    const canEdit = (isAdmin && tactic.club_id === selectedClubId) || tactic.created_by === myUserId
+                    return <TacticCardTile tactic={tactic} canEdit={canEdit} />
+                  }}
+                />
               )}
             </>
           )}
@@ -202,7 +239,11 @@ export function TacticsPage() {
   )
 }
 
-function TacticCardTile({ tactic }: { tactic: Tactic }) {
+function TacticCardTile({ tactic, canEdit }: { tactic: Tactic; canEdit: boolean }) {
+  const deleteTactic = useStore((s) => s.deleteTactic)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const players = tactic.scene.entities.filter((e) => e.kind === 'player').length
   const meta = [
     formatClock(tactic.duration_seconds),
@@ -210,11 +251,63 @@ function TacticCardTile({ tactic }: { tactic: Tactic }) {
     `${players} on the board`,
   ].filter((part): part is string => part != null)
 
+  const handleDelete = async () => {
+    if (deleting) return
+    setDeleting(true)
+    const deleted = await deleteTactic(tactic.id)
+    setDeleting(false)
+    if (deleted) setConfirmingDelete(false)
+  }
+
+  if (confirmingDelete) {
+    return (
+      <div className="flex h-full w-full flex-col justify-between rounded-lg border border-bad/30 bg-bad/10 p-3">
+        <p className="text-sm text-bad">
+          Delete <span className="font-medium">{tactic.name}</span>? Any session it's part of will drop it too —
+          this can&rsquo;t be undone.
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-md bg-bad px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete tactic'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(false)}
+            disabled={deleting}
+            className="px-2 py-1.5 text-sm text-ink-muted"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <Link
-      to={`/tactics/${tactic.id}`}
-      className="flex w-full flex-col gap-2 rounded-lg border border-line p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+      to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
+      className="relative flex w-full flex-col gap-2 rounded-lg border border-line p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
     >
+      {canEdit && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setConfirmingDelete(true)
+          }}
+          title="Delete tactic"
+          aria-label="Delete tactic"
+          className="absolute right-2 top-2 z-10 rounded-md bg-panel/80 p-1.5 text-ink-muted transition-colors hover:text-bad"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      )}
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-panel-raised">
         {tactic.thumbnail_url ? (
           <img src={tactic.thumbnail_url} alt={`${tactic.name} board`} className="h-full w-full object-cover" />

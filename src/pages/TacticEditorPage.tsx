@@ -11,23 +11,26 @@ import { Skeleton } from '../components/ui/Skeleton'
 // DrillEditorPage exactly — same fetch-for-itself rule, same not-found shape.
 export function TacticEditorPage() {
   const { tacticId } = useParams<{ tacticId: string }>()
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
   const tactics = useStore((s) => s.tactics)
   const tacticsLoading = useStore((s) => s.tacticsLoading)
   const tacticsError = useStore((s) => s.tacticsError)
   const fetchTactics = useStore((s) => s.fetchTactics)
-  const fetchPlayers = useStore((s) => s.fetchPlayers)
   const fetchCustomFormations = useStore((s) => s.fetchCustomFormations)
 
-  // Landing here directly from a link means the store is empty, so this screen
-  // fetches for itself rather than assuming the picker ran first. The roster
-  // and the coach's saved formations come too — the squad panel needs both.
+  // Landing here directly from a link means the store is empty, so this
+  // screen fetches for itself rather than assuming the picker ran first.
+  // Club tenancy (2026-08-28): fetchTactics takes no scope argument any
+  // more (RLS decides visibility) — un-gated per the plan's Task 6
+  // call-site census, or this screen would silently fetch nothing.
+  // fetchPlayers dropped entirely (rosters are shelved; Step 2 below hides
+  // the UI that consumed it). fetchCustomFormations was ALSO wrongly gated
+  // on selectedTeamId before this change even though the plan notes the
+  // `formation` table is owner_id-scoped, not team-scoped — un-gating it
+  // here too is the same fix applied consistently, not a separate one.
   useEffect(() => {
-    if (!selectedTeamId) return
-    void fetchTactics(selectedTeamId)
-    void fetchPlayers(selectedTeamId)
+    void fetchTactics()
     void fetchCustomFormations()
-  }, [selectedTeamId, fetchTactics, fetchPlayers, fetchCustomFormations])
+  }, [fetchTactics, fetchCustomFormations])
 
   const tactic = tactics.find((t) => t.id === tacticId) ?? null
 
@@ -43,7 +46,7 @@ export function TacticEditorPage() {
     return (
       <div className="space-y-3">
         {tacticsError && <p className="text-sm text-bad">{tacticsError}</p>}
-        <EmptyState icon={Shield} message="That tactic isn't in this team's list." />
+        <EmptyState icon={Shield} message="That tactic isn't in your library." />
         <Link to="/tactics" className="text-sm font-medium text-accent hover:underline">
           Back to tactics
         </Link>

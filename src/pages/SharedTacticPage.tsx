@@ -103,7 +103,11 @@ function Frame({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SharedTactic({ tactic }: { tactic: Tactic }) {
+// Exported for TacticViewPage.tsx (club tenancy, Task 6) — the in-app
+// read-only viewer for a licensed/collection tactic reuses the exact same
+// presentational component the public share page renders, fed a Tactic
+// from the store instead of a token fetch.
+export function SharedTactic({ tactic }: { tactic: Tactic }) {
   const playback = useTimelinePlayback(tactic.duration_seconds)
   const frame = useMemo(
     () => frameAt(tactic.scene, tactic.keyframes, playback.currentTime),
