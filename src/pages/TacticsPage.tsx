@@ -126,12 +126,13 @@ export function TacticsPage() {
         collections,
         collectionDocIds: collectionTacticIds,
         licensedCollectionIds,
+        selectedClubId,
         myUserId,
         isAdmin,
         members: clubMembers,
         docLabel: 'tactics',
       }),
-    [filtered, collections, collectionTacticIds, licensedCollectionIds, myUserId, isAdmin, clubMembers]
+    [filtered, collections, collectionTacticIds, licensedCollectionIds, selectedClubId, myUserId, isAdmin, clubMembers]
   )
 
   return (

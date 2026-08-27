@@ -1685,6 +1685,39 @@ git commit -m "docs: demo script + overnight run handoff"
 
 ## Amendment log
 
+**2026-08-28 — Task 13 rehearsal: multi-club-admin library scoping bug (real
+bug, not a security leak — fixed live).** Rehearsing Step 6 (Transfer),
+switching the Barca admin to Riverside Academy after copying "U14 Passing
+Block" showed **20** items under "My drills" and a doubled "U14 Passing
+Block" collection, when Riverside should show only the 4-drill copy. Verified
+via SQL first (`select club_id, count(*) from drill group by club_id`) that
+the DATABASE was correct — 18 drills on Barcelona, 4 on Riverside — so this
+was never an RLS/cross-tenant leak (the admin legitimately administers both
+clubs; stop-the-line did not apply). Root cause: `buildLibraryGroups`
+(`src/components/design/buildLibraryGroups.ts`) grouped `docs`/`collections`
+— both RLS-scoped across every club the caller administers, per Tasks 5/6's
+own design note — by `created_by`/"not licensed" only, with no
+`club_id === selectedClubId` check anywhere. Task 10's earlier fix (keying
+`licensedCollectionIds` off an active license rather than a club_id
+mismatch) was correct on its own but left a gap: a collection owned by a
+DIFFERENT club the same admin also runs is neither "home" (same club) nor
+"licensed" (no license row) under that scheme, and fell through into "home"
+by default. Fixed by adding an explicit `selectedClubId` param to
+`buildLibraryGroups` and requiring `club_id === selectedClubId` for the
+"mine" group, the per-coach admin folders, and "home" collections (licensed
+collections were already correctly scoped via `licensesIn`/`licensesOut`, so
+untouched). Both call sites (`DrillLibrary.tsx`, `TacticsPage.tsx`) updated
+to pass it. Re-verified in the Browser pane both directions: Riverside now
+shows exactly the transferred copy (4 drills, no duplicate collection);
+Barcelona still shows all 16 admin-owned drills, 4 clean collections, and
+Sam Whitfield's 2-drill folder — no regression. `npx tsc -b` clean.
+**Lesson for future work on this file:** any RLS-only (no club_id filter)
+fetch — which `fetchDrills`/`fetchTactics`/`fetchClubData`'s collection query
+all deliberately are, to support licensed cross-club visibility — pushes the
+club-scoping responsibility onto the UI grouping layer entirely; that layer
+must filter by `selectedClubId` explicitly for every group that claims to be
+"this club's", not just for the groups that were obviously club-scoped.
+
 **2026-08-28 — call-site census (found with Serena before the run started).**
 The first draft of Tasks 5 and 6 listed three files between them for the
 fetch-rescope. The real count is 7 call sites for `fetchDrills` and 6 for

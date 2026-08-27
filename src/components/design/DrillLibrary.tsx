@@ -213,12 +213,13 @@ export function DrillLibrary() {
         collections,
         collectionDocIds: collectionDrillIds,
         licensedCollectionIds,
+        selectedClubId,
         myUserId,
         isAdmin,
         members: clubMembers,
         docLabel: 'drills',
       }),
-    [filteredDrills, collections, collectionDrillIds, licensedCollectionIds, myUserId, isAdmin, clubMembers]
+    [filteredDrills, collections, collectionDrillIds, licensedCollectionIds, selectedClubId, myUserId, isAdmin, clubMembers]
   )
 
   const handleSelectDrill = (id: string) => {
