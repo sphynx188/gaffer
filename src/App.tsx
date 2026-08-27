@@ -20,7 +20,6 @@ import { TacticsPage } from './pages/TacticsPage'
 import { TacticEditorPage } from './pages/TacticEditorPage'
 import { TacticCardPage } from './pages/TacticCardPage'
 import { SharedTacticPage } from './pages/SharedTacticPage'
-import { LandingPage } from './pages/landing/LandingPage'
 
 // Redesign: routed with a persistent shell (src/layout/AppShell.tsx) that
 // swaps between a coach-level tab set (Dashboard/Teams/Calendar — cross-
@@ -71,17 +70,7 @@ function AuthedApp() {
   }
 
   if (!session) {
-    // Signed-out visitors get the marketing site (landing-page spec,
-    // 2026-08-26): landing at `/`, the real sign-in/sign-up screen at
-    // `/login`, everything else back to `/`. Share pages never reach here —
-    // they're routed above the gate in App().
-    return (
-      <Routes>
-        <Route index element={<LandingPage />} />
-        <Route path="login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    )
+    return <Login />
   }
 
   return (

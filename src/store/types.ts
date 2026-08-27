@@ -388,7 +388,9 @@ export interface DrillCoaching {
 
 export interface Drill {
   id: string
-  team_id: string | null // null = coach-owned, reusable across every team
+  team_id: string | null // demoted (club tenancy, 2026-08-28): vestigial, no new code writes or reads it — kept for the shelved team module
+  club_id: string
+  created_by: string
   name: string
   scene: DrillScene
   keyframes: Keyframe[]
@@ -472,7 +474,13 @@ export interface TacticSide {
 
 export interface Tactic {
   id: string
-  team_id: string // always team-scoped, unlike Drill.team_id — see migrations/012_tactic_table.sql
+  // Nullable as of club tenancy (2026-08-28, migration 027): rosters are
+  // shelved, so new/copied/licensed tactics are always created with
+  // team_id null (formation-driven generic squads). Existing tactics keep
+  // their dormant team_id value; the roster-binding UI gates on it.
+  team_id: string | null
+  club_id: string
+  created_by: string
   name: string
   scene: DrillScene // the same shape drills use, entity for entity
   keyframes: Keyframe[]
@@ -494,6 +502,60 @@ export interface Tactic {
   thumbnail_url: string | null
   share_token: string | null
   created_at: string
+}
+
+// ---------------------------------------------------------------------------
+// Club tenancy (migrations 027/028, spec docs/superpowers/specs/
+// 2026-08-27-club-tenancy-design.md). A club owns a permanent library of
+// drills/tactics; an admin curates named collections and grants them per
+// coach; collections can be copied or licensed (read-only, revocable) to
+// another club. See clubSlice.ts for the store API.
+// ---------------------------------------------------------------------------
+
+export type ClubRole = 'admin' | 'coach'
+
+export interface Club {
+  id: string
+  name: string
+  created_at: string
+}
+
+// A club_member row joined with its club — what fetchMemberships returns.
+export interface ClubMembership {
+  club_id: string
+  user_id: string
+  role: ClubRole
+  display_name: string | null
+  created_at: string
+  club: Club
+}
+
+// The bare club_member row shape (no join) — what fetchClubData's member
+// list uses for the currently selected club.
+export interface ClubMemberRow {
+  club_id: string
+  user_id: string
+  role: ClubRole
+  display_name: string | null
+  created_at: string
+}
+
+export interface Collection {
+  id: string
+  club_id: string
+  name: string
+  description: string | null
+  created_by: string
+  created_at: string
+}
+
+export interface ClubLicense {
+  id: string
+  collection_id: string
+  target_club_id: string
+  granted_by: string
+  created_at: string
+  revoked_at: string | null
 }
 
 // A shape a coach saved for themselves (Stage 3.4, migration 022). Per coach

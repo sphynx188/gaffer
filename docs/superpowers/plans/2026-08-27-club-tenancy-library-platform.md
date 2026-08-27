@@ -258,7 +258,7 @@ git commit -m "docs: recon notes for club tenancy run"
   hit on it redirects `/`); signed-in behavior and `/d/:token` / `/t/:token`
   / password-recovery routing unchanged.
 
-- [ ] **Step 1: Dump then drop the waitlist table.** If Task 0 found
+- [x] **Step 1: Dump then drop the waitlist table.** If Task 0 found
 `count(*) > 0`, first `select * from early_access_signup` via MCP and save the
 rows to `../early_access_signup_backup_2026-08-27.json` (outside the repo —
 014/021 precedent). Then write and `apply_migration`:
@@ -271,20 +271,20 @@ rows to `../early_access_signup_backup_2026-08-27.json` (outside the repo —
 drop table if exists early_access_signup;
 ```
 
-- [ ] **Step 2: Delete the landing code.** Remove `src/pages/landing/` and
+- [x] **Step 2: Delete the landing code.** Remove `src/pages/landing/` and
 `src/lib/waitlist.ts`. In `src/App.tsx`, replace the signed-out routed branch
 with what preceded the landing (per its own git history —
 `git show 96b1c0f^:src/App.tsx` shows the prior shape): signed-out renders
 `Login` directly (keeping the `ResetPassword` / recovery branch exactly as
 is). Remove the `gaffer-landing` block from `.claude/launch.json`.
 
-- [ ] **Step 3: Verify.** `npm run build && npm run lint` (baseline
+- [x] **Step 3: Verify.** `npm run build && npm run lint` (baseline
 warnings only). Start the Browser pane (`preview_start` name `gaffer`),
 signed-out: `/` shows the sign-in form; `/some-junk-path` redirects to `/`;
 sign in with the test account (`gaffertest2026v2@gmail.com` / `TestPass123!`)
 → app loads as before.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ```bash
 git add -A src/pages/landing src/lib/waitlist.ts src/App.tsx .claude/launch.json supabase/migrations/026_drop_early_access_signup.sql
@@ -333,7 +333,7 @@ export interface ClubLicense {
 // Tactic gains: club_id: string; created_by: string; team_id: string | null
 ```
 
-- [ ] **Step 1: Write migration 027.** The backfill derives ownership from
+- [x] **Step 1: Write migration 027.** The backfill derives ownership from
 `team_coaches` (Task 0 confirmed the owner role value — the SQL below assumes
 `'owner'`; substitute the recon value if different).
 
@@ -458,7 +458,7 @@ create index tactic_club_id_idx on tactic (club_id);
 create index tactic_created_by_idx on tactic (created_by);
 ```
 
-- [ ] **Step 2: Apply via MCP** (`apply_migration`), then assert via
+- [x] **Step 2: Apply via MCP** (`apply_migration`), then assert via
 `execute_sql`:
 
 ```sql
@@ -472,11 +472,11 @@ select c.name, cm.role, u.email from club c
 Expected: zero nulls; one club per legacy account, each with one admin row.
 Record the output in 027's header comment.
 
-- [ ] **Step 3: Update `src/store/types.ts`** with the Interfaces block above
+- [x] **Step 3: Update `src/store/types.ts`** with the Interfaces block above
 (add fields to `Drill`/`Tactic`; new interfaces; re-export any new names from
 `src/store/index.ts` matching how existing types are re-exported).
 
-- [ ] **Step 4: Verify + commit.** `npm run build && npm run lint` (baseline).
+- [x] **Step 4: Verify + commit.** `npm run build && npm run lint` (baseline).
 The live app must still work fully — old team-based policies are still in
 force; do a quick signed-in Browser check that the drill library still lists
 drills (the app ignores the new columns so nothing observable changes).
