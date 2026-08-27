@@ -1,27 +1,10 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import {
-  CalendarClock,
-  CalendarDays,
-  ChevronLeft,
-  ClipboardCheck,
-  LayoutDashboard,
-  LibraryBig,
-  LogOut,
-  Menu,
-  Moon,
-  PenTool,
-  Settings,
-  Shield,
-  Sun,
-  Users,
-  X,
-} from 'lucide-react'
+import { ChevronLeft, LibraryBig, LogOut, Menu, Moon, Shield, Sun, X } from 'lucide-react'
 import { useStore } from '../store'
 import { useSession } from '../hooks/useSession'
 import { useTheme } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
-import { TeamSwitcher } from '../components/TeamSwitcher'
 import { Dropdown } from '../components/ui/Dropdown'
 
 interface NavItem {
@@ -31,26 +14,13 @@ interface NavItem {
   end?: boolean
 }
 
-// Routes that operate on the currently selected team — visiting any of
-// these shows the team-level tab set (Overview/Roster/.../Drills) instead
-// of the coach-level one (Dashboard/Teams/Calendar). Driven purely by the
-// route, not `selectedTeamId` (which persists across visits to `/`), so
-// landing on the coach-level Dashboard always shows coach-level tabs even
-// if a team was already selected from a previous session.
-const TEAM_SCOPED_PATHS = ['/overview', '/roster', '/sessions', '/attendance', '/design', '/drills', '/tactics']
-
-const NAV_ITEMS_COACH: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/teams', label: 'Teams', icon: Settings },
-  { to: '/calendar', label: 'Calendar', icon: CalendarClock },
-]
-
-const NAV_ITEMS_TEAM: NavItem[] = [
-  { to: '/overview', label: 'Overview', icon: LayoutDashboard },
-  { to: '/roster', label: 'Roster', icon: Users },
-  { to: '/sessions', label: 'Sessions', icon: CalendarDays },
-  { to: '/attendance', label: 'Attendance', icon: ClipboardCheck },
-  { to: '/design', label: 'Design', icon: PenTool },
+// Club tenancy (2026-08-28, Task 7): one flat nav for every signed-in
+// route now — the earlier coach-level/team-level two-tier split (and the
+// route-driven TEAM_SCOPED_PATHS switch that chose between them) is gone
+// along with the team module it organized. Admin is added by Task 8
+// (role-gated, once /admin routes exist — keeping every commit shippable
+// rather than linking a 404 for one task's window).
+const NAV_ITEMS: NavItem[] = [
   { to: '/drills', label: 'Drill library', icon: LibraryBig },
   { to: '/tactics', label: 'Tactics', icon: Shield },
 ]
@@ -99,14 +69,12 @@ function NavList({
 }
 
 // Always the "Gaffer" wordmark, on every route — the one persistent,
-// consistent "where am I" anchor and the way back to the coach-level
-// Dashboard from any team-scoped page. Previously swapped for the
-// selected team's name + a back chevron on team-scoped routes; the team
-// name lives in the header's right-side cluster instead now (see
-// AppShell), so this never changes shape between contexts.
+// consistent "where am I" anchor. Links to the drill library, the app's
+// home route since Task 7 (was the coach-level Dashboard before the team
+// module was shelved).
 function BrandBlock() {
   return (
-    <Link to="/" className="shrink-0 text-lg font-semibold tracking-tight text-ink">
+    <Link to="/drills" className="shrink-0 text-lg font-semibold tracking-tight text-ink">
       Gaffer
     </Link>
   )
@@ -120,12 +88,12 @@ function BrandBlock() {
 // `navigate()` call elsewhere in the app (team pick, session-click
 // deep-links, etc.) already pushes a real history entry, so this always
 // lands on the actual previous screen rather than a fixed "up one level"
-// destination. Hidden on the coach Dashboard ("/") — that's the app's
-// true landing screen, with nothing behind it to go back to.
+// destination. Hidden on the drill library ("/drills") — that's the app's
+// true landing screen since Task 7, with nothing behind it to go back to.
 function BackButton() {
   const navigate = useNavigate()
   const location = useLocation()
-  if (location.pathname === '/') return null
+  if (location.pathname === '/drills') return null
   return (
     <button
       type="button"
@@ -211,11 +179,15 @@ function SignOutFooter({ email }: { email?: string }) {
 export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
-  const location = useLocation()
   const [navOpen, setNavOpen] = useState(false)
 
-  // Top bar (and TeamSwitcher inside it) needs the team list the moment the
-  // shell mounts, regardless of which route the coach lands on first.
+  // Kept despite the team module being shelved (Task 7): SquadPanel's
+  // opposition-team picker (dormant-legal on an old, real-team_id tactic —
+  // Task 6 explicitly does not regress it) reads the store's `teams` array
+  // directly, and nothing else populates it now that TeamSwitcher — the
+  // only other consumer — is gone. Removing this call would silently empty
+  // that picker's options, the exact call-site-trap failure mode this
+  // whole plan keeps naming; kept on purpose, noted in the Amendment log.
   useEffect(() => {
     fetchTeams()
   }, [fetchTeams])
@@ -229,16 +201,6 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [navOpen])
 
-  const inTeamContext = TEAM_SCOPED_PATHS.some((p) => location.pathname.startsWith(p))
-  const activeItems = inTeamContext ? NAV_ITEMS_TEAM : NAV_ITEMS_COACH
-  // The Dashboard ("/") is cross-team by design (see its own header
-  // comment in DashboardPage.tsx) and isn't in TEAM_SCOPED_PATHS, but a
-  // coach landing there right after logging in still wants to see/set
-  // which team they're working on — the switcher shouldn't be something
-  // you only discover once you've already clicked into a team-scoped
-  // page. Every other coach-level route (Teams, Calendar) stays as-is.
-  const showTeamSelector = inTeamContext || location.pathname === '/'
-
   return (
     <div className="min-h-svh bg-surface">
       <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4">
@@ -247,30 +209,11 @@ export function AppShell() {
         <BackButton />
         <BrandBlock />
 
-        {/* Breadcrumb-style team selector — desktop only, team-scoped
-            routes plus the Dashboard (see `showTeamSelector` above).
-            This is a deliberate reversal of an earlier decision (see
-            design.md's Navigation shell section): a version of this
-            exact placement was tried, then walked back in favor of
-            top-right, specifically because it was competing with
-            "Gaffer" for the same "where am I" role. Moved back here at
-            explicit instruction, with a concrete visual reference (an
-            org-switcher breadcrumb) to build from. */}
-        {showTeamSelector && (
-          <div className="hidden items-center gap-2 lg:flex">
-            <span className="text-line" aria-hidden="true">
-              /
-            </span>
-            <div className="max-w-40">
-              <TeamSwitcher compact />
-            </div>
-          </div>
-        )}
-
-        {/* Right cluster — club switcher (Task 4 mount point; full nav
-            rework lands in Task 7), theme toggle (always visible), sign-out
-            (desktop only — mobile gets it in the drawer footer instead),
-            hamburger (mobile only). */}
+        {/* Right cluster — club switcher, theme toggle (always visible),
+            sign-out (desktop only — mobile gets it in the drawer footer
+            instead), hamburger (mobile only). The team-scoped breadcrumb
+            selector that used to live here is gone with Task 7 — the club
+            switcher is the one "where am I" control now. */}
         <div className="ml-auto flex items-center gap-3">
           <ClubSwitcher />
           <ThemeToggleButton />
@@ -318,9 +261,9 @@ export function AppShell() {
             </button>
           </div>
           <div className="border-b border-line px-4 py-3">
-            <TeamSwitcher />
+            <ClubSwitcher />
           </div>
-          <NavList items={activeItems} onNavigate={() => setNavOpen(false)} />
+          <NavList items={NAV_ITEMS} onNavigate={() => setNavOpen(false)} />
           <SignOutFooter email={session?.user.email} />
         </div>
       </div>
@@ -366,7 +309,7 @@ export function AppShell() {
           hamburger drawer instead. */}
       <div className="group hidden lg:block">
         <aside className="fixed bottom-0 left-0 top-14 z-20 flex w-14 flex-col overflow-hidden border-r border-line bg-panel transition-[width] duration-200 ease-out group-hover:w-52 group-focus-within:w-52">
-          <NavList items={activeItems} fadeLabel />
+          <NavList items={NAV_ITEMS} fadeLabel />
         </aside>
         <div className="pointer-events-none fixed bottom-0 left-14 right-0 top-14 z-10 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100" />
       </div>

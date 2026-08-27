@@ -1147,19 +1147,19 @@ git commit -m "feat: tactic library rescoped to club; roster-free tactic editor"
   paths removed from the router; direct hits on old team URLs redirect `/`.
   `/d/:token`, `/t/:token`, card routes, editor routes, recovery: unchanged.
 
-- [ ] **Step 1: Rework `AppShell`.** Collapse the two tab sets
+- [x] **Step 1: Rework `AppShell`.** Collapse the two tab sets
 (`NAV_ITEMS_TEAM` / coach-level) into one list: Drill Library, Tactic
 Library. Keep the rail/drawer mechanics exactly as they are (expand-on-hover
 rail, hamburger below `lg`). Remove `TEAM_SCOPED_PATHS` switching. Keep the
 club switcher/name from Task 4 in the shell header.
 
-- [ ] **Step 2: Rework routes.** In `App.tsx`: `/` → redirect `/drills`;
+- [x] **Step 2: Rework routes.** In `App.tsx`: `/` → redirect `/drills`;
 `/drills` renders the drill library page; `/tactics` as-is; remove the
 team-scoped route registrations (leave their imports deleted — the files
 stay); wildcard → `/drills`. Editor/card/share routes keep their exact
 existing paths (Task 0 recon list — do not break share links).
 
-- [ ] **Step 3: Verify.** Build/lint. Two compile hazards specific to this
+- [x] **Step 3: Verify.** Build/lint. Two compile hazards specific to this
 task, both from `tsconfig.app.json`:
   - `"include": ["src"]` — the shelved page components are unrouted but **still
     typechecked**. They must keep compiling: that is why `Drill.team_id` stays
@@ -1178,7 +1178,7 @@ empty state** — drill editor, tactic editor, a drill card, a tactic card.
 This is the moment Tasks 5/6 Step 1b pays off (or, if skipped, the moment the
 regression appears); a green build proves nothing here.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ```bash
 git add src/layout/AppShell.tsx src/App.tsx
@@ -1820,3 +1820,30 @@ both from `buildLibraryGroups.ts`, same as the plan intended from one file.
    app (every roster-free tactic starts with team_id null and no code
    path sets a non-null team_id on it afterward), so allowing it would be
    dead UI, not a real choice.
+
+**2026-08-28 — Task 7: `fetchTeams()` kept in `AppShell`, not removed.**
+The plan's own framing ("teamSlice ... stays wired in the store — harmless,
+nothing calls their fetches once routes are gone") implies removing
+`AppShell`'s `fetchTeams()` call along with `TeamSwitcher`. Kept it instead:
+`SquadPanel.tsx`'s away-team-binding picker (explicitly dormant-legal per
+Task 6, not to be regressed) reads the store's plain `teams` array directly,
+and `AppShell` was the ONLY place anything called `fetchTeams()` — removing
+it would silently empty that picker's options for anyone still opening an
+old, real-`team_id` tactic. Exactly the call-site-trap shape this plan
+keeps finding, just one level removed (a shared array losing its one
+populating call site, rather than a fetch losing its scope argument).
+
+**2026-08-28 — Task 7 verify: the 375px hamburger check is unverified, not
+skipped.** `resize_window` failed both calls in this session ("Invalid
+value for bounds. Bounds must be at least 50% within visible screen
+space") and `window.resizeTo()` from the page is a no-op (blocked by the
+browser for a non-popup window) — a tool-level failure in this environment,
+not a code issue. Confirmed structurally instead: `getComputedStyle` on the
+hamburger button at the actual (desktop) viewport shows `display: none`,
+which is the CORRECT desktop-width behavior for its unchanged `lg:hidden`
+class — Task 7 touched which nav items render, not the responsive
+mechanics around them, so this is reasonable evidence the mobile branch
+(`lg:hidden` showing it, `hidden lg:block` hiding the desktop rail) still
+works, but it is not the same as having actually seen it render at 375px.
+Recorded honestly per the "never fabricate verification" rule rather than
+claimed as seen.
