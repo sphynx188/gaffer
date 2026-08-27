@@ -182,10 +182,12 @@ const CARDS: DrillCard[] = [
 const AUTOPLAY_MS = 4200
 
 export function DrillCarousel() {
+  const sectionRef = useRef<HTMLElement | null>(null)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const cardRefs = useRef<(HTMLDivElement | null)[]>([])
   const [active, setActive] = useState(0)
   const [paused, setPaused] = useState(false)
+  const [inView, setInView] = useState(true)
   const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 
   useEffect(() => {
@@ -193,6 +195,19 @@ export function DrillCarousel() {
     const onChange = () => setReduced(mq.matches)
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  // Autoplay must never run while the carousel itself is scrolled out of
+  // view — otherwise the next tick's scroll lands on a section the visitor
+  // can't see, which reads as the whole page randomly jumping.
+  useEffect(() => {
+    const section = sectionRef.current
+    if (!section) return
+    const io = new IntersectionObserver((entries) => setInView(entries[0]?.isIntersecting ?? false), {
+      threshold: 0,
+    })
+    io.observe(section)
+    return () => io.disconnect()
   }, [])
 
   // Tracks which card is most centered, for the dot pagination — driven by
@@ -224,10 +239,20 @@ export function DrillCarousel() {
     return () => io.disconnect()
   }, [])
 
+  // Scrolls only the carousel's own track — deliberately NOT
+  // card.scrollIntoView(), which walks every scrollable ancestor (including
+  // the page itself) and will yank the whole viewport back to this section
+  // if the card isn't fully visible, e.g. while autoplay ticks after the
+  // visitor has scrolled past it. Computed via getBoundingClientRect rather
+  // than offsetLeft since the track isn't a positioned offsetParent.
   function scrollToIndex(index: number, smooth = true) {
+    const track = trackRef.current
     const card = cardRefs.current[index]
-    if (!card) return
-    card.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' })
+    if (!track || !card) return
+    const trackRect = track.getBoundingClientRect()
+    const cardRect = card.getBoundingClientRect()
+    const target = track.scrollLeft + (cardRect.left - trackRect.left) - (track.clientWidth - card.clientWidth) / 2
+    track.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'auto' })
   }
 
   function step(delta: number) {
@@ -237,18 +262,20 @@ export function DrillCarousel() {
 
   // Autoplay: advance one card on a timer, wrap to the start at the end.
   // Off entirely under reduced motion; paused on hover/touch/focus so a
-  // visitor reading a card never has it yanked away mid-read.
+  // visitor reading a card never has it yanked away mid-read; paused
+  // whenever the section has scrolled out of view so it can't advance
+  // (and re-sync scroll position) somewhere the visitor isn't looking.
   useEffect(() => {
-    if (reduced || paused) return
+    if (reduced || paused || !inView) return
     const id = window.setInterval(() => {
       const next = (active + 1) % CARDS.length
       scrollToIndex(next)
     }, AUTOPLAY_MS)
     return () => window.clearInterval(id)
-  }, [active, paused, reduced])
+  }, [active, paused, reduced, inView])
 
   return (
-    <section className="border-t border-line py-24">
+    <section ref={sectionRef} className="border-t border-line py-24">
       <div className="mx-auto max-w-6xl px-6">
         <Reveal>
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
