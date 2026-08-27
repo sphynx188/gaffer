@@ -290,9 +290,15 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
         <button
           type="button"
           onClick={() => parked && host.deleteKeyframe(parked.id)}
-          disabled={!parked}
+          disabled={!parked || host.keyframes.length <= 1}
           className={ACTION}
-          title={parked ? 'Delete the keyframe under the playhead' : 'Park the playhead on a keyframe to delete it'}
+          title={
+            !parked
+              ? 'Park the playhead on a keyframe to delete it'
+              : host.keyframes.length <= 1
+                ? 'A drill always keeps at least one keyframe'
+                : 'Delete the keyframe under the playhead'
+          }
         >
           <Trash2 className="h-3.5 w-3.5" />
           Delete
@@ -301,8 +307,9 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
         <button
           type="button"
           onClick={() => host.clearKeyframes()}
-          disabled={host.keyframes.length === 0}
+          disabled={host.keyframes.length <= 1}
           className={ACTION}
+          title={host.keyframes.length <= 1 ? 'Nothing to clear' : 'Collapse to a single keyframe at 0s'}
         >
           <Eraser className="h-3.5 w-3.5" />
           Clear keyframes

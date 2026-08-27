@@ -233,8 +233,12 @@ export function moveKeyframe<T extends SceneDocument>(doc: T, keyframeId: string
 // Deletes the keyframe and any marking bound to it. Keyframe-bound markings go
 // with it because the phases model this replaced kept arrows and notes
 // *inside* the phase, so deleting a phase always took them too; static
-// markings (no keyframeId) are untouched.
+// markings (no keyframeId) are untouched. Refuses to drop the last keyframe —
+// a document always keeps at least one, the same invariant `makeInitialKeyframe`
+// establishes at creation; without it `frameAt` has no bracket to interpolate
+// from and every entity, including any placed afterward, renders nowhere.
 export function deleteKeyframe<T extends SceneDocument>(doc: T, keyframeId: string): T {
+  if (doc.keyframes.length <= 1) return doc
   if (!doc.keyframes.some((k) => k.id === keyframeId)) return doc
   return {
     ...doc,
@@ -243,13 +247,17 @@ export function deleteKeyframe<T extends SceneDocument>(doc: T, keyframeId: stri
   }
 }
 
-// Drops every keyframe, and every marking bound to one. Entities survive —
-// clearing the timing isn't the same as emptying the pitch.
+// Collapses the timeline down to one keyframe at t=0, holding whatever was
+// governing at that time, and drops every marking bound to one. Entities
+// survive — clearing the timing isn't the same as emptying the pitch — and,
+// per the same invariant `deleteKeyframe` enforces, the document never drops
+// to zero keyframes: that would leave `frameAt` nothing to interpolate from,
+// so every entity's position is silently lost rather than just its timing.
 export function clearKeyframes<T extends SceneDocument>(doc: T): T {
-  if (doc.keyframes.length === 0) return doc
+  if (doc.keyframes.length <= 1) return doc
   return {
     ...doc,
-    keyframes: [],
+    keyframes: [{ id: generateId('keyframe'), t: 0, states: statesHoldingAt(doc.keyframes, 0) }],
     scene: { ...doc.scene, markings: doc.scene.markings.filter((m) => !m.keyframeId) },
   }
 }
