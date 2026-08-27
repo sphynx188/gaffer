@@ -21,6 +21,7 @@ import { SharedTacticPage } from './pages/SharedTacticPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { CoachesPage } from './pages/admin/CoachesPage'
 import { CollectionsPage } from './pages/admin/CollectionsPage'
+import { TransferPage } from './pages/admin/TransferPage'
 
 // Redesign: routed with a persistent shell (src/layout/AppShell.tsx) that
 // swaps between a coach-level tab set (Dashboard/Teams/Calendar — cross-
@@ -143,6 +144,7 @@ function AuthedApp() {
           <Route index element={<Navigate to="/admin/coaches" replace />} />
           <Route path="coaches" element={<CoachesPage />} />
           <Route path="collections" element={<CollectionsPage />} />
+          <Route path="transfer" element={<TransferPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/drills" replace />} />
       </Route>

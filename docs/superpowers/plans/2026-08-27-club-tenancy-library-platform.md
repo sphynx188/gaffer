@@ -1322,7 +1322,7 @@ git commit -m "feat: admin collections — CRUD, drill/tactic filing, per-coach 
 ### Task 10: Cross-club copy — SQL function + Transfer page
 
 **Files:**
-- Create: `supabase/migrations/029_copy_collection.sql`,
+- Create: `supabase/migrations/030_copy_collection.sql`,
   `src/pages/admin/TransferPage.tsx`
 - Modify: `src/App.tsx` (`/admin/transfer`), `src/pages/admin/AdminLayout.tsx`
 
@@ -1333,14 +1333,14 @@ git commit -m "feat: admin collections — CRUD, drill/tactic filing, per-coach 
 - Produces (DB): `copy_collection_to_club(src_collection uuid, target_club
   uuid) returns uuid` (the new collection's id).
 
-- [ ] **Step 1: Write migration 029.** The explicit drill column list below
+- [x] **Step 1: Write migration 030.** The explicit drill column list below
 mirrors `src/store/types.ts` post-Task 2; reconcile it against Task 0's
 `information_schema` output before applying (add/remove columns to match —
 `team_id` is deliberately NOT copied, `share_token`/`thumbnail_url` are
 deliberately nulled).
 
 ```sql
--- 029_copy_collection.sql — cross-club copy (spec §8).
+-- 030_copy_collection.sql — cross-club copy (spec §8).
 create or replace function copy_collection_to_club(src_collection uuid, target_club uuid)
 returns uuid language plpgsql security definer set search_path = '' as $$
 declare
@@ -1407,13 +1407,13 @@ begin
 end $$;
 ```
 
-- [ ] **Step 2: Transfer page.** Collection selector + target-club selector
+- [x] **Step 2: Transfer page.** Collection selector + target-club selector
 (memberships where `role='admin'` and `club_id !== selectedClubId`; if none,
 the page explains an admin must belong to a second club) + Copy button →
 `copyCollectionToClub`; success panel offers "Switch to <club>" via
 `selectClub`.
 
-- [ ] **Step 3: Verify.** Can't be exercised until a second club exists — do
+- [x] **Step 3: Verify.** Can't be exercised until a second club exists — do
 it NOW with scratch data instead of waiting: via `execute_sql`, create club
 "Copy Target FC" + admin membership for the test account. Browser: Transfer
 page shows it as a target; copy "Passing Pack" → switch club → both
@@ -1426,11 +1426,11 @@ where t.club_id='<target>' and e ? 'player_id'` → 0), all copies have
 collections/documents by FK) and SQL-confirm source counts once more.
 Build/lint.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ```bash
-git add supabase/migrations/029_copy_collection.sql src/pages/admin/TransferPage.tsx src/pages/admin/AdminLayout.tsx src/App.tsx
-git commit -m "feat: cross-club copy — copy_collection_to_club (migration 029) + transfer page"
+git add supabase/migrations/030_copy_collection.sql src/pages/admin/TransferPage.tsx src/pages/admin/AdminLayout.tsx src/App.tsx
+git commit -m "feat: cross-club copy — copy_collection_to_club (migration 030) + transfer page"
 ```
 
 ---
@@ -1889,3 +1889,29 @@ because that suite only exercised plain SELECT, never
 INSERT/UPDATE-RETURNING on `collection` specifically (Task 3 predates
 `collection` having any admin UI to write through) — worth remembering for
 Task 10/11's own collection-adjacent writes.
+
+**2026-08-28 — Task 10: migration renumbered 029→030** (029 was claimed by
+the RLS fix found live in Task 9 — see that entry). All of Task 10's own
+plan text updated in place to match, per the plan's own "claim the real
+next free number at apply time" rule (023→025 precedent).
+
+**2026-08-28 — Task 10: a second real bug found live, this time a UI
+mislabel, not an RLS gap — "Licensed" badge shown on a collection that
+was never licensed.** Task 10's own verify step deliberately creates the
+plan's first-ever multi-club-admin scenario (the test account becomes
+admin of both "My Club" and the scratch "Copy Target FC"). Once it existed,
+both libraries' `licensedCollectionIds` — computed in Tasks 5/6 as
+`collections.filter(c => c.club_id !== selectedClubId)` — badged the OTHER
+club's own "Passing Pack" as "Licensed", even though nothing was ever
+licensed; it just showed up because RLS merges every club an admin
+administers into one `collections` array (a deliberate, necessary design
+for licensed collections to work at all — see Task 4's Amendment entry —
+but the badge computation didn't distinguish "merged because I admin both
+clubs" from "here via an actual `club_license` row"). Fixed in both
+`DrillLibrary.tsx` and `TacticsPage.tsx`: `licensedCollectionIds` is now
+keyed off `licensesIn` (already fetched by `fetchClubData`, already the
+right shape) — `new Set(licensesIn.filter(l => !l.revoked_at).map(l =>
+l.collection_id))` — so the badge only appears for a collection actually
+reached via an active license, which is what "Licensed" is supposed to
+mean. Confirmed fixed live: reloaded post-fix, both "Passing Pack" groups
+(home + the other administered club's) render with no badge.

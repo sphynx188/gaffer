@@ -53,6 +53,7 @@ export function TacticsPage() {
   const clubMembers = useStore((s) => s.clubMembers)
   const collections = useStore((s) => s.collections)
   const collectionTacticIds = useStore((s) => s.collectionTacticIds)
+  const licensesIn = useStore((s) => s.licensesIn)
   const fetchClubData = useStore((s) => s.fetchClubData)
   const tactics = useStore((s) => s.tactics)
   const tacticsLoading = useStore((s) => s.tacticsLoading)
@@ -111,9 +112,11 @@ export function TacticsPage() {
 
   const filtersActive = query.trim() !== '' || phaseOfPlay !== ''
 
+  // Keyed on an actual active license, not "club_id !== selectedClubId" —
+  // see DrillLibrary.tsx's identical fix for why (found live in Task 10).
   const licensedCollectionIds = useMemo(
-    () => new Set(collections.filter((c) => c.club_id !== selectedClubId).map((c) => c.id)),
-    [collections, selectedClubId]
+    () => new Set(licensesIn.filter((l) => !l.revoked_at).map((l) => l.collection_id)),
+    [licensesIn]
   )
 
   const groups = useMemo(

@@ -13,6 +13,7 @@ import { PageHeader } from '../../components/ui/PageHeader'
 const SUB_NAV = [
   { to: '/admin/coaches', label: 'Coaches' },
   { to: '/admin/collections', label: 'Collections' },
+  { to: '/admin/transfer', label: 'Transfer' },
 ]
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>

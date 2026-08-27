@@ -107,6 +107,7 @@ export function DrillLibrary() {
   const clubMembers = useStore((s) => s.clubMembers)
   const collections = useStore((s) => s.collections)
   const collectionDrillIds = useStore((s) => s.collectionDrillIds)
+  const licensesIn = useStore((s) => s.licensesIn)
   const fetchClubData = useStore((s) => s.fetchClubData)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
@@ -194,9 +195,15 @@ export function DrillLibrary() {
     ? (isAdmin && selectedDrill.club_id === selectedClubId) || selectedDrill.created_by === myUserId
     : false
 
+  // Keyed on an actual active license, not "club_id !== selectedClubId" —
+  // an admin of more than one club (Task 10's own verify scenario) sees
+  // every administered club's collections merged into `collections` via
+  // RLS, and a collection from a DIFFERENT club they ALSO administer isn't
+  // licensed to them, it's just theirs too. The earlier club_id-mismatch
+  // heuristic mislabeled that case "Licensed" (found live in Task 10).
   const licensedCollectionIds = useMemo(
-    () => new Set(collections.filter((c) => c.club_id !== selectedClubId).map((c) => c.id)),
-    [collections, selectedClubId]
+    () => new Set(licensesIn.filter((l) => !l.revoked_at).map((l) => l.collection_id)),
+    [licensesIn]
   )
 
   const groups = useMemo(
