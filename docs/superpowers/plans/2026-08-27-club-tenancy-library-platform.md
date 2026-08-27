@@ -64,6 +64,69 @@ reference it; the drop moves to the team-module-reinstatement milestone).
   index every FK and RLS-filtered column.
 - Time fields stay float seconds; scene jsonb shapes are untouched everywhere.
 
+## Model & Effort Per Task
+
+Switch with `/model <id>` between tasks (e.g. `/model claude-sonnet-5`); where
+the build exposes a reasoning-effort control (the `/model` picker, or
+`/config` in an interactive terminal), set the effort column too. The point is
+to spend the expensive tier where a mistake is unrecoverable or invisible, and
+the cheap tier on mechanical work — an all-Opus-max night costs a great deal
+and buys nothing on a file deletion.
+
+| Task | Model | Effort | Why |
+|---|---|---|---|
+| 0 Recon | Sonnet 5 | medium | Gathering facts; breadth over depth. |
+| 1 Landing removal | Sonnet 5 | medium | Deletions + one trivial migration. |
+| 2 Schema + backfill | **Opus 5** | high | One-shot DDL against the live DB; a wrong backfill is painful to unwind. |
+| 3 **RLS core** | **Opus 5** | **xhigh** | The security boundary and the only stop-the-line task. Spend here. |
+| 4 clubSlice + bootstrap | **Opus 5** | high | New store architecture every later task consumes. |
+| 5 Drill library rescope | **Opus 5** | high | Touches shipped code + the call-site trap in 5.0. |
+| 6 Tactic library rescope | Sonnet 5 | high | Mirrors Task 5; escalate to Opus if the editor fights back. |
+| 7 Shell / shelving | Sonnet 5 | medium | Mechanical, but mind `noUnusedLocals` (see task). |
+| 8 Coaches + Edge Function | **Opus 5** | high | Privilege check in a service-role context — auth-sensitive. |
+| 9 Collections UI | Sonnet 5 | medium | CRUD over an API that already exists. |
+| 10 Cross-club copy | **Opus 5** | high | Column-by-column duplication; silent omissions are the risk. |
+| 11 Licensing | **Opus 5** | high | Security-adjacent; revocation must actually revoke. |
+| 12 Demo seed | Sonnet 5 | medium | Scripted data entry, verified by SQL. |
+| 13 Rehearsal + handoff | **Opus 5** | medium | Diagnosing whatever the rehearsal surfaces. |
+
+If the run falls behind, downgrade Tasks 6/9/12 before touching 3, 8, 10 or 11.
+
+## Tooling: MCP servers & connectors
+
+**Use (already configured):**
+- **Supabase MCP** — the spine of this plan. `apply_migration` for every
+  numbered migration, `execute_sql` for probes and seeds,
+  `deploy_edge_function` for Task 8, `get_advisors` after Task 3 (it flags
+  RLS-disabled tables and policy gaps — run it as a free second opinion on the
+  security core), `generate_typescript_types` after Task 2 to cross-check
+  hand-written types.
+- **Browser pane** (`preview_start` name `gaffer`) — every live verification.
+
+**Use (activate at the start of the run):**
+- **Serena** — semantic code navigation over the TS codebase. Activated for
+  this repo on 2026-08-28 (`activate_project` → project name `gaffer`;
+  a `.serena/` dir now exists at the repo root — do not commit it, and do NOT
+  run its `onboarding` tool: this plan plus CLAUDE.md already carry the
+  context onboarding would generate). It earned its place before the run
+  started by finding the Task 5.0 call-site trap that grep-by-guess missed.
+  Use it for exactly two things:
+  - `find_referencing_symbols` **before changing any store action's
+    signature** — the plan's biggest structural risk is a rescoped action
+    breaking a call site nobody listed.
+  - `find_symbol` to locate a component's real definition instead of
+    guessing file paths (several recon values in Task 0 are lookups it
+    answers directly).
+  Keep using Read/Edit for the actual edits; Serena's editing tools are not
+  needed and mixing them adds no value here.
+
+**Do not bother with:** Vercel (unauthenticated in this environment, and the
+app is not deployed through it), Chrome/computer-use (the Browser pane covers
+every check this plan makes), Google Drive, Context7 (the two APIs in play —
+supabase-js and Deno's `serve` — are used here in shapes already written out
+verbatim in this plan; reach for it only if an Edge Function API surprises
+you).
+
 ## Overnight Run Ground Rules
 
 This plan is designed to execute unattended, end to end, in one night.
@@ -147,6 +210,31 @@ Also `ls supabase/migrations/` for the next free number.
 components, and `design.md`. Record in the recon notes: every route path and
 which component renders it; the nav arrays (`NAV_ITEMS_TEAM` etc.); the shape
 of `runSupabaseAction`; the share-viewer component names and their props.
+
+**Already established on 2026-08-28 (re-confirm cheaply, don't re-derive):**
+
+- `fetchDrills` call sites (7): `DrillLibrary`, `DesignPage:34`,
+  `DrillEditorPage:26`, `DrillCardPage:81`, `TeamOverviewPage:33`,
+  `SessionItemsPanel:133`, slice `drillSlice.ts:152/458`.
+- `fetchTactics` call sites (6): `TacticsPage:48`, `TacticEditorPage:26`,
+  `TacticCardPage:61`, `SessionItemsPanel:110`, slice `tacticSlice.ts:221/527`.
+- `selectedTeamId` readers (17 files) — the ones that matter because they stay
+  active: `DesignPage`, `DrillEditorPage`, `DrillCardPage`, `TacticEditorPage`,
+  `TacticCardPage`, `TacticsPage`, `DrillLibrary`, `SquadPanel`, `AppShell`,
+  `App`. The rest are shelved.
+- `tsconfig.app.json`: `"include": ["src"]`, `noUnusedLocals: true`,
+  `noUnusedParameters: true`, non-strict. Consequences are spelled out in
+  Tasks 5, 6 and 7 — read them before editing signatures.
+- `formation` table is `owner_id`-scoped (per user), NOT team-scoped —
+  untouched by this rework.
+- `TeamSwitcher.tsx` is the component Task 4's club switcher replaces.
+- `_to_delete/` sits outside `src/`, so it never compiles. Leave it.
+
+- [ ] **Step 3b: Activate Serena for this repo** if a fresh session has not:
+`activate_project` with `/Users/max/Desktop/app/gaffer` (project name
+`gaffer`). **Do not run its `onboarding` tool** — CLAUDE.md plus this plan
+already carry that context. Add `.serena/` to `.gitignore` if it is not
+already ignored, so its cache never lands in a commit.
 
 - [ ] **Step 4: Commit recon notes.**
 
@@ -830,6 +918,19 @@ git commit -m "feat: clubSlice, membership bootstrap, create-your-club, club swi
 - Modify: `src/components/design/DrillLibrary.tsx`,
   `src/store/slices/drillSlice.ts` (fetch + create + duplicate),
   `src/App.tsx` (add `/drills/:drillId/view` route)
+- Modify (**the call-site trap — found via Serena 2026-08-28, do not skip**):
+  `src/pages/DrillEditorPage.tsx:26`, `src/pages/DrillCardPage.tsx:81`,
+  `src/pages/DesignPage.tsx:34` — all three call `fetchDrills(selectedTeamId)`
+  behind an `if (selectedTeamId)` gate, all three STAY ACTIVE after shelving,
+  and `selectedTeamId` is never set once the team module is gone. Left alone,
+  the drill editor and the print card silently fetch nothing and render empty
+  — and `npm run build` stays green, so nothing catches it but a human
+  opening a drill.
+- Do NOT modify (shelved, but they still typecheck — `tsconfig.app.json` is
+  `"include": ["src"]`): `src/pages/TeamOverviewPage.tsx:33`,
+  `src/components/SessionItemsPanel.tsx:133`. They also call
+  `fetchDrills(teamId)`, which is why Step 1 keeps an optional parameter
+  rather than removing it.
 - Create: `src/components/design/LibraryGroups.tsx` (shared grouping UI —
   Task 6 reuses it), `src/pages/DrillViewPage.tsx`
 
@@ -861,14 +962,57 @@ export function buildLibraryGroups(args: {
 }): LibraryGroup[]
 ```
 
-- [ ] **Step 1: Rescope `drillSlice`.** `fetchDrills` becomes parameterless:
-`supabase.from('drill').select('*')` — RLS alone decides visibility (admin →
-whole club; coach → own + granted + licensed). Remove the `team_id` filter and
-the `selectedTeamId` dependency; `createDrill` sets `club_id` from
-`selectedClubId` and omits `team_id` entirely (DB default leaves it null;
-`created_by` defaults to `auth.uid()`). `duplicateDrill` explicitly sets
-`created_by` to the caller and nulls `share_token`/`thumbnail_url` on the
-copy. Do not touch the file's pre-existing uncommitted delete-action hunks.
+- [ ] **Step 0: Re-run the call-site census before editing anything.** Files
+move; this plan was written on 2026-08-27. Confirm the list above still holds:
+
+Serena: `find_referencing_symbols` on `fetchDrills` in
+`src/store/slices/drillSlice.ts` (or `find_symbol` with pattern `fetchDrills`,
+`max_matches: 15`). Cross-check with `grep -rn "fetchDrills(" src`.
+Expected (2026-08-28): 7 call sites — DrillLibrary, DesignPage,
+DrillEditorPage, DrillCardPage, TeamOverviewPage, SessionItemsPanel, plus the
+slice itself. Anything new in that list gets the same treatment as Step 1b.
+
+- [ ] **Step 1a: Rescope `drillSlice`, keeping the parameter optional.** The
+signature keeps an ignored, underscore-prefixed parameter so the two shelved
+callers still compile — `noUnusedParameters: true` is on, so the underscore is
+load-bearing, not cosmetic:
+
+```ts
+// interface (was: fetchDrills: (teamId: string) => Promise<void>)
+fetchDrills: (_teamId?: string) => Promise<void>
+
+// implementation — RLS alone decides visibility now:
+fetchDrills: async () => {
+  set({ drillsLoading: true, drillsError: null })
+  const rows = await runSupabaseAction<Drill[]>(
+    () => supabase.from('drill').select('*').order('created_at', { ascending: false }),
+    (msg) => set({ drillsError: msg }),
+  )
+  set({ drills: rows ?? [], drillsLoading: false })
+},
+```
+
+`createDrill` sets `club_id` from `selectedClubId` and omits `team_id`
+entirely (DB default leaves it null; `created_by` defaults to `auth.uid()`).
+`duplicateDrill` explicitly sets `created_by` to the caller and nulls
+`share_token`/`thumbnail_url` on the copy. Do not touch the file's
+pre-existing uncommitted delete-action hunks.
+
+- [ ] **Step 1b: Un-gate the three active pages.** In `DrillEditorPage.tsx`,
+`DrillCardPage.tsx` and `DesignPage.tsx`, the effect currently reads
+`if (selectedTeamId) fetchDrills(selectedTeamId)`. Drop the gate and the
+argument, and remove `selectedTeamId` from the component and the dependency
+array (leave it if the component still uses it elsewhere — `noUnusedLocals`
+will tell you):
+
+```ts
+useEffect(() => {
+  void fetchDrills()
+}, [fetchDrills])
+```
+
+Verify each one by eye afterwards: **`npm run build` cannot catch this class
+of bug** — an un-run fetch is green at compile time and empty at runtime.
 
 - [ ] **Step 2: Grouped library.** Implement `buildLibraryGroups` (order: My
 drills → home collections (a–z) → licensed collections (badged) → for admins,
@@ -905,9 +1049,21 @@ git commit -m "feat: drill library rescoped to club visibility — folders, coll
 ### Task 6: Tactic library rescope + roster-free tactic editor
 
 **Files:**
-- Modify: `src/pages/TacticsPage.tsx`, `src/store/slices/tacticSlice.ts`,
-  `src/components/tactics/SquadPanel.tsx` (recon exact name), `src/App.tsx`
-  (add `/tactics/:tacticId/view`)
+- Modify: `src/pages/TacticsPage.tsx`, `src/store/slices/tacticSlice.ts`
+  (`fetchTactics` is declared at `:221`, implemented at `:527`),
+  `src/components/tactics/SquadPanel.tsx` (confirmed to read `selectedTeamId`),
+  `src/App.tsx` (add `/tactics/:tacticId/view`)
+- Modify (**same call-site trap as Task 5, confirmed via Serena**):
+  `src/pages/TacticEditorPage.tsx:26-30` and `src/pages/TacticCardPage.tsx:69-72`
+  — both do `if (!selectedTeamId) return; void fetchTactics(selectedTeamId)`,
+  both stay active, both go silently empty once team selection is gone. Note
+  `TacticEditorPage` also calls `fetchPlayers(selectedTeamId)` on the same
+  gate: drop that call entirely (rosters are shelved; Step 2 hides the UI that
+  consumed it).
+- Do NOT modify (shelved, still typechecks): `src/components/SessionItemsPanel.tsx:110`.
+- Leave alone: `fetchCustomFormations()` — the `formation` table is
+  `owner_id`-scoped per user, not team-scoped, so custom formations are
+  unaffected by tenancy. Seeded personas simply start with none.
 - Create: `src/pages/TacticViewPage.tsx`
 
 **Interfaces:**
@@ -917,10 +1073,30 @@ git commit -m "feat: drill library rescoped to club visibility — folders, coll
   `club_id`, `team_id: null`; the tactic editor fully functional with
   `team_id === null`.
 
-- [ ] **Step 1: Rescope `tacticSlice`** exactly as Task 5 Step 1 did for
-drills: parameterless fetch, club-scoped create with `team_id: null`,
-`duplicateTactic` (add if absent, mirroring `duplicateDrill`) into caller's
-folder with `share_token`/`thumbnail_url` nulled.
+- [ ] **Step 1: Rescope `tacticSlice`** exactly as Task 5 Steps 0/1a/1b did
+for drills — run the census first (`find_referencing_symbols` on
+`fetchTactics`; expected 6 sites as of 2026-08-28), keep the ignored
+`_teamId?: string` parameter so the shelved `SessionItemsPanel` caller
+compiles, make the body club-scoped:
+
+```ts
+fetchTactics: (_teamId?: string) => Promise<void>   // interface
+
+fetchTactics: async () => {
+  set({ tacticsLoading: true, tacticsError: null })
+  const rows = await runSupabaseAction<Tactic[]>(
+    () => supabase.from('tactic').select('*').order('created_at', { ascending: false }),
+    (msg) => set({ tacticsError: msg }),
+  )
+  set({ tactics: rows ?? [], tacticsLoading: false })
+},
+```
+
+Then un-gate `TacticEditorPage` and `TacticCardPage` (drop the
+`if (!selectedTeamId) return`, the argument, and — in the editor —
+the `fetchPlayers` call). `createTactic` writes `club_id` + `team_id: null`;
+add `duplicateTactic` mirroring `duplicateDrill` (caller's folder,
+`share_token`/`thumbnail_url` nulled).
 
 - [ ] **Step 2: Roster-free editor.** In the squad panel and anywhere else
 recon found roster reads (`fetchTeamRoster`, `rostersByTeam`,
@@ -983,11 +1159,24 @@ team-scoped route registrations (leave their imports deleted — the files
 stay); wildcard → `/drills`. Editor/card/share routes keep their exact
 existing paths (Task 0 recon list — do not break share links).
 
-- [ ] **Step 3: Verify.** Build/lint (dormant components still compile —
-they are unimported but tsc still typechecks them; `Drill.team_id` survives
-on the type precisely for this). Browser: nav shows exactly the two
-libraries; old `/teams`-era URLs redirect home; hamburger works at 375px;
-drill editor, tactic editor, a share link, and a card route all still render.
+- [ ] **Step 3: Verify.** Build/lint. Two compile hazards specific to this
+task, both from `tsconfig.app.json`:
+  - `"include": ["src"]` — the shelved page components are unrouted but **still
+    typechecked**. They must keep compiling: that is why `Drill.team_id` stays
+    on the type (Task 2) and why the fetch actions keep an optional
+    `_teamId?` parameter (Tasks 5/6). Do not "clean up" either.
+  - `noUnusedLocals: true` — every import and local you orphan by deleting a
+    route is a build ERROR, not a warning. Deleting a route means deleting its
+    import in the same edit. `TeamSwitcher` is the likely straggler: it is
+    replaced by Task 4's club switcher, so its import and usage come out of
+    `AppShell` here, while the file itself stays on the shelf.
+
+Then in the Browser: nav shows exactly the two libraries; old `/teams`-era
+URLs redirect home; hamburger works at 375px. **Then open each of the four
+still-active document routes and confirm they actually render content, not an
+empty state** — drill editor, tactic editor, a drill card, a tactic card.
+This is the moment Tasks 5/6 Step 1b pays off (or, if skipped, the moment the
+regression appears); a green build proves nothing here.
 
 - [ ] **Step 4: Commit.**
 
@@ -1493,3 +1682,22 @@ git commit -m "docs: demo script + overnight run handoff"
   viewer component names are recon-bound (Task 0) because this plan was
   written without exhaustively reading every file — each task that needs one
   says exactly which recon value it consumes.
+
+## Amendment log
+
+**2026-08-28 — call-site census (found with Serena before the run started).**
+The first draft of Tasks 5 and 6 listed three files between them for the
+fetch-rescope. The real count is 7 call sites for `fetchDrills` and 6 for
+`fetchTactics`, and — the part that mattered — five of them are in pages that
+**stay active** (`DrillEditorPage`, `DrillCardPage`, `DesignPage`,
+`TacticEditorPage`, `TacticCardPage`), each gating its fetch on a
+`selectedTeamId` that stops being set the moment Task 7 shelves team
+selection. The failure mode is a green build with empty editors and empty
+print cards: invisible to `npm run build`, invisible to lint, visible only to
+a human opening a drill — i.e. most likely discovered during the demo.
+Tasks 5 and 6 now open with a census step, keep an underscore-prefixed
+optional parameter (required by `noUnusedParameters`) so shelved callers still
+compile, and un-gate the active pages explicitly; Task 7's verify step now
+demands all four document routes be opened and seen rendering content.
+Lesson for the run: **before changing any store action's signature, run
+`find_referencing_symbols` on it.**

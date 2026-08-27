@@ -27,3 +27,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Serena semantic-code cache (local tooling, not project state)
+.serena/
