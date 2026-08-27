@@ -962,7 +962,7 @@ export function buildLibraryGroups(args: {
 }): LibraryGroup[]
 ```
 
-- [ ] **Step 0: Re-run the call-site census before editing anything.** Files
+- [x] **Step 0: Re-run the call-site census before editing anything.** Files
 move; this plan was written on 2026-08-27. Confirm the list above still holds:
 
 Serena: `find_referencing_symbols` on `fetchDrills` in
@@ -972,7 +972,7 @@ Expected (2026-08-28): 7 call sites — DrillLibrary, DesignPage,
 DrillEditorPage, DrillCardPage, TeamOverviewPage, SessionItemsPanel, plus the
 slice itself. Anything new in that list gets the same treatment as Step 1b.
 
-- [ ] **Step 1a: Rescope `drillSlice`, keeping the parameter optional.** The
+- [x] **Step 1a: Rescope `drillSlice`, keeping the parameter optional.** The
 signature keeps an ignored, underscore-prefixed parameter so the two shelved
 callers still compile — `noUnusedParameters: true` is on, so the underscore is
 load-bearing, not cosmetic:
@@ -998,7 +998,7 @@ entirely (DB default leaves it null; `created_by` defaults to `auth.uid()`).
 `share_token`/`thumbnail_url` on the copy. Do not touch the file's
 pre-existing uncommitted delete-action hunks.
 
-- [ ] **Step 1b: Un-gate the three active pages.** In `DrillEditorPage.tsx`,
+- [x] **Step 1b: Un-gate the three active pages.** In `DrillEditorPage.tsx`,
 `DrillCardPage.tsx` and `DesignPage.tsx`, the effect currently reads
 `if (selectedTeamId) fetchDrills(selectedTeamId)`. Drop the gate and the
 argument, and remove `selectedTeamId` from the component and the dependency
@@ -1014,7 +1014,7 @@ useEffect(() => {
 Verify each one by eye afterwards: **`npm run build` cannot catch this class
 of bug** — an un-run fetch is green at compile time and empty at runtime.
 
-- [ ] **Step 2: Grouped library.** Implement `buildLibraryGroups` (order: My
+- [x] **Step 2: Grouped library.** Implement `buildLibraryGroups` (order: My
 drills → home collections (a–z) → licensed collections (badged) → for admins,
 one folder per other member with any unfiled docs, titled from
 `display_name`). Rework `DrillLibrary.tsx`'s list area to render groups via
@@ -1023,13 +1023,13 @@ existing filters apply *within* the flattened visible set). Remove the
 "Select a team to browse" gate. Licensed groups show a `Licensed` chip
 (`text-warn` tone token).
 
-- [ ] **Step 3: Read-only viewer.** `DrillViewPage` renders the same viewer
+- [x] **Step 3: Read-only viewer.** `DrillViewPage` renders the same viewer
 component the `/d/:token` share page uses (recon name), fed from the store by
 id instead of by token fetch. Card click routing: `canEditDoc(...)` → the
 existing editor route; otherwise → `/drills/:drillId/view`. The viewer page
 shows name + a "Duplicate to my drills" button calling `duplicateDrill`.
 
-- [ ] **Step 4: Verify.** Build/lint. Browser as test account (its club's
+- [x] **Step 4: Verify.** Build/lint. Browser as test account (its club's
 admin): library shows "My drills" with all 5 test drills, no team gate;
 create a drill → appears in My drills; SQL-check the row has
 `club_id`/`created_by` set and `team_id is null`. Read-only path can't be
@@ -1037,7 +1037,7 @@ fully exercised until coach personas exist (Task 12 rehearses it); assert the
 routing branch by SQL-inserting nothing — instead temporarily verify
 `canEditDoc` false-path renders by visiting `/drills/<id>/view` directly.
 
-- [ ] **Step 5: Commit** (note the pre-existing hunks riding along):
+- [x] **Step 5: Commit** (note the pre-existing hunks riding along):
 
 ```bash
 git add src/components/design/DrillLibrary.tsx src/components/design/LibraryGroups.tsx src/pages/DrillViewPage.tsx src/store/slices/drillSlice.ts src/App.tsx
@@ -1750,3 +1750,40 @@ of Task 3 (the plan's one stop-the-line task), before the migration was
 applied live; full reasoning is in migration 028's own header comment next
 to the corrected policy. No stop-the-line was triggered — nothing in the
 per-persona/share-token probe suite (run after the fix) showed a read leak.
+
+**2026-08-28 — Task 5: card-click routing implemented as an added "Open in
+editor"/"View" affordance, not a literal onClick replacement.** The plan's
+prose ("card click routing: canEditDoc → the existing editor route;
+otherwise → the viewer") read literally would replace `DrillLibrary`'s grid
+card onClick (today: toggle an inline preview panel with Play/Duplicate/
+Delete) with straight navigation — which would stroke the existing
+Duplicate/Delete actions from every reachable UI path, since nothing else
+in the app exposes them (confirmed: `deleteDrill`/`duplicateDrill` have no
+other call site). That preview panel is one of the tree's pre-existing
+uncommitted hunks the ground rules say to edit around and keep intact, and
+orphaning its buttons behind an unreachable branch isn't "intact" in any
+meaningful sense. Implemented instead: the grid card keeps its existing
+select-to-preview behavior unchanged; the preview panel gained a real
+"Open in editor" / "View" link (routes exactly as the plan specifies,
+`canEditDoc` ? `/design/:id` : `/drills/:id/view`) and its Delete button is
+now hidden when `canEditDoc` is false (previously visible regardless of
+ownership, always failing server-side via RLS for a non-owner — a
+pre-existing rough edge, tightened here since it's directly this task's
+visibility model). Net effect matches the plan's functional intent (both
+routes exist and are reachable) without deleting or stranding working
+code. Also added, not explicitly listed in the plan's file scope but a real
+gap it implied: a "+ New drill" link from the library to `/design`, since
+`/design` is the *only* create-drill entry point in the app (confirmed by
+grep — `CreateDrillForm` has exactly one call site) and Task 7 removes its
+last nav link.
+
+**2026-08-28 — LibraryGroups split into two files, not one.** The plan
+names a single `LibraryGroups.tsx`. Exporting both the `buildLibraryGroups`
+function and the `LibraryGroups` component from one file trips oxlint's
+react-refresh rule (a file should export only components) — the codebase
+already has a precedent for splitting this exact way (`Badge.tsx` /
+`badgeTones.ts`), so `buildLibraryGroups.ts` (named to avoid colliding with
+`LibraryGroups.tsx` on a case-insensitive filesystem — macOS/Windows
+default) now holds the `LibraryGroup` type and the builder function;
+`LibraryGroups.tsx` holds only the component. Task 6 (tactic library) reuses
+both from `buildLibraryGroups.ts`, same as the plan intended from one file.

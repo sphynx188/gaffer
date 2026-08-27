@@ -23,8 +23,11 @@ import type {
 } from '../types'
 import type { StoreState } from '../useStore'
 
+// team_id dropped (club tenancy, 2026-08-28): createDrill now writes
+// club_id from the caller's selectedClubId and never writes team_id —
+// Drill.team_id stays on the read type (demoted, not dropped) but no new
+// code writes or reads it. See clubSlice.ts / migration 027.
 export interface NewDrillInput {
-  team_id: string | null
   name: string
   orientation: PitchOrientation
   // The pitch the coach picked at creation, seeded rather than left to the
@@ -146,10 +149,14 @@ export interface DrillSlice {
   // store rather than one per drill: only one drill is ever being edited.
   saveState: SaveState
 
-  // Coach-owned drills (team_id null) are reusable across every team, so a
-  // drill fetch is always scoped to "this team OR nobody's team" — never a
-  // plain team_id equality filter. See gaffer_project_plan_final.md §5.
-  fetchDrills: (teamId: string) => Promise<void>
+  // Club tenancy (2026-08-28): visibility is entirely RLS's job now
+  // (drill_club_read — admin of the club, own creation, or a readable
+  // collection), so the fetch itself takes no scope argument. `_teamId?` is
+  // kept, ignored, only so the two still-active-but-shelved callers
+  // (TeamOverviewPage, SessionItemsPanel) keep compiling —
+  // `noUnusedParameters` makes the leading underscore load-bearing, not
+  // cosmetic. See plan Task 5 Step 0/1a.
+  fetchDrills: (_teamId?: string) => Promise<void>
   createDrill: (input: NewDrillInput) => Promise<Drill | null>
   updateDrill: (id: string, patch: DrillUpdateInput) => Promise<Drill | null>
 
@@ -160,6 +167,11 @@ export interface DrillSlice {
   // field. The one deliberate omission is thumbnail_url — see the
   // implementation for why.
   duplicateDrill: (drillId: string) => Promise<Drill | null>
+
+  // Deletes the drill outright. `session_drills` rows referencing it cascade
+  // at the DB level (schema.sql), so a session that had it in its line-up
+  // just loses that row rather than blocking the delete.
+  deleteDrill: (drillId: string) => Promise<boolean>
 
   // Public share links (rework plan Stage 10.4). Turning sharing on mints a
   // fresh 128-bit token; turning it off nulls the column, which revokes every
@@ -293,7 +305,12 @@ export interface DrillSlice {
 
 export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (set, get) => {
   // Same stale-response guard as sessionSlice — see the comment there.
-  let latestFetchTeamId: string | null = null
+  // Monotonic call id (club tenancy, 2026-08-28) — fetchDrills no longer
+  // takes a scope argument to key a "superseded by a newer call" check off
+  // of, but the race it guarded (an in-flight fetch resolving after a newer
+  // one already landed, e.g. a rapid remount) still exists, so this
+  // generalizes the same guard rather than dropping it.
+  let fetchDrillsCallId = 0
 
   // Undo/redo stacks, keyed by drill id. Held in the closure rather than in
   // `set` state: nothing renders a stack directly, and fifty snapshots per
@@ -450,19 +467,14 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     drillsError: null,
     saveState: 'saved',
 
-    fetchDrills: async (teamId) => {
-      latestFetchTeamId = teamId
+    fetchDrills: async () => {
+      const callId = ++fetchDrillsCallId
       set({ drillsLoading: true, drillsError: null })
       const { data, error } = await runSupabaseAction<Drill[]>(
-        () =>
-          supabase
-            .from('drill')
-            .select('*')
-            .or(`team_id.eq.${teamId},team_id.is.null`)
-            .order('created_at', { ascending: true }),
+        () => supabase.from('drill').select('*').order('created_at', { ascending: true }),
         "Couldn't load drills, try again."
       )
-      if (latestFetchTeamId !== teamId) return // superseded by a newer team switch
+      if (callId !== fetchDrillsCallId) return // superseded by a newer fetch
       let drills = data
       if (data) {
         // A refetch must not roll back edits that haven't been flushed yet —
@@ -472,8 +484,9 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
           const pending = pendingSaves.get(drill.id)
           return pending ? { ...drill, ...pending } : drill
         })
-        // Drop history for drills this team can't see any more, so a team
-        // switch doesn't leave undo pointing at another team's content.
+        // Drop history for drills no longer visible (RLS-scoped now, not
+        // team-scoped), so a club switch doesn't leave undo pointing at
+        // content the coach can no longer see.
         const visible = new Set(data.map((d) => d.id))
         for (const drillId of [...history.keys()]) {
           if (!visible.has(drillId)) history.delete(drillId)
@@ -487,12 +500,17 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     },
 
     createDrill: async (input) => {
+      const clubId = get().selectedClubId
+      if (!clubId) return null
       set({ drillsLoading: true, drillsError: null })
       // A drill always keeps at least one keyframe — without one there's
       // nowhere for addEntity to record a position, so a freshly created
-      // drill couldn't be edited at all.
+      // drill couldn't be edited at all. club_id comes from the caller's
+      // selected club; team_id is never written (club tenancy, 2026-08-28 —
+      // demoted, not dropped, see NewDrillInput above).
       const seeded = {
         ...input,
+        club_id: clubId,
         keyframes: input.keyframes ?? [makeInitialKeyframe()],
       }
       const { data, error } = await runSupabaseAction<Drill[]>(
@@ -545,7 +563,6 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       const source = get().drills.find((d) => d.id === drillId)
       if (!source) return null
       const created = await get().createDrill({
-        team_id: source.team_id,
         name: `${source.name} (copy)`,
         orientation: source.orientation,
         pitch: source.pitch,
@@ -589,6 +606,29 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         video_url: source.video_url,
         coaching: source.coaching,
       })
+    },
+
+    deleteDrill: async (drillId) => {
+      set({ drillsLoading: true, drillsError: null })
+      const { error } = await runSupabaseAction<null>(
+        () => supabase.from('drill').delete().eq('id', drillId),
+        "Couldn't delete drill, try again."
+      )
+      if (error) {
+        set({ drillsLoading: false, drillsError: error })
+        return false
+      }
+      // Drop the queued write and the history too, or a debounced flush would
+      // resurrect a PATCH against a row that no longer exists.
+      pendingSaves.delete(drillId)
+      pendingEdits.delete(drillId)
+      history.delete(drillId)
+      set((state) => ({
+        drillsLoading: false,
+        drillsError: null,
+        drills: state.drills.filter((d) => d.id !== drillId),
+      }))
+      return true
     },
 
     enableDrillSharing: async (drillId) => {

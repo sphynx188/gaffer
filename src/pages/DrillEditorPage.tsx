@@ -13,7 +13,6 @@ import { Skeleton } from '../components/ui/Skeleton'
 // selected".
 export function DrillEditorPage() {
   const { drillId } = useParams<{ drillId: string }>()
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const drillsError = useStore((s) => s.drillsError)
@@ -21,10 +20,15 @@ export function DrillEditorPage() {
 
   // Landing here directly from a link means the store is empty, so this screen
   // fetches for itself rather than assuming the picker ran first — the same
-  // rule every other screen in the app follows.
+  // rule every other screen in the app follows. Club tenancy (2026-08-28):
+  // no scope argument any more (RLS decides visibility) — this call-site was
+  // previously gated on `selectedTeamId`, which stops being set once the
+  // team module is shelved (Task 7); un-gated here per the plan's Task 5
+  // call-site census, or this screen would silently fetch nothing and
+  // render empty for every drill, editable or not.
   useEffect(() => {
-    if (selectedTeamId) fetchDrills(selectedTeamId)
-  }, [selectedTeamId, fetchDrills])
+    void fetchDrills()
+  }, [fetchDrills])
 
   const drill = drills.find((d) => d.id === drillId) ?? null
 
@@ -40,8 +44,8 @@ export function DrillEditorPage() {
     return (
       <div className="space-y-3">
         {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
-        <EmptyState icon={PenTool} message="That drill isn't in this team's list." />
-        <Link to="/design" className="text-sm font-medium text-accent hover:underline">
+        <EmptyState icon={PenTool} message="That drill isn't in your library." />
+        <Link to="/drills" className="text-sm font-medium text-accent hover:underline">
           Back to drills
         </Link>
       </div>

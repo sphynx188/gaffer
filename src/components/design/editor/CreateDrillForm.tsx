@@ -15,12 +15,12 @@ const pitchOrientationOptions: PitchOrientation[] = ['portrait', 'landscape']
 // Carried over unchanged from the phases-era editor: name, pitch size and
 // orientation are still everything a drill needs at creation. createDrill
 // seeds the keyframe; the pitch config is built here (see drillSlice).
+// `teamId` dropped (club tenancy, 2026-08-28) — createDrill now reads
+// club_id from the caller's selectedClubId itself, not a prop.
 export function CreateDrillForm({
-  teamId,
   onCreate,
   onCreated,
 }: {
-  teamId: string
   onCreate: (input: NewDrillInput) => Promise<Drill | null>
   onCreated: (drill: Drill) => void
 }) {
@@ -38,7 +38,6 @@ export function CreateDrillForm({
     setSubmitting(true)
     const preset = findPreset(pitchSize) ?? findPreset('full')!
     const created = await onCreate({
-      team_id: teamId,
       name: name.trim(),
       orientation,
       pitch: { ...configFromPreset(preset, orientation), overlays: [] },

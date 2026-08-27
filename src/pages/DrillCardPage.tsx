@@ -70,16 +70,18 @@ const PRINT_STYLES = `
 
 export function DrillCardPage() {
   const { drillId } = useParams<{ drillId: string }>()
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const fetchDrills = useStore((s) => s.fetchDrills)
 
   // Same rule every other screen follows: fetch for itself rather than
   // assuming something else ran first, since this is a deep-linkable route.
+  // Club tenancy (2026-08-28): no scope argument any more (RLS decides
+  // visibility) — un-gated per the plan's Task 5 call-site census, or the
+  // print card would silently render empty for every drill.
   useEffect(() => {
-    if (selectedTeamId) fetchDrills(selectedTeamId)
-  }, [selectedTeamId, fetchDrills])
+    void fetchDrills()
+  }, [fetchDrills])
 
   const drill = drills.find((d) => d.id === drillId) ?? null
 
@@ -94,7 +96,7 @@ export function DrillCardPage() {
     }
     return (
       <div className="mx-auto max-w-[820px] space-y-3 p-6">
-        <EmptyState icon={PenTool} message="That drill isn't in this team's list." />
+        <EmptyState icon={PenTool} message="That drill isn't in your library." />
         <Link to="/drills" className="text-sm font-medium text-accent hover:underline">
           Back to the drill library
         </Link>

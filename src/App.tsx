@@ -16,6 +16,7 @@ import { DesignPage } from './pages/DesignPage'
 import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
 import { DrillCardPage } from './pages/DrillCardPage'
+import { DrillViewPage } from './pages/DrillViewPage'
 import { SharedDrillPage } from './pages/SharedDrillPage'
 import { TeamSettingsPage } from './pages/TeamSettingsPage'
 import { CalendarPage } from './pages/CalendarPage'
@@ -131,6 +132,7 @@ function AuthedApp() {
         <Route path="design" element={<DesignPage />} />
         <Route path="design/:drillId" element={<DrillEditorPage />} />
         <Route path="drills" element={<DrillLibraryPage />} />
+        <Route path="drills/:drillId/view" element={<DrillViewPage />} />
         <Route path="tactics" element={<TacticsPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
         <Route path="teams" element={<TeamSettingsPage />} />

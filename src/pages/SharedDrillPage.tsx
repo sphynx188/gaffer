@@ -94,7 +94,11 @@ function Frame({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SharedDrill({ drill }: { drill: Drill }) {
+// Exported for DrillViewPage.tsx (club tenancy, Task 5) — the in-app
+// read-only viewer for a licensed/collection drill reuses the exact same
+// presentational component the public share page renders, fed a Drill from
+// the store instead of a token fetch.
+export function SharedDrill({ drill }: { drill: Drill }) {
   const playback = useTimelinePlayback(drill.duration_seconds)
   const frame = useMemo(
     () => frameAt(drill.scene, drill.keyframes, playback.currentTime),

@@ -23,35 +23,33 @@ function pitchLabel(drill: Drill): string {
 
 export function DesignPage() {
   const navigate = useNavigate()
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
+  const selectedClubId = useStore((s) => s.selectedClubId)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const drillsError = useStore((s) => s.drillsError)
   const fetchDrills = useStore((s) => s.fetchDrills)
   const createDrill = useStore((s) => s.createDrill)
 
+  // Club tenancy (2026-08-28): fetchDrills takes no scope argument any more
+  // (RLS decides visibility) — selectedClubId is still a dependency here
+  // even though the query itself doesn't filter by it, purely so switching
+  // clubs re-triggers a refetch rather than leaving the previous club's
+  // list on screen (clubSlice.selectClub clears `drills` on switch; this is
+  // what refills it).
   useEffect(() => {
-    if (selectedTeamId) fetchDrills(selectedTeamId)
-  }, [selectedTeamId, fetchDrills])
+    void fetchDrills()
+  }, [fetchDrills, selectedClubId])
 
   return (
     <div>
       <PageHeader title="Design" />
       <Card>
         <div className="space-y-4">
-          {!selectedTeamId && <EmptyState icon={PenTool} message="Select a team to design its drills." />}
-
-          {selectedTeamId && (
-            <CreateDrillForm
-              teamId={selectedTeamId}
-              onCreate={createDrill}
-              onCreated={(created) => navigate(`/design/${created.id}`)}
-            />
-          )}
+          <CreateDrillForm onCreate={createDrill} onCreated={(created) => navigate(`/design/${created.id}`)} />
 
           {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
 
-          {selectedTeamId && drillsLoading && drills.length === 0 && (
+          {drillsLoading && drills.length === 0 && (
             <div role="status" aria-busy="true" className="space-y-2">
               <span className="sr-only">Loading drills…</span>
               {SKELETON_ROWS.map((row) => (
@@ -60,8 +58,8 @@ export function DesignPage() {
             </div>
           )}
 
-          {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
-            <EmptyState icon={PenTool} message="No drills yet for this team — create one above." />
+          {!drillsLoading && drills.length === 0 && !drillsError && (
+            <EmptyState icon={PenTool} message="No drills yet — create one above." />
           )}
 
           {drills.length > 0 && (

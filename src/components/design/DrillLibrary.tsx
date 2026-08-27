@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Copy, LibraryBig, Pause, Play, SlidersHorizontal } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Copy, LibraryBig, Pause, PenSquare, Play, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
+import { selectMyRole } from '../../store/slices/clubSlice'
+import { useSession } from '../../hooks/useSession'
 import type { Drill, DrillDifficulty, DrillIntensity, DrillPhaseOfPlay, SessionBlock } from '../../store'
 import {
   DRILL_DIFFICULTIES,
@@ -21,6 +24,8 @@ import { Skeleton } from '../ui/Skeleton'
 import { Badge } from '../ui/Badge'
 import { Dropdown } from '../ui/Dropdown'
 import { PitchCanvas } from './PitchCanvas'
+import { LibraryGroups } from './LibraryGroups'
+import { buildLibraryGroups } from './buildLibraryGroups'
 
 // Phase 3.1 — Drill library / browse & search (US-17), reworked by
 // DRILL_CREATOR_REWORK_PLAN.md Stage 9 into a card grid with real filters and
@@ -95,21 +100,38 @@ function filtersActive(filters: Filters): boolean {
 }
 
 export function DrillLibrary() {
-  const selectedTeamId = useStore((s) => s.selectedTeamId)
+  const { session } = useSession()
+  const myUserId = session?.user.id ?? null
+  const selectedClubId = useStore((s) => s.selectedClubId)
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  const clubMembers = useStore((s) => s.clubMembers)
+  const collections = useStore((s) => s.collections)
+  const collectionDrillIds = useStore((s) => s.collectionDrillIds)
+  const fetchClubData = useStore((s) => s.fetchClubData)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const drillsError = useStore((s) => s.drillsError)
   const fetchDrills = useStore((s) => s.fetchDrills)
   const duplicateDrill = useStore((s) => s.duplicateDrill)
+  const deleteDrill = useStore((s) => s.deleteDrill)
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [moreOpen, setMoreOpen] = useState(false)
   const [selectedDrillId, setSelectedDrillId] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Club tenancy (2026-08-28): fetchDrills takes no scope argument any more
+  // (RLS decides visibility) — selectedClubId stays a dependency purely so
+  // switching clubs re-triggers a refetch (clubSlice.selectClub clears
+  // `drills`/`collections`/etc. on switch; these two calls refill them).
+  useEffect(() => {
+    void fetchDrills()
+  }, [fetchDrills, selectedClubId])
 
   useEffect(() => {
-    if (selectedTeamId) fetchDrills(selectedTeamId)
-  }, [selectedTeamId, fetchDrills])
+    void fetchClubData()
+  }, [fetchClubData, selectedClubId])
 
   // Every option list a filter dropdown offers is built from what's actually
   // in `drills`, not a fixed vocabulary — category and age band are free
@@ -164,6 +186,33 @@ export function DrillLibrary() {
   }, [drills, filters])
 
   const selectedDrill = filteredDrills.find((d) => d.id === selectedDrillId) ?? drills.find((d) => d.id === selectedDrillId) ?? null
+  // Same condition clubSlice's canEditDoc expresses, inlined rather than
+  // called via useStore so it stays reactive to isAdmin/selectedClubId
+  // without a second store subscription keyed on a value (selectedDrill)
+  // that's itself derived from local state, not the store.
+  const canEditSelected = selectedDrill
+    ? (isAdmin && selectedDrill.club_id === selectedClubId) || selectedDrill.created_by === myUserId
+    : false
+
+  const licensedCollectionIds = useMemo(
+    () => new Set(collections.filter((c) => c.club_id !== selectedClubId).map((c) => c.id)),
+    [collections, selectedClubId]
+  )
+
+  const groups = useMemo(
+    () =>
+      buildLibraryGroups({
+        docs: filteredDrills,
+        collections,
+        collectionDocIds: collectionDrillIds,
+        licensedCollectionIds,
+        myUserId,
+        isAdmin,
+        members: clubMembers,
+        docLabel: 'drills',
+      }),
+    [filteredDrills, collections, collectionDrillIds, licensedCollectionIds, myUserId, isAdmin, clubMembers]
+  )
 
   const handleSelectDrill = (id: string) => {
     setSelectedDrillId((current) => (current === id ? null : id))
@@ -176,10 +225,16 @@ export function DrillLibrary() {
     if (created) setSelectedDrillId(created.id)
   }
 
+  const handleDelete = async (drillId: string) => {
+    setDeleting(true)
+    const deleted = await deleteDrill(drillId)
+    setDeleting(false)
+    if (deleted) setSelectedDrillId(null)
+  }
+
   return (
     <div className="space-y-4">
-      {!selectedTeamId && <p className="text-sm text-ink-muted">Select a team to browse its drills.</p>}
-      {selectedTeamId && drillsLoading && drills.length === 0 && (
+      {drillsLoading && drills.length === 0 && (
         <div role="status" aria-busy="true">
           <span className="sr-only">Loading drills…</span>
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -194,7 +249,7 @@ export function DrillLibrary() {
         </div>
       )}
       {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
-      {selectedTeamId && !drillsLoading && drills.length === 0 && !drillsError && (
+      {!drillsLoading && drills.length === 0 && !drillsError && (
         <EmptyState
           icon={LibraryBig}
           message="No drills yet."
@@ -202,7 +257,7 @@ export function DrillLibrary() {
         />
       )}
 
-      {selectedTeamId && drills.length > 0 && (
+      {drills.length > 0 && (
         <>
           <LibraryFilterBar
             filters={filters}
@@ -212,25 +267,35 @@ export function DrillLibrary() {
             ageBandOptions={ageBandOptions}
             categoryOptions={categoryOptions}
           />
+          <Link
+            to="/design"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+          >
+            + New drill
+          </Link>
 
           {filteredDrills.length === 0 ? (
             <p className="text-sm text-ink-muted">No drills match these filters.</p>
           ) : (
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredDrills.map((drill) => (
-                <li key={drill.id}>
-                  <DrillCard drill={drill} selected={selectedDrillId === drill.id} onSelect={() => handleSelectDrill(drill.id)} />
-                </li>
-              ))}
-            </ul>
+            <LibraryGroups
+              groups={groups}
+              renderCard={(id) => {
+                const drill = filteredDrills.find((d) => d.id === id)
+                if (!drill) return null
+                return <DrillCard drill={drill} selected={selectedDrillId === id} onSelect={() => handleSelectDrill(id)} />
+              }}
+            />
           )}
 
           {selectedDrill && (
             <DrillPreviewPanel
               key={selectedDrill.id}
               drill={selectedDrill}
+              canEdit={canEditSelected}
               onDuplicate={() => handleDuplicate(selectedDrill.id)}
               duplicating={duplicating}
+              onDelete={() => handleDelete(selectedDrill.id)}
+              deleting={deleting}
             />
           )}
         </>
@@ -466,13 +531,20 @@ function DrillCard({ drill, selected, onSelect }: { drill: Drill; selected: bool
 // into a new drill with a different duration.
 function DrillPreviewPanel({
   drill,
+  canEdit,
   onDuplicate,
   duplicating,
+  onDelete,
+  deleting,
 }: {
   drill: Drill
+  canEdit: boolean
   onDuplicate: () => void
   duplicating: boolean
+  onDelete: () => void
+  deleting: boolean
 }) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const playback = useTimelinePlayback(drill.duration_seconds)
 
   // A coach glancing through the library wants a drill to keep demonstrating
@@ -495,6 +567,13 @@ function DrillPreviewPanel({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-ink">{drill.name}</p>
         <div className="flex items-center gap-2">
+          <Link
+            to={canEdit ? `/design/${drill.id}` : `/drills/${drill.id}/view`}
+            className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <PenSquare className="h-3.5 w-3.5" />
+            {canEdit ? 'Open in editor' : 'View'}
+          </Link>
           <button
             type="button"
             onClick={onDuplicate}
@@ -514,8 +593,45 @@ function DrillPreviewPanel({
               {playback.playing ? 'Pause' : 'Play'}
             </button>
           )}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs font-semibold text-bad transition-colors hover:border-bad/40 hover:bg-bad/5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </button>
+          )}
         </div>
       </div>
+
+      {confirmingDelete && (
+        <div className="mb-3 rounded-lg border border-bad/30 bg-bad/10 p-3">
+          <p className="text-sm text-bad">
+            Delete <span className="font-medium">{drill.name}</span>? Any session it's part of will drop it too —
+            this can&rsquo;t be undone.
+          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              className="rounded-md bg-bad px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {deleting ? 'Deleting…' : 'Delete drill'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              disabled={deleting}
+              className="px-2 py-1.5 text-sm text-ink-muted"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <PitchCanvas pitch={drill.pitch} frame={frame} maxWidth={340} />
 
