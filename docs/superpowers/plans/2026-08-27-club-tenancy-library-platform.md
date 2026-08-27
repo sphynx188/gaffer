@@ -1495,7 +1495,7 @@ git commit -m "feat: licensing — grant/revoke, incoming dispersal, read-only l
   "U18 Tactical" + "First Team Pressing") and **Riverside Academy**
   (near-empty).
 
-- [ ] **Step 1: Persona script** (idempotent — signs in when the user
+- [x] **Step 1: Persona script** (idempotent — signs in when the user
 already exists):
 
 ```js
@@ -1521,7 +1521,7 @@ for (const [email, password] of PERSONAS) {
 }
 ```
 
-- [ ] **Step 2: Seed SQL** (`scripts/seed-demo.sql`, applied via MCP
+- [x] **Step 2: Seed SQL** (`scripts/seed-demo.sql`, applied via MCP
 `execute_sql`; idempotent via the existence check; `<LEGACY_ADMIN_EMAIL>`
 from recon supplies the template drills/tactics):
 
@@ -1604,7 +1604,7 @@ end $$;
 the legacy library has fewer than 4 drills/2 tactics the loops naturally
 shrink — fine.)
 
-- [ ] **Step 3: Verify by SQL then by eye.** SQL: Barca has 4 collections,
+- [x] **Step 3: Verify by SQL then by eye.** SQL: Barca has 4 collections,
 16 drills, 2 tactics; U12 persona's `can_read` set = 8 drills (probe with the
 per-persona `set_config` pattern from Task 3). Browser: sign in as each
 persona — admin sees everything grouped; U12 coach sees exactly U12
@@ -1612,7 +1612,7 @@ Foundation + U14 Passing Block, read-only; U18 likewise; riverside coach
 sees an empty library. Clean up Task 8's scratch: remove Night Coach's
 membership row (the auth user stays; note in HANDOFF).
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ```bash
 git add scripts/seed-demo-users.mjs scripts/seed-demo.sql
@@ -1932,3 +1932,19 @@ collection can now see that SOME license row targets their club (a bare
 id/date, via `licensesIn`) before they're granted the collection itself —
 negligible, and the necessary tradeoff for spec §6.3's badge to render for
 anyone but an admin. Full reasoning in 031's own header.
+
+**2026-08-28 — Task 12: no corrections needed** — the tactic column-list
+fix from Task 10/9's recon findings was applied directly in
+`seed-demo.sql` from the start (`description`/`phase_of_play` included),
+so this task's own SQL matched real columns on the first try. Verified:
+Barca 4 collections/16 drills/2 tactics/3 members, Riverside 2 members,
+U12 persona's `can_read` set = exactly 8 drills (SQL probe, matches the
+2×4 grant), all four persona logins signed into live and confirmed by eye
+— admin sees everything grouped; U12/U18 coaches see exactly their two
+granted collections each and nothing of the other's; Riverside coach sees
+an empty library. U12 coach opened a drill read-only, played it, and
+duplicated it into their own folder — confirmed invisible to the U18
+coach on the same page. Night Coach's `club_member` row removed per the
+plan's cleanup instruction (the auth user itself stays — deleting one
+isn't reachable client-side, same as every other scratch account this run
+has left behind).
