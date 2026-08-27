@@ -1203,7 +1203,7 @@ git commit -m "feat: library-centric shell — team module shelved (routes/nav r
   Collections · Licenses · Transfer — later entries added by their tasks)
   guarding on `selectMyRole !== 'admin'` → redirect `/`.
 
-- [ ] **Step 1: Write the Edge Function.**
+- [x] **Step 1: Write the Edge Function.**
 
 ```ts
 // supabase/functions/create-coach/index.ts
@@ -1251,14 +1251,14 @@ Deno.serve(async (req) => {
 Deploy via MCP `deploy_edge_function` (name `create-coach`, default JWT
 verification ON).
 
-- [ ] **Step 2: Coaches page.** `AdminLayout`: role guard + sub-nav
+- [x] **Step 2: Coaches page.** `AdminLayout`: role guard + sub-nav
 (design.md tokens; shared `ROW_GRID` constant for the members table header +
 rows). `CoachesPage`: table of `clubMembers` (display name, role, joined
 date) + a "Create coach" form (display name / email / password fields,
 submit → `createCoach`, success appends to the table via the refetch inside
 the action, error shown in `text-bad`).
 
-- [ ] **Step 3: Verify.** Build/lint. Browser as test account (admin of its
+- [x] **Step 3: Verify.** Build/lint. Browser as test account (admin of its
 club): `/admin/coaches` renders self as admin; create coach
 `overnight.coach@gafferdemo.app` / `OvernightCoach2026!` "Night Coach" →
 appears in table. Sign out; sign in AS that coach: sees empty libraries (no
@@ -1267,7 +1267,7 @@ Negative probe via curl: call the function with the coach's JWT →
 `{"error":"not an admin of this club"}`. Keep this coach — Task 9 uses it,
 Task 12's cleanup notes it.
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ```bash
 git add supabase/functions/create-coach/index.ts src/pages/admin/AdminLayout.tsx src/pages/admin/CoachesPage.tsx src/App.tsx src/layout/AppShell.tsx
@@ -1847,3 +1847,19 @@ mechanics around them, so this is reasonable evidence the mobile branch
 works, but it is not the same as having actually seen it render at 375px.
 Recorded honestly per the "never fabricate verification" rule rather than
 claimed as seen.
+
+**2026-08-28 — Task 8: the negative-probe curl in the plan doesn't work
+against this project as written; used `supabase.functions.invoke` from the
+page instead.** A raw `fetch(...)` with the coach's copied `access_token`
+as `Authorization: Bearer` (with or without an `apikey` header) was
+rejected at the platform gateway itself with `401
+UNAUTHORIZED_ASYMMETRIC_JWT` — before ever reaching the function's own
+code. This looks like a project-level JWT-signing-keys configuration this
+plan didn't anticipate (an asymmetric-keys gateway check ahead of the
+function), not a bug in `create-coach` — calling the SAME function through
+the app's own configured `supabase.functions.invoke` (same page, same
+signed-in coach) reached the function correctly and got the expected
+`403 {"error":"not an admin of this club"}`. Confirmed via SQL no user was
+created by any of the failed attempts. Used the working method and moved
+on rather than debugging the project's JWT signing configuration, which is
+out of scope for this task.

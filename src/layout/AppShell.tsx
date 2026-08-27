@@ -1,7 +1,8 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, LibraryBig, LogOut, Menu, Moon, Shield, Sun, X } from 'lucide-react'
+import { ChevronLeft, LibraryBig, LogOut, Menu, Moon, Settings, Shield, Sun, X } from 'lucide-react'
 import { useStore } from '../store'
+import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import { useTheme } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
@@ -17,13 +18,16 @@ interface NavItem {
 // Club tenancy (2026-08-28, Task 7): one flat nav for every signed-in
 // route now — the earlier coach-level/team-level two-tier split (and the
 // route-driven TEAM_SCOPED_PATHS switch that chose between them) is gone
-// along with the team module it organized. Admin is added by Task 8
-// (role-gated, once /admin routes exist — keeping every commit shippable
-// rather than linking a 404 for one task's window).
+// along with the team module it organized.
 const NAV_ITEMS: NavItem[] = [
   { to: '/drills', label: 'Drill library', icon: LibraryBig },
   { to: '/tactics', label: 'Tactics', icon: Shield },
 ]
+
+// Admin (Task 8): role-gated, appended only for a club admin — /admin/*
+// itself also redirects a non-admin (AdminLayout's own guard), so this is
+// belt-and-braces UI polish, not the actual access control.
+const ADMIN_NAV_ITEM: NavItem = { to: '/admin', label: 'Admin', icon: Settings }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ' +
@@ -126,11 +130,11 @@ function ThemeToggleButton() {
   )
 }
 
-// Club switcher — mount point only for now (Task 4); TeamSwitcher stays in
-// place alongside it until Task 7's full nav rework retires the team-scoped
-// shell entirely. Single-membership case renders static text rather than a
-// disabled/no-op picker — a coach with exactly one club has nothing to
-// switch between, and design.md's Dropdown convention is for real choices.
+// Club switcher — the one "where am I" control since Task 7 retired the
+// team-scoped breadcrumb selector and TeamSwitcher along with it.
+// Single-membership case renders static text rather than a disabled/no-op
+// picker — a coach with exactly one club has nothing to switch between,
+// and design.md's Dropdown convention is for real choices.
 function ClubSwitcher() {
   const memberships = useStore((s) => s.memberships)
   const selectedClubId = useStore((s) => s.selectedClubId)
@@ -168,17 +172,15 @@ function SignOutFooter({ email }: { email?: string }) {
   )
 }
 
-// FM-style two-tier nav: a coach-level context (Dashboard/Teams/Calendar)
-// and a team-level context (Overview/Roster/Sessions/Attendance/Design/
-// Drills) for whichever team is selected, swapped based on the current
-// route (see TEAM_SCOPED_PATHS above). Desktop/tablet renders both the
-// brand block and the active tab set in one slim sticky top bar — no
-// permanent sidebar reserving screen width. Below `lg`, the tab strip and
-// team switcher collapse behind a hamburger-triggered slide-in drawer,
-// since a row of up to six tabs doesn't fit a phone-width top bar.
+// One flat nav since Task 7 (Drill Library / Tactics, + Admin for a club
+// admin — see NAV_ITEMS/ADMIN_NAV_ITEM above), rendered as a slim sticky
+// top bar plus an icon rail on desktop/tablet, or a hamburger-triggered
+// slide-in drawer below `lg`.
 export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  const navItems = isAdmin ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS
   const [navOpen, setNavOpen] = useState(false)
 
   // Kept despite the team module being shelved (Task 7): SquadPanel's
@@ -263,7 +265,7 @@ export function AppShell() {
           <div className="border-b border-line px-4 py-3">
             <ClubSwitcher />
           </div>
-          <NavList items={NAV_ITEMS} onNavigate={() => setNavOpen(false)} />
+          <NavList items={navItems} onNavigate={() => setNavOpen(false)} />
           <SignOutFooter email={session?.user.email} />
         </div>
       </div>
@@ -309,7 +311,7 @@ export function AppShell() {
           hamburger drawer instead. */}
       <div className="group hidden lg:block">
         <aside className="fixed bottom-0 left-0 top-14 z-20 flex w-14 flex-col overflow-hidden border-r border-line bg-panel transition-[width] duration-200 ease-out group-hover:w-52 group-focus-within:w-52">
-          <NavList items={NAV_ITEMS} fadeLabel />
+          <NavList items={navItems} fadeLabel />
         </aside>
         <div className="pointer-events-none fixed bottom-0 left-14 right-0 top-14 z-10 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100" />
       </div>
