@@ -179,7 +179,7 @@ This plan is designed to execute unattended, end to end, in one night.
   component names for drill and tactic (the components `/d/:token` and
   `/t/:token` render).
 
-- [ ] **Step 1: Branch and baseline.**
+- [x] **Step 1: Branch and baseline.**
 
 ```bash
 cd /Users/max/Desktop/app/gaffer
@@ -188,7 +188,7 @@ npm run build && npm run lint
 ```
 Expected: build clean; record the exact lint warning count/list as baseline.
 
-- [ ] **Step 2: DB recon via MCP** (`execute_sql`, read-only):
+- [x] **Step 2: DB recon via MCP** (`execute_sql`, read-only):
 
 ```sql
 select distinct role from team_coaches;
@@ -205,7 +205,7 @@ select count(*) from early_access_signup;
 ```
 Also `ls supabase/migrations/` for the next free number.
 
-- [ ] **Step 3: Code recon.** Read `src/App.tsx`, `src/layout/AppShell.tsx`,
+- [x] **Step 3: Code recon.** Read `src/App.tsx`, `src/layout/AppShell.tsx`,
 `src/hooks/useSession.ts`, `src/store/useStore.ts`, the share-route page
 components, and `design.md`. Record in the recon notes: every route path and
 which component renders it; the nav arrays (`NAV_ITEMS_TEAM` etc.); the shape
@@ -230,13 +230,13 @@ of `runSupabaseAction`; the share-viewer component names and their props.
 - `TeamSwitcher.tsx` is the component Task 4's club switcher replaces.
 - `_to_delete/` sits outside `src/`, so it never compiles. Leave it.
 
-- [ ] **Step 3b: Activate Serena for this repo** if a fresh session has not:
+- [x] **Step 3b: Activate Serena for this repo** if a fresh session has not:
 `activate_project` with `/Users/max/Desktop/app/gaffer` (project name
 `gaffer`). **Do not run its `onboarding` tool** — CLAUDE.md plus this plan
 already carry that context. Add `.serena/` to `.gitignore` if it is not
 already ignored, so its cache never lands in a commit.
 
-- [ ] **Step 4: Commit recon notes.**
+- [x] **Step 4: Commit recon notes.**
 
 ```bash
 git add docs/superpowers/plans/2026-08-27-recon-notes.md
@@ -1701,3 +1701,35 @@ compile, and un-gate the active pages explicitly; Task 7's verify step now
 demands all four document routes be opened and seen rendering content.
 Lesson for the run: **before changing any store action's signature, run
 `find_referencing_symbols` on it.**
+
+**2026-08-28 — Task 0 recon corrections (full detail in
+`2026-08-27-recon-notes.md`).** Six factual corrections to this plan's
+assumptions, none blocking, all applied before the tasks that depend on
+them:
+1. Real drill policy name is `drill_all_members_or_unscoped`, not
+   `drill_all_members`/`drill_team_members` as Task 3 guessed. `tactic_all_
+   members` guessed correctly. Task 3's drop statements corrected.
+2. Real storage policy names are `drill_thumbnail_select/insert/update/
+   delete`, not the `"thumbnails members ..."` names Task 3 guessed. Corrected.
+3. `tactic` has real columns `description` and `phase_of_play` that Task 10's
+   `copy_collection_to_club` and Task 12's seed script both omitted from
+   their INSERT column lists — the exact "silent omission" risk Task 10's own
+   header calls out. Fixed in both places.
+4. `runSupabaseAction`'s real signature is `(action, fallbackMessage?) =>
+   Promise<{data, error}>`, not the callback-based
+   `(action, onError) => rows` shape Task 4's pseudocode assumed. Task 4's
+   `clubSlice` (and every slice action in Tasks 5/6/9/10/11) follows the real
+   idiom from `teamSlice.ts` instead.
+5. design.md mandates the `Dropdown` component for every single-choice
+   picker — native `<select>` is explicitly retired app-wide. Every place
+   this plan's prose says "select" (club switcher, target-club pickers in
+   Tasks 9/10/11) means `Dropdown`.
+6. `select count(*) from drill where team_id is null` = 0 today, so migration
+   027's "coach-wide drills → legacy admin" backfill UPDATE is a no-op on
+   current data — left in the migration anyway as a correct safety net, not
+   removed.
+
+Also confirmed via Serena (unchanged from the 2026-08-27 census): 6 external
+`fetchDrills` call sites, 4 external `fetchTactics` call sites — same file
+sets the plan already lists, exact line numbers drifted a handful of lines
+(immaterial).
