@@ -123,7 +123,6 @@ const DEFAULT_MAX_WIDTH = 420
 // has nothing to show, and it keeps the pan clamp below to one simple case.
 const MIN_SCALE = 1
 const MAX_SCALE = 5
-const ZOOM_STEP = 1.08
 
 // The drawing tools the markings panel arms. Everything but 'ruler' commits a
 // Marking; the ruler only ever reports a distance on screen.
@@ -494,28 +493,6 @@ export function PitchCanvas({
   }
 
   // --- zoom & pan (Stage 3.6) ---------------------------------------------
-
-  const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
-    const stage = e.target.getStage()
-    const pointer = stage?.getPointerPosition()
-    if (!stage || !pointer) return
-    e.evt.preventDefault()
-    const nextScale = clamp(
-      view.scale * (e.evt.deltaY > 0 ? 1 / ZOOM_STEP : ZOOM_STEP),
-      MIN_SCALE,
-      MAX_SCALE
-    )
-    // Keep whatever is under the cursor pinned there while the scale changes.
-    const contentX = (pointer.x - view.x) / view.scale
-    const contentY = (pointer.y - view.y) / view.scale
-    setView(
-      clampView(
-        { scale: nextScale, x: pointer.x - contentX * nextScale, y: pointer.y - contentY * nextScale },
-        width,
-        height
-      )
-    )
-  }
 
   // Two-finger pinch doubles as pan: the midpoint between the fingers is the
   // zoom anchor, so moving both fingers together drags the pitch.
@@ -905,7 +882,6 @@ export function PitchCanvas({
           style={cursor ? { cursor } : undefined}
           onClick={handleStageClick}
           onTap={handleStageClick}
-          onWheel={handleWheel}
           onMouseDown={handleStagePointerDown}
           onMouseMove={handleStagePointerMove}
           onMouseUp={handleStagePointerUp}

@@ -79,7 +79,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'pitch-canvas',
     anchor: 'pitch-canvas',
     title: 'The pitch',
-    body: 'This is the board. Pinch or scroll to zoom, and hold space to pan — useful once a drill gets busy.',
+    body: 'This is the board. Pinch to zoom, and hold space to pan — useful once a drill gets busy.',
     placement: 'top',
   },
   {
