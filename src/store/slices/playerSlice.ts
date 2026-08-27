@@ -43,15 +43,17 @@ export interface PlayerSlice {
   fetchTeamRoster: (teamId: string, force?: boolean) => Promise<void>
   createPlayer: (input: NewPlayerInput) => Promise<Player | null>
   updatePlayer: (id: string, patch: PlayerUpdateInput) => Promise<Player | null>
+  // `player_notes` and `availability` rows for this player cascade at the DB
+  // level (schema.sql) — a past session's attendance record just loses its
+  // row for this player rather than blocking the delete.
+  deletePlayer: (id: string) => Promise<boolean>
 }
 
 // Phase 1.3 — Player roster CRUD (US-5, gaffer_mvp_build_steps.md). Same
 // shape as teamSlice/sessionSlice/drillSlice: every write funnels through
 // runSupabaseAction, and fetches are scoped by team_id (never a bare
 // select-all) so switching teams (teamSlice's selectedTeamId) never bleeds
-// one team's roster into another's view. No deletePlayer here — the build
-// guide's DoD for 1.3 only calls for add + edit of all four fields, not
-// removal; add it later if the roster actually needs it.
+// one team's roster into another's view.
 export const createPlayerSlice: StateCreator<StoreState, [], [], PlayerSlice> = (set, get) => {
   // Same stale-response guard as sessionSlice/drillSlice — see the comment
   // there: a fast team-switch can't let a slower, now-stale fetch for the
@@ -139,6 +141,24 @@ export const createPlayerSlice: StateCreator<StoreState, [], [], PlayerSlice> = 
         ...(player ? { players: get().players.map((p) => (p.id === id ? player : p)) } : {}),
       })
       return player
+    },
+
+    deletePlayer: async (id) => {
+      set({ playersLoading: true, playersError: null })
+      const { error } = await runSupabaseAction<null>(
+        () => supabase.from('player').delete().eq('id', id),
+        "Couldn't delete player, try again."
+      )
+      if (error) {
+        set({ playersLoading: false, playersError: error })
+        return false
+      }
+      set((state) => ({
+        playersLoading: false,
+        playersError: null,
+        players: state.players.filter((p) => p.id !== id),
+      }))
+      return true
     },
   }
 }

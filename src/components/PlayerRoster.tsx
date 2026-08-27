@@ -113,6 +113,7 @@ export function PlayerRoster() {
   const fetchPlayers = useStore((s) => s.fetchPlayers)
   const createPlayer = useStore((s) => s.createPlayer)
   const updatePlayer = useStore((s) => s.updatePlayer)
+  const deletePlayer = useStore((s) => s.deletePlayer)
 
   // Season attendance stat, below, needs every past session's embedded
   // availability — the same `sessions` array SessionPlanner/Attendance
@@ -195,6 +196,7 @@ export function PlayerRoster() {
               player={player}
               attendance={attendanceByPlayer.get(player.id)}
               onSave={updatePlayer}
+              onDelete={deletePlayer}
             />
           ))}
         </ul>
@@ -306,10 +308,12 @@ function PlayerRow({
   player,
   attendance,
   onSave,
+  onDelete,
 }: {
   player: Player
   attendance: AttendanceStat | undefined
   onSave: (id: string, patch: PlayerFormValues) => Promise<Player | null>
+  onDelete: (id: string) => Promise<boolean>
 }) {
   const [editing, setEditing] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
@@ -319,6 +323,16 @@ function PlayerRow({
     player.squad_number != null ? String(player.squad_number) : ''
   )
   const [saving, setSaving] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (deleting) return
+    setDeleting(true)
+    const deleted = await onDelete(player.id)
+    setDeleting(false)
+    if (deleted) setConfirmingDelete(false)
+  }
 
   const startEdit = () => {
     setName(player.name)
@@ -338,6 +352,35 @@ function PlayerRow({
     })
     setSaving(false)
     if (saved) setEditing(false)
+  }
+
+  if (confirmingDelete) {
+    return (
+      <li className="rounded-md border border-bad/30 bg-bad/10 px-3 py-2">
+        <p className="text-sm text-bad">
+          Delete <span className="font-medium">{player.name}</span>? Their notes and attendance history go with
+          them — this can&rsquo;t be undone.
+        </p>
+        <div className="mt-2 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="rounded-md bg-bad px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete player'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(false)}
+            disabled={deleting}
+            className="px-2 py-1.5 text-sm text-ink-muted"
+          >
+            Cancel
+          </button>
+        </div>
+      </li>
+    )
   }
 
   if (!editing) {
@@ -369,6 +412,13 @@ function PlayerRow({
               className="text-sm text-ink-muted underline underline-offset-2"
             >
               Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(true)}
+              className="text-sm text-bad underline underline-offset-2"
+            >
+              Delete
             </button>
           </div>
         </div>
