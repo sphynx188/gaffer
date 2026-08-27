@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import { Shield, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
+import type { LibraryView } from '../hooks/useLibraryView'
 import type { DrillPhaseOfPlay, Tactic } from '../store'
 import { DRILL_PHASES_OF_PLAY, DRILL_PHASE_OF_PLAY_LABELS } from '../store'
 import { FORMATIONS } from '../components/tactics/formations'
@@ -15,6 +16,7 @@ import { Badge } from '../components/ui/Badge'
 import { Dropdown } from '../components/ui/Dropdown'
 import { LibraryGroups } from '../components/design/LibraryGroups'
 import { buildLibraryGroups } from '../components/design/buildLibraryGroups'
+import type { LibraryOutletContext } from './LibraryLayout'
 
 // `/library/tactics` — the tactics library (TACTICS_BOARD_REWORK_PLAN.md
 // Stage 9.1): "card grid reusing DrillLibrary.tsx's patterns: thumbnail,
@@ -47,6 +49,7 @@ function formationLabel(key: string): string {
 }
 
 export function TacticsPage() {
+  const { view } = useOutletContext<LibraryOutletContext>()
   const navigate = useNavigate()
   const { session } = useSession()
   const myUserId = session?.user.id ?? null
@@ -227,11 +230,12 @@ export function TacticsPage() {
               ) : (
                 <LibraryGroups
                   groups={groups}
+                  view={view}
                   renderCard={(id) => {
                     const tactic = filtered.find((t) => t.id === id)
                     if (!tactic) return null
                     const canEdit = (isAdmin && tactic.club_id === selectedClubId) || tactic.created_by === myUserId
-                    return <TacticCardTile tactic={tactic} canEdit={canEdit} />
+                    return <TacticCardTile tactic={tactic} canEdit={canEdit} view={view} />
                   }}
                 />
               )}
@@ -242,7 +246,7 @@ export function TacticsPage() {
   )
 }
 
-function TacticCardTile({ tactic, canEdit }: { tactic: Tactic; canEdit: boolean }) {
+function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: boolean; view: LibraryView }) {
   const deleteTactic = useStore((s) => s.deleteTactic)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -264,12 +268,17 @@ function TacticCardTile({ tactic, canEdit }: { tactic: Tactic; canEdit: boolean 
 
   if (confirmingDelete) {
     return (
-      <div className="flex h-full w-full flex-col justify-between rounded-lg border border-bad/30 bg-bad/10 p-3">
+      <div
+        className={
+          'flex w-full flex-col justify-between gap-2 rounded-lg border border-bad/30 bg-bad/10 p-3 ' +
+          (view === 'grid' ? 'h-full sm:flex-row sm:items-center' : 'sm:flex-row sm:items-center')
+        }
+      >
         <p className="text-sm text-bad">
           Delete <span className="font-medium">{tactic.name}</span>? Any session it's part of will drop it too —
           this can&rsquo;t be undone.
         </p>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={handleDelete}
@@ -291,42 +300,73 @@ function TacticCardTile({ tactic, canEdit }: { tactic: Tactic; canEdit: boolean 
     )
   }
 
+  const deleteButton = canEdit && (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setConfirmingDelete(true)
+      }}
+      title="Delete tactic"
+      aria-label="Delete tactic"
+      className={
+        view === 'grid'
+          ? 'absolute right-2 top-2 z-10 rounded-md bg-panel/80 p-1.5 text-ink-muted transition-colors hover:text-bad'
+          : 'shrink-0 rounded-md p-1.5 text-ink-muted transition-colors hover:text-bad'
+      }
+    >
+      <Trash2 className="h-3.5 w-3.5" />
+    </button>
+  )
+
+  const thumbnail = tactic.thumbnail_url ? (
+    <img src={tactic.thumbnail_url} alt={`${tactic.name} board`} className="h-full w-full object-cover" />
+  ) : (
+    <Shield className={view === 'grid' ? 'h-6 w-6 text-ink-faint' : 'h-4 w-4 text-ink-faint'} />
+  )
+
+  // A badge per side, which is the pair a coach actually reads a tactic by —
+  // "our 4-3-3 against their 4-4-2".
+  const formationBadges = (
+    <>
+      <Badge tone="neutral">{formationLabel(tactic.sides.home.formation)}</Badge>
+      <Badge tone="neutral">v {formationLabel(tactic.sides.away.formation)}</Badge>
+      {tactic.phase_of_play && <Badge tone="neutral">{DRILL_PHASE_OF_PLAY_LABELS[tactic.phase_of_play]}</Badge>}
+    </>
+  )
+
+  if (view === 'list') {
+    return (
+      <Link
+        to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
+        className="flex w-full items-center gap-3 rounded-lg border border-line px-3 py-2 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
+      >
+        <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-panel-raised">
+          {thumbnail}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>
+          <p className="truncate text-xs text-ink-muted">{meta.join(' · ')}</p>
+        </div>
+        <div className="hidden shrink-0 flex-wrap gap-1 sm:flex">{formationBadges}</div>
+        {deleteButton}
+      </Link>
+    )
+  }
+
   return (
     <Link
       to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
       className="relative flex w-full flex-col gap-2 rounded-lg border border-line p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
     >
-      {canEdit && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setConfirmingDelete(true)
-          }}
-          title="Delete tactic"
-          aria-label="Delete tactic"
-          className="absolute right-2 top-2 z-10 rounded-md bg-panel/80 p-1.5 text-ink-muted transition-colors hover:text-bad"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
+      {deleteButton}
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-panel-raised">
-        {tactic.thumbnail_url ? (
-          <img src={tactic.thumbnail_url} alt={`${tactic.name} board`} className="h-full w-full object-cover" />
-        ) : (
-          <Shield className="h-6 w-6 text-ink-faint" />
-        )}
+        {thumbnail}
       </div>
       <div className="min-w-0 space-y-1">
         <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>
-        {/* A badge per side, which is the pair a coach actually reads a
-            tactic by — "our 4-3-3 against their 4-4-2". */}
-        <div className="flex flex-wrap gap-1">
-          <Badge tone="neutral">{formationLabel(tactic.sides.home.formation)}</Badge>
-          <Badge tone="neutral">v {formationLabel(tactic.sides.away.formation)}</Badge>
-          {tactic.phase_of_play && <Badge tone="neutral">{DRILL_PHASE_OF_PLAY_LABELS[tactic.phase_of_play]}</Badge>}
-        </div>
+        <div className="flex flex-wrap gap-1">{formationBadges}</div>
         <p className="truncate text-xs text-ink-muted">{meta.join(' · ')}</p>
       </div>
     </Link>

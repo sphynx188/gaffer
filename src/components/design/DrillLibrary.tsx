@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useOutletContext } from 'react-router-dom'
 import { Copy, LibraryBig, Pause, PenSquare, Play, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
 import { selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
+import type { LibraryOutletContext } from '../../pages/LibraryLayout'
+import type { LibraryView } from '../../hooks/useLibraryView'
 import type { Drill, DrillDifficulty, DrillIntensity, DrillPhaseOfPlay, SessionBlock } from '../../store'
 import {
   DRILL_DIFFICULTIES,
@@ -100,6 +102,7 @@ function filtersActive(filters: Filters): boolean {
 }
 
 export function DrillLibrary() {
+  const { view } = useOutletContext<LibraryOutletContext>()
   const { session } = useSession()
   const myUserId = session?.user.id ?? null
   const selectedClubId = useStore((s) => s.selectedClubId)
@@ -287,10 +290,13 @@ export function DrillLibrary() {
           ) : (
             <LibraryGroups
               groups={groups}
+              view={view}
               renderCard={(id) => {
                 const drill = filteredDrills.find((d) => d.id === id)
                 if (!drill) return null
-                return <DrillCard drill={drill} selected={selectedDrillId === id} onSelect={() => handleSelectDrill(id)} />
+                return (
+                  <DrillCard drill={drill} selected={selectedDrillId === id} onSelect={() => handleSelectDrill(id)} view={view} />
+                )
               }}
             />
           )}
@@ -487,7 +493,17 @@ function LibraryFilterBar({
   )
 }
 
-function DrillCard({ drill, selected, onSelect }: { drill: Drill; selected: boolean; onSelect: () => void }) {
+function DrillCard({
+  drill,
+  selected,
+  onSelect,
+  view,
+}: {
+  drill: Drill
+  selected: boolean
+  onSelect: () => void
+  view: LibraryView
+}) {
   const meta = [
     drill.duration_minutes != null ? `${drill.duration_minutes} min` : null,
     drill.difficulty ? DRILL_DIFFICULTY_LABELS[drill.difficulty] : null,
@@ -495,6 +511,35 @@ function DrillCard({ drill, selected, onSelect }: { drill: Drill; selected: bool
     playerCountLabel(drill),
     ageBandLabel(drill),
   ].filter(Boolean)
+
+  const thumbnail = drill.thumbnail_url ? (
+    <img src={drill.thumbnail_url} alt={`${drill.name} board`} className="h-full w-full object-cover" />
+  ) : (
+    <LibraryBig className={view === 'grid' ? 'h-6 w-6 text-ink-faint' : 'h-4 w-4 text-ink-faint'} />
+  )
+
+  if (view === 'list') {
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        className={
+          'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ' +
+          (selected ? 'border-accent/40 bg-accent/5' : 'border-line hover:border-accent/40 hover:bg-accent/5')
+        }
+      >
+        <div className="flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-panel-raised">
+          {thumbnail}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
+          {meta.length > 0 && <p className="truncate text-xs text-ink-muted">{meta.join(' · ')}</p>}
+        </div>
+        {drill.category && <Badge tone="neutral">{drill.category}</Badge>}
+      </button>
+    )
+  }
 
   return (
     <button
@@ -507,11 +552,7 @@ function DrillCard({ drill, selected, onSelect }: { drill: Drill; selected: bool
       }
     >
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-panel-raised">
-        {drill.thumbnail_url ? (
-          <img src={drill.thumbnail_url} alt={`${drill.name} board`} className="h-full w-full object-cover" />
-        ) : (
-          <LibraryBig className="h-6 w-6 text-ink-faint" />
-        )}
+        {thumbnail}
       </div>
       <div className="min-w-0 space-y-1">
         <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
