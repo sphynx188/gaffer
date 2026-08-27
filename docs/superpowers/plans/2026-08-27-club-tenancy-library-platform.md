@@ -1289,7 +1289,7 @@ git commit -m "feat: admin console — coaches page + create-coach edge function
   collection actions from Task 4's slice API.
 - Produces: the admin can do everything spec §6.2(2) names; no new store API.
 
-- [ ] **Step 1: Build the page.** Left column: collection list (+ "New
+- [x] **Step 1: Build the page.** Left column: collection list (+ "New
 collection" inline form → `createCollection`) with rename/delete
 (`updateCollection`/`deleteCollection`, delete confirms inline like the
 tree's existing delete-confirm pattern). Right column for the selected
@@ -1302,7 +1302,7 @@ collection, three stacked panels:
      toggle bound to `collectionAccess[id].includes(user_id)` →
      `grantCollectionAccess`/`revokeCollectionAccess`.
 
-- [ ] **Step 2: Verify (the visibility flip, live).** As test-account admin:
+- [x] **Step 2: Verify (the visibility flip, live).** As test-account admin:
 create collection "Passing Pack", file 2 drills + 1 tactic into it, grant it
 to Night Coach (Task 8). Sign in as Night Coach: both libraries now show the
 "Passing Pack" group with exactly those documents, read-only (card opens the
@@ -1310,7 +1310,7 @@ viewer, not the editor); "Duplicate to my drills" produces an editable copy
 in their folder (SQL-check `created_by`). Back as admin: revoke the grant;
 coach's next reload shows the group gone (own duplicate stays). Build/lint.
 
-- [ ] **Step 3: Commit.**
+- [x] **Step 3: Commit.**
 
 ```bash
 git add src/pages/admin/CollectionsPage.tsx src/pages/admin/AdminLayout.tsx src/App.tsx
@@ -1863,3 +1863,29 @@ signed-in coach) reached the function correctly and got the expected
 created by any of the failed attempts. Used the working method and moved
 on rather than debugging the project's JWT signing configuration, which is
 out of scope for this task.
+
+**2026-08-28 — Task 9: a real RLS bug found live — `INSERT/UPDATE ...
+RETURNING` on `collection` always failed, even for the row's own creator/
+admin. Migration 029 (renumbered from the plan's own future guess; Task 10
+now claims 030 instead, per the plan's own "claim the real next free
+number at apply time" rule).** Creating "Passing Pack" through the actual
+admin UI hit `new row violates row-level security policy for table
+"collection"` on the very first try. Root cause, isolated by direct SQL
+experiment (see 029's own header for the full trail): within the SAME SQL
+command as the INSERT/UPDATE, `can_read_collection(id)` — the entirety of
+`collection_read`'s policy — re-queries `collection` by id to find the
+row's `club_id`, and Postgres's ordinary same-command self-visibility
+rules mean that nested query cannot see the row its own outer command just
+changed. `drill_club_read`/`tactic_club_read` never hit this because they
+each carry a direct `created_by = (select auth.uid())` clause, evaluable
+straight from row values with no re-query — `collection_read` had no such
+fallback. Tried and reverted two dead ends first (converting the helpers
+to `plpgsql`, marking them `volatile`) before finding the real fix: add
+the same direct `created_by` fallback drill/tactic already use. Verified
+fixed (both INSERT-returning and UPDATE-returning), re-ran the per-persona
+sweep to confirm no new cross-tenant visibility. This was a genuine gap in
+the original migration 028 design, not caught by Task 3's probe suite
+because that suite only exercised plain SELECT, never
+INSERT/UPDATE-RETURNING on `collection` specifically (Task 3 predates
+`collection` having any admin UI to write through) — worth remembering for
+Task 10/11's own collection-adjacent writes.

@@ -10,7 +10,10 @@ import { PageHeader } from '../../components/ui/PageHeader'
 // Tasks 9/10/11) rather than all four appearing before their routes exist,
 // so every commit stays shippable — same reasoning Task 7 applied to the
 // main nav's Admin entry.
-const SUB_NAV = [{ to: '/admin/coaches', label: 'Coaches' }]
+const SUB_NAV = [
+  { to: '/admin/coaches', label: 'Coaches' },
+  { to: '/admin/collections', label: 'Collections' },
+]
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
