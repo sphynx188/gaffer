@@ -1,7 +1,9 @@
 # Club Tenancy & Library Platform — Design
 
-**Date:** 2026-08-27 (v2 — team/session features shelved, see §2.8) ·
-**Status:** Approved design, pending implementation plan
+**Date:** 2026-08-27 (v2.1 — team/session features shelved, see §2.8;
+`drill.team_id` demoted rather than dropped, see §4.2) ·
+**Status:** Approved design; implementation plan at
+`../plans/2026-08-27-club-tenancy-library-platform.md`
 **Source:** `../business_partner_pitch_notes_2026-08-27.md` + Q&A with Max (this session)
 **Deadline:** demo-ready by **Friday 2026-09-04** (presentation to a potential
 business partner — a professional coach of ~20 years, in talks about running an
@@ -106,10 +108,12 @@ club_license    (id uuid pk, collection_id fk not null, target_club_id fk not nu
 
 - `drill`: `+ club_id uuid not null` (backfilled), `+ created_by uuid`
   (backfilled to the account that owns the data today). **Team ownership of
-  drills ends**: `drill.team_id` is dropped — as a separate, gated migration
-  *after* the library UI rescope ships (same staging as 014/021: additive
-  first, UI rewired, then the drop with a pre-drop dump and `pg_depend`
-  check).
+  drills ends**: `drill.team_id` is **demoted, not dropped** (v2.1) — no new
+  code writes or reads it, but the column and the type field stay, because
+  the shelved dormant components (§2.8) still reference it and "keep the code
+  handy" beats a drop that would force edits to shelved files. The actual
+  drop moves to the team-module-reinstatement milestone (or its permanent
+  removal), staged per the 014/021 pattern when it happens.
 - `tactic`: `+ club_id uuid not null`, `+ created_by uuid`; `team_id` becomes
   **nullable** and stops being written — with rosters shelved, tactics carry
   no roster binding this cycle (formation-driven generic squads; entities keep
@@ -278,7 +282,7 @@ Riverside → Riverside's admin disperses it → revoke, access dies.
 | D2 Aug 29 | `clubSlice`, role routing, club switcher, library-centric shell; `create-coach` Edge Function | live login per persona; created coach can log in |
 | D3 Aug 30 | Admin console: Coaches + Collections CRUD | live admin walkthrough |
 | D4 Aug 31 | Filing drills/tactics into collections; per-coach grants; admin Library view | grant/revoke flips coach visibility live |
-| D5 Sep 1 | Coach library rescope (both libraries), duplicate-into-folder, roster-free tactic editor; then gated `drill.team_id` drop | coach persona sees exactly folder+grants; dump + `pg_depend` before drop |
+| D5 Sep 1 | Coach library rescope (both libraries), duplicate-into-folder, roster-free tactic editor | coach persona sees exactly folder+grants |
 | D6 Sep 2 | Cross-club copy (function + Transfer UI, thumbnail copy) | copy lands editable in Riverside; source untouched |
 | D7 Sep 3 | Licensing: grant/revoke, incoming view, dispersal; read-only surfaces | full license lifecycle live as all four personas |
 | D8 Sep 4 | Seed both clubs, `DEMO_SCRIPT.md`, full rehearsal, polish pass, fix-ups | end-to-end demo run clean, fresh tab, zero console errors |
@@ -297,8 +301,9 @@ is protected.
   after every change, share-token re-probe, storage-policy shape rule.
 - **No test suite** (house reality): every phase ends with a live logged-in
   walkthrough per repo convention, plus `npm run build` + `npm run lint`.
-- **`drill.team_id` drop is destructive**: gated, dumped, `pg_depend`-checked —
-  and sequenced after the UI stops reading it (014/021 pattern).
+- **No destructive schema change ships this cycle** except the
+  `early_access_signup` drop (dumped first): `drill.team_id` is demoted, not
+  dropped (§4.2 v2.1), so the whole tenancy migration is additive.
 - **Roster-free tactic editor** is new editor territory: scoped to hiding
   roster-binding UI while keeping formations/roles/numbers; verified against
   both a fresh tactic and a copied one.
