@@ -839,7 +839,7 @@ export const canEditDoc = (s: StoreState, doc: { club_id: string; created_by: st
   (selectMyRole(s) === 'admin' && doc.club_id === s.selectedClubId) || doc.created_by === userId
 ```
 
-- [ ] **Step 1: Write the slice.** Follow `teamSlice.ts`'s exact idioms:
+- [x] **Step 1: Write the slice.** Follow `teamSlice.ts`'s exact idioms:
 every Supabase call through `runSupabaseAction`; `selectedClubId` persisted to
 `localStorage` under `gaffer-selected-club` and reconciled against the fetched
 membership list (mirror how `selectedTeamId` reconciles in `fetchTeams`);
@@ -884,7 +884,7 @@ createCoach: async ({ email, password, displayName }) => {
 `club_license` where the club is source (join through its collections) or
 target. Store the joins in the three `Record<string, string[]>` maps.
 
-- [ ] **Step 2: Bootstrap + Create-your-club.** In `App.tsx`'s signed-in
+- [x] **Step 2: Bootstrap + Create-your-club.** In `App.tsx`'s signed-in
 branch: call `fetchMemberships()` once on session start (same place
 `fetchTeams` is called today — keep `fetchTeams` in place until Task 7
 removes it). While `membershipsLoading`, render the existing loading state.
@@ -895,7 +895,7 @@ calling `createClub(name)`; on success the routed app appears. If
 (design tokens, `bg-panel border-line`) in the nav header calling
 `selectClub`; with one membership, render the club name as static text.
 
-- [ ] **Step 3: Verify.** Build/lint. Browser: test account signs in →
+- [x] **Step 3: Verify.** Build/lint. Browser: test account signs in →
 membership fetched (its backfilled club), app renders as before (libraries
 still team-scoped — fine until Tasks 5–7). Sign up a brand-new throwaway
 account (`overnight-check@gafferdemo.app` / `Check2026!`) → sees
@@ -903,7 +903,7 @@ Create-your-club; create "Scratch FC" → app renders with empty state; delete
 the scratch club + membership + user note in HANDOFF (leave the user; deleting
 auth users client-side isn't possible — record it as scratch).
 
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ```bash
 git add src/store/slices/clubSlice.ts src/components/CreateClub.tsx src/store/useStore.ts src/store/index.ts src/App.tsx src/layout/AppShell.tsx

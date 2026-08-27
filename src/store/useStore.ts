@@ -9,6 +9,7 @@ import { createSessionTacticSlice, type SessionTacticSlice } from './slices/sess
 import { createAvailabilitySlice, type AvailabilitySlice } from './slices/availabilitySlice'
 import { createTacticSlice, type TacticSlice } from './slices/tacticSlice'
 import { createFormationSlice, type FormationSlice } from './slices/formationSlice'
+import { createClubSlice, type ClubSlice } from './slices/clubSlice'
 
 // One store, combined from domain slices. Plan-side (team/player/session),
 // Design-side (drill), and Tactics-side (tactic — Upgrade Phase 3) code all
@@ -24,7 +25,8 @@ export type StoreState = TeamSlice &
   SessionTacticSlice &
   AvailabilitySlice &
   TacticSlice &
-  FormationSlice
+  FormationSlice &
+  ClubSlice
 
 export const useStore = create<StoreState>()((...args) => ({
   ...createTeamSlice(...args),
@@ -37,4 +39,5 @@ export const useStore = create<StoreState>()((...args) => ({
   ...createAvailabilitySlice(...args),
   ...createTacticSlice(...args),
   ...createFormationSlice(...args),
+  ...createClubSlice(...args),
 }))

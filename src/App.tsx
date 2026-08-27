@@ -1,7 +1,10 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useSession } from './hooks/useSession'
+import { useStore } from './store'
 import { Login } from './components/Login'
 import { ResetPassword } from './components/ResetPassword'
+import { CreateClub } from './components/CreateClub'
 import { OfflineBanner } from './components/OfflineBanner'
 import { AppShell } from './layout/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
@@ -53,6 +56,27 @@ function App() {
 
 function AuthedApp() {
   const { session, loading, isPasswordRecovery, clearPasswordRecovery } = useSession()
+  const fetchMemberships = useStore((s) => s.fetchMemberships)
+  const memberships = useStore((s) => s.memberships)
+  // Tracks the user id the last completed fetch was FOR, not a bare
+  // boolean — so "has the first fetch settled" is derived during render
+  // (below) instead of toggled imperatively, which is what keeps the effect
+  // free of a synchronous setState at its start. Without this, there'd be a
+  // brief render where session is truthy but memberships is still
+  // clubSlice's initial [], which would flash CreateClub for an instant on
+  // every login even for an account that has clubs.
+  const [fetchedForUserId, setFetchedForUserId] = useState<string | null>(null)
+  const userId = session?.user.id ?? null
+
+  // Keyed on the user id, not the whole `session` object — onAuthStateChange
+  // hands back a new session object on every token refresh (hourly) even
+  // though the signed-in user hasn't changed; re-fetching memberships then
+  // would be harmless but pointless.
+  useEffect(() => {
+    if (!userId) return
+    void fetchMemberships().then(() => setFetchedForUserId(userId))
+  }, [userId, fetchMemberships])
+  const membershipsFetched = userId !== null && fetchedForUserId === userId
 
   if (loading) {
     return (
@@ -71,6 +95,22 @@ function AuthedApp() {
 
   if (!session) {
     return <Login />
+  }
+
+  if (!membershipsFetched) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-surface">
+        <p className="text-ink-muted">Loading…</p>
+      </div>
+    )
+  }
+
+  // Every account needs a club before there's anything club-scoped to show
+  // (spec §2.2 — the solo-coach mode is retired; club tenancy is the only
+  // mode now). CreateClub renders INSTEAD of the routed app, same shape as
+  // the `!session` branch above rendering Login instead of it.
+  if (memberships.length === 0) {
+    return <CreateClub />
   }
 
   return (

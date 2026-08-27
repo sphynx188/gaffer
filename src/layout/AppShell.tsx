@@ -22,6 +22,7 @@ import { useSession } from '../hooks/useSession'
 import { useTheme } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
 import { TeamSwitcher } from '../components/TeamSwitcher'
+import { Dropdown } from '../components/ui/Dropdown'
 
 interface NavItem {
   to: string
@@ -157,6 +158,32 @@ function ThemeToggleButton() {
   )
 }
 
+// Club switcher — mount point only for now (Task 4); TeamSwitcher stays in
+// place alongside it until Task 7's full nav rework retires the team-scoped
+// shell entirely. Single-membership case renders static text rather than a
+// disabled/no-op picker — a coach with exactly one club has nothing to
+// switch between, and design.md's Dropdown convention is for real choices.
+function ClubSwitcher() {
+  const memberships = useStore((s) => s.memberships)
+  const selectedClubId = useStore((s) => s.selectedClubId)
+  const selectClub = useStore((s) => s.selectClub)
+
+  if (memberships.length === 0) return null
+  if (memberships.length === 1) {
+    return <span className="truncate text-sm text-ink-muted">{memberships[0].club.name}</span>
+  }
+  return (
+    <Dropdown
+      value={selectedClubId ?? ''}
+      onChange={selectClub}
+      options={memberships.map((m) => ({ value: m.club_id, label: m.club.name }))}
+      ariaLabel="Select club"
+      placeholder="Select club"
+      triggerClassName="max-w-40"
+    />
+  )
+}
+
 function SignOutFooter({ email }: { email?: string }) {
   return (
     <div className="border-t border-line px-5 py-4">
@@ -240,10 +267,12 @@ export function AppShell() {
           </div>
         )}
 
-        {/* Right cluster — theme toggle (always visible), sign-out
+        {/* Right cluster — club switcher (Task 4 mount point; full nav
+            rework lands in Task 7), theme toggle (always visible), sign-out
             (desktop only — mobile gets it in the drawer footer instead),
             hamburger (mobile only). */}
         <div className="ml-auto flex items-center gap-3">
+          <ClubSwitcher />
           <ThemeToggleButton />
           <button
             type="button"
