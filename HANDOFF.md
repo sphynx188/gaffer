@@ -276,6 +276,158 @@ in.
 
 ---
 
+## Session log — Library reworked into a file manager (2026-08-28)
+
+The Library (`/library/drills`, `/library/tactics`) was rebuilt as a
+three-pane file manager: a places rail, one sortable list of the place
+you're standing in, and a details rail for the item you clicked. Asked for
+directly ("redesign the library ui for easier use like a file manager"),
+with UI references pulled from Mobbin — Zoho CRM Documents and Supabase
+Storage for the sidebar/breadcrumb/details-rail shape, Proton Drive and
+ElevenLabs Files for the sortable columns, Skiff and Google Drive for the
+floating selection bar, Descript for the "add to collection" picker,
+Skiff/Proton/VEED/Jitter for the per-row "…" menu, and Dropbox/Drive iOS
+for the mobile shape.
+
+### What it replaced, and why
+
+The old library was one scroll of collapsible groups (`LibraryGroups` +
+`buildLibraryGroups`): "My drills", then every collection, then a folder
+per coach, with a drill appearing in as many of them as it was filed in.
+Concretely wrong for browsing:
+
+- No location. Groups were views over one set, so "where am I" had no
+  answer and the same drill was on screen three times.
+- Search was the first field inside a collapsed "Filters" panel, so the
+  most-used control in the library cost a click to reach and the default
+  screen was a toggle and a list.
+- No sort at all — the list rendered in fetch order.
+- The preview panel rendered BELOW the whole list, so inspecting the
+  fifth drill meant scrolling past everything and back.
+- Filing was a mode: an admin-only "Select" button, and once in it the
+  only action was "add to collection".
+- Single-item actions (duplicate, delete) required selecting the item to
+  open the preview panel first. There was no rename anywhere.
+- Collections were managed in a separate `CollectionManagerPanel` toggled
+  open above the list, which re-listed every collection and made you pick
+  one there before acting — a second copy of the navigation.
+
+### What's there now
+
+- **`components/library/`** — the shared shell both tabs render into:
+  `LibraryShell` (3 panes at xl, rail + list at lg, single pane with a
+  places drawer and a details slide-over below that), `LibrarySidebar`,
+  `LibraryToolbar` (breadcrumb, always-visible search, sort, view),
+  `LibraryItems` (`LibraryTable` + `LibraryTiles`), `SelectionBar`,
+  `RowMenu`, `DetailsPane`, `AddToCollectionDialog`, `CollectionDialogs`,
+  `Checkbox`, plus `libraryPlaces.ts` and the `useLibraryPlace` /
+  `useLibrarySelection` / `useLibrarySort` hooks. New `ui/Modal.tsx`.
+- **Places, not groups** (`libraryPlaces.ts`, replacing
+  `buildLibraryGroups.ts`). Same club-scoping rules; one place is current
+  and its ids are the only ones listed. Two behaviour changes fall out:
+  an empty collection now appears (you can't file into a folder you
+  can't see), and a coach folder holds everything that coach authored in
+  this club rather than only their *unfiled* docs.
+- **"All" is admin-only; a coach's root is their own folder.** RLS already
+  made "All drills" a different set per role (`drill_club_read`: admin of
+  the club, OR created_by = me, OR in a collection I can read), so one
+  label covered two meanings and the coach's narrower one read as if it
+  were the club's whole library. A non-admin now opens on
+  `"<display_name>'s drills"` with their granted collections beneath it,
+  and never sees an "All" place; `rootPlaceId(isAdmin)` is the single
+  source for that, feeding the default place, the breadcrumb root and the
+  fall-back after deleting the collection you're standing in. Falls back
+  to "My drills" when `club_member.display_name` is null — which it is for
+  every member of "My Club" today.
+- **The place is in the URL** (`?place=c:<id>`), so back/reload/link work.
+- **Search and filters narrow the current place**, and the toolbar says
+  "2 of 9" when they do; sidebar counts stay whole-folder counts.
+- **Sortable columns** (name/category/duration/players/added for drills,
+  formation/phase/duration/added for tactics), persisted per tab, with a
+  sort dropdown in the toolbar so grid view can sort too. Nulls last.
+- **Selection is no longer a mode**: hover checkbox, shift-range,
+  cmd-click, header select-all, and a floating bar carrying add-to-
+  collection, remove-from-collection and delete. Walking to another place
+  clears it.
+- **Per-row "…" menu**: open/view, details, duplicate, rename, add to
+  collection, remove from collection, delete.
+- **Details rail** beside the list (`DrillDetails` keeps Stage 9.3's
+  animated playback; `TacticDetails` is a still board), including "In
+  collections", which is the one thing the sidebar can't tell you while
+  you're standing somewhere else.
+- **Folder verbs are honest**: "add to"/"remove from", never "move". A
+  doc can be in many collections at once (join table, not a parent
+  pointer), and "move" would promise it leaves everywhere else.
+
+Deleted as fully superseded: `LibraryGroups.tsx`,
+`buildLibraryGroups.ts`, `AddToCollectionBar.tsx`,
+`CollectionManagerPanel.tsx` (its create/rename/delete/grant are now the
+sidebar's "+" and per-folder menu; its remove-doc is a bulk action).
+`DrillLibraryPage`'s `Card` wrapper went too — the shell's panes carry
+their own edges, so it was drawing a second frame around the screen.
+
+### Verified live
+
+Signed in as the test coach, 1470px viewport, dev server:
+places rail with live counts → grid and list views → click-to-details
+with playback → checkbox multi-select → "Add to collection" dialog (added
+2 drills, toast, count updated) → navigate into a collection (URL param,
+breadcrumb) → row menu → remove-from-collection → sidebar folder menu
+(rename dialog seeded correctly) → create "Shape Work" (auto-navigated
+into it, rendered as a visible empty folder) → delete it (fell back to
+All, URL cleared) → search ("2 of 9") → sort direction → tactics tab and
+its details rail. No console errors; `npm run build` and `npm run lint`
+clean (only the three pre-existing `preserve-manual-memoization`
+warnings).
+
+### What didn't work / watch out for
+
+- **`position: fixed` is not fixed under a transform.** `RowMenu`'s
+  popover is fixed and measured off its trigger's rect; the sidebar's
+  hover-revealed action slot used `top-1/2 -translate-y-1/2`, which made
+  that span the containing block, and the menu opened ~350px away from
+  its own row. Seen live. Fixed twice over: the slot centres with flex
+  now, and the popover is `createPortal`ed to `<body>` so the mobile
+  drawer's own `translate-x-*` can't do the same thing.
+- **`table-fixed` truncated every name to one letter.** With the details
+  rail open the list is ~560px, and fixed layout gave the declared column
+  widths priority over the name. Reverted to auto layout; instead the
+  page drops its two lowest-value columns while the rail is open
+  (`COMPACT_COLUMN_KEYS`). The name is the column that must never be
+  sacrificed.
+- A flex badge next to a truncating name needs `shrink-0`, or it gets
+  squeezed until its own text wraps mid-word ("4-3-3" over two lines).
+- oxlint's `react(set-state-in-effect)` caught three reset-on-open
+  effects. All three are gone: dialogs are mounted only while open (so
+  they seed from props at mount), and the selection prunes to the visible
+  ids during render instead of in an effect.
+- **The mobile breakpoint could not be exercised by resizing the
+  browser** — the window is maximized and `resize_window` had no effect
+  (`outerWidth` stayed 728 points at 50% page zoom, so `innerWidth` stayed
+  1470). Verified instead by temporarily raising `LibraryShell`'s
+  breakpoints to `min-[1600px]`/`min-[1700px]`, exercising the places
+  drawer and the details slide-over for real at that width, then
+  restoring the file from a backup copy (confirmed: no `min-[` left in
+  the file, build clean). The single-pane layout, the drawer and the
+  slide-over are therefore genuinely verified; what is NOT verified is
+  that `lg`/`xl` are the right *numbers* on a real phone.
+- `PitchCanvas` shows "Nothing on the pitch yet." partway through some
+  test drills' playback. Pre-existing — `DrillDetails` calls `frameAt`
+  exactly as the old `DrillPreviewPanel` did — not introduced here.
+- **The coach (non-admin) view could not be exercised with a real login** —
+  the test account and both other members of "My Club" are admins, and the
+  named coaches (Sam Whitfield, Jordan Achebe, Riley Donnelly) belong to
+  the demo clubs whose passwords aren't available here. Verified instead
+  by temporarily forcing `isAdmin = false` / `myDisplayName = 'Max'` in
+  `DrillLibrary`, confirming the rendering (no "All drills", root "Max's
+  drills", collections beneath, no "+" and no per-folder menus), then
+  restoring the file from a backup copy. So the *layout* is verified; what
+  a real coach's RLS-scoped collection list contains is verified only by
+  reading the policies (`can_read_collection` requires an explicit
+  `collection_access` grant for a non-admin), not by observation.
+
+---
+
 ## Session log — Club tenancy & library platform, overnight run (2026-08-28, COMPLETE — Tasks 0–13 all shipped)
 
 Unattended overnight run executing

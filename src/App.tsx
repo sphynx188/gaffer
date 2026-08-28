@@ -148,9 +148,10 @@ function AuthedApp() {
             shape as the /login redirect above, since a fair number of
             in-app links and any external bookmarks still point at them.
             Collections briefly had its own tab here (also 2026-08-28), then
-            folded back into Drills/Tactics the same day — each tab is its
-            own admin-only "file manager" for its kind of collection now
-            (CollectionManagerPanel), not a separate page. */}
+            folded back into Drills/Tactics the same day, and are now the
+            folders in each tab's own places rail — the whole Library became
+            a file manager later that day (see components/library/), so
+            there is nothing left for a collections page to do. */}
         <Route path="library" element={<LibraryLayout />}>
           <Route index element={<Navigate to="/library/drills" replace />} />
           <Route path="drills" element={<DrillLibraryPage />} />
