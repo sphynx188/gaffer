@@ -336,12 +336,6 @@ export function DrillLibrary() {
             categoryOptions={categoryOptions}
           />
           <div className="flex flex-wrap items-center gap-3">
-            <Link
-              to="/design"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
-            >
-              + New drill
-            </Link>
             {isAdmin && (
               <button
                 type="button"

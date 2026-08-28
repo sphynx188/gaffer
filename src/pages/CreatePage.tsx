@@ -6,13 +6,14 @@ import { Card } from '../components/ui/Card'
 
 // The nav rail's "Create" entry lands here rather than opening a popover
 // (2026-08-28): a small picker page, two cards, each linking straight to
-// that document type's existing create entry point — /design (DesignPage's
-// own create-drill form) and /tactics (TacticsPage's own create-tactic
-// form). No new creation logic lives here, just a front door to what
+// that document type's own create entry point — /design (DesignPage's
+// create-drill form) and /tactics/new (TacticCreatePage — split out of the
+// Tactics library tab the same day creation was removed from both library
+// tabs). No new creation logic lives here, just a front door to what
 // already exists.
 const OPTIONS: { to: string; label: string; description: string; icon: ComponentType<{ className?: string }> }[] = [
   { to: '/design', label: 'Drill', description: 'Design a new drill on the pitch canvas.', icon: LibraryBig },
-  { to: '/tactics', label: 'Tactic', description: 'Build a new tactical setup.', icon: Shield },
+  { to: '/tactics/new', label: 'Tactic', description: 'Build a new tactical setup.', icon: Shield },
 ]
 
 export function CreatePage() {

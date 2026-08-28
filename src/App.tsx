@@ -17,6 +17,7 @@ import { DrillCardPage } from './pages/DrillCardPage'
 import { DrillViewPage } from './pages/DrillViewPage'
 import { SharedDrillPage } from './pages/SharedDrillPage'
 import { TacticsPage } from './pages/TacticsPage'
+import { TacticCreatePage } from './pages/TacticCreatePage'
 import { TacticViewPage } from './pages/TacticViewPage'
 import { TacticEditorPage } from './pages/TacticEditorPage'
 import { TacticCardPage } from './pages/TacticCardPage'
@@ -158,6 +159,11 @@ function AuthedApp() {
         <Route path="drills" element={<Navigate to="/library/drills" replace />} />
         <Route path="drills/:drillId/view" element={<DrillViewPage />} />
         <Route path="tactics" element={<Navigate to="/library/tactics" replace />} />
+        {/* /tactics/new (2026-08-28): split out of the Tactics library tab,
+            which used to carry the create-tactic form inline — same role
+            /design plays for drills. Static path, matched ahead of the
+            dynamic :tacticId below regardless of declaration order. */}
+        <Route path="tactics/new" element={<TacticCreatePage />} />
         <Route path="tactics/:tacticId/view" element={<TacticViewPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
         {/* AdminLayout does its own role gate (redirects non-admins to /) —

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useOutletContext } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useOutletContext } from 'react-router-dom'
 import { CheckSquare, FolderCog, Shield, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
@@ -29,9 +29,10 @@ import type { LibraryOutletContext } from './LibraryLayout'
 // AdminLayout's sub-pages.
 //
 // It replaces the plain list Stage 7.1 left here when the board moved out to
-// `/tactics/:tacticId`. The create form stays — unlike drills, which are
-// built in Design and merely browsed in the library, a tactic has no other
-// front door, so taking creation away would leave the coach nowhere to start.
+// `/tactics/:tacticId`. The create form that used to live here moved out to
+// `/tactics/new` (2026-08-28) — creation left both library tabs the same
+// day, now that `/create` is the app's one front door for "start something
+// new"; this tab is browse/organize only.
 //
 // ── Two filters, not nine ─────────────────────────────────────────────────
 // The plan asks for exactly "name and phase of play", and that is all there
@@ -53,7 +54,6 @@ function formationLabel(key: string): string {
 
 export function TacticsPage() {
   const { view } = useOutletContext<LibraryOutletContext>()
-  const navigate = useNavigate()
   const { session } = useSession()
   const myUserId = session?.user.id ?? null
   const selectedClubId = useStore((s) => s.selectedClubId)
@@ -67,14 +67,11 @@ export function TacticsPage() {
   const tacticsLoading = useStore((s) => s.tacticsLoading)
   const tacticsError = useStore((s) => s.tacticsError)
   const fetchTactics = useStore((s) => s.fetchTactics)
-  const createTactic = useStore((s) => s.createTactic)
   const createCollection = useStore((s) => s.createCollection)
   const addTacticToCollection = useStore((s) => s.addTacticToCollection)
   const removeTacticFromCollection = useStore((s) => s.removeTacticFromCollection)
   const showToast = useToast()
 
-  const [name, setName] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   const [query, setQuery] = useState('')
   const [phaseOfPlay, setPhaseOfPlay] = useState<DrillPhaseOfPlay | ''>('')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -96,18 +93,6 @@ export function TacticsPage() {
   useEffect(() => {
     void fetchClubData()
   }, [fetchClubData, selectedClubId])
-
-  const handleCreate = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!name.trim() || submitting) return
-    setSubmitting(true)
-    const created = await createTactic({ name: name.trim() })
-    setSubmitting(false)
-    if (created) {
-      setName('')
-      navigate(`/tactics/${created.id}`)
-    }
-  }
 
   // Name search also matches the two formation labels, so typing "4-3-3"
   // finds every tactic built on that shape even when none of them says so in
@@ -197,31 +182,9 @@ export function TacticsPage() {
   return (
     <Card>
       <div className="space-y-4">
-        <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-2">
-            <div>
-              <label htmlFor="new-tactic-name" className="block text-xs font-medium text-ink-muted">
-                New tactic name
-              </label>
-              <input
-                id="new-tactic-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. 4-3-3 — Build Up"
-                className="mt-1 w-56 rounded-md border border-line bg-panel-raised px-2 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={!name.trim() || submitting}
-              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
-            >
-              {submitting ? 'Creating…' : 'Create tactic'}
-            </button>
-          </form>
+        {tacticsError && <p className="text-sm text-bad">{tacticsError}</p>}
 
-          {tacticsError && <p className="text-sm text-bad">{tacticsError}</p>}
-
-          {tacticsLoading && tactics.length === 0 && (
+        {tacticsLoading && tactics.length === 0 && (
             <div role="status" aria-busy="true" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <span className="sr-only">Loading tactics…</span>
               {SKELETON_CARDS.map((card) => (
@@ -231,7 +194,7 @@ export function TacticsPage() {
           )}
 
           {!tacticsLoading && tactics.length === 0 && !tacticsError && (
-            <EmptyState icon={Shield} message="No tactics yet — create one above." />
+            <EmptyState icon={Shield} message="No tactics yet." action={{ to: '/tactics/new', label: 'Build one →' }} />
           )}
 
           {tactics.length > 0 && (
