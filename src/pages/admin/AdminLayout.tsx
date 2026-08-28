@@ -10,10 +10,12 @@ import { PageHeader } from '../../components/ui/PageHeader'
 // than all four appearing before their routes exist, so every commit stays
 // shippable — same reasoning Task 7 applied to the main nav's entry.
 // Routes relabeled /admin → /settings in the nav (2026-08-28); this
-// component and file stay "Admin*", internal naming only.
+// component and file stay "Admin*", internal naming only. Collections
+// moved out to /library/collections (2026-08-28) — it's still admin-only
+// (CollectionsPage carries its own guard now, since it's no longer nested
+// under this one), just relocated next to the library it manages.
 const SUB_NAV = [
   { to: '/settings/coaches', label: 'Coaches' },
-  { to: '/settings/collections', label: 'Collections' },
   { to: '/settings/transfer', label: 'Transfer' },
   { to: '/settings/licenses', label: 'Licenses' },
 ]

@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Navigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
-import { useStore } from '../../store'
-import { Card } from '../../components/ui/Card'
-import { Badge } from '../../components/ui/Badge'
+import { useStore } from '../store'
+import { selectMyRole } from '../store/slices/clubSlice'
+import { Card } from '../components/ui/Card'
+import { Badge } from '../components/ui/Badge'
 
 // Admin collections console (spec §6.2(2)): CRUD on this club's
 // collections, filing drills/tactics in and out, and per-coach grants —
-// no new store API, every action here is Task 4's clubSlice as-is.
+// no new store API, every action here is Task 4's clubSlice as-is. Moved
+// from /settings/collections into the Library (2026-08-28) — LibraryLayout
+// only lists this tab for an admin, but the route itself was never gated by
+// AdminLayout to begin with (that guard lived one level up), so the check
+// below is new: it's what actually keeps a non-admin out now that this page
+// isn't nested under AdminLayout's own guard any more.
 export function CollectionsPage() {
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
   const selectedClubId = useStore((s) => s.selectedClubId)
   const collections = useStore((s) => s.collections)
   const collectionDrillIds = useStore((s) => s.collectionDrillIds)
@@ -50,6 +58,8 @@ export function CollectionsPage() {
     [collections, selectedClubId]
   )
   const selected = homeCollections.find((c) => c.id === selectedId) ?? null
+
+  if (!isAdmin) return <Navigate to="/library/drills" replace />
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault()

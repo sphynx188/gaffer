@@ -10,6 +10,7 @@ import { AppShell } from './layout/AppShell'
 import { HomePage } from './pages/HomePage'
 import { CreatePage } from './pages/CreatePage'
 import { LibraryLayout } from './pages/LibraryLayout'
+import { CollectionsPage } from './pages/CollectionsPage'
 import { DesignPage } from './pages/DesignPage'
 import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
@@ -23,7 +24,6 @@ import { TacticCardPage } from './pages/TacticCardPage'
 import { SharedTacticPage } from './pages/SharedTacticPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
 import { CoachesPage } from './pages/admin/CoachesPage'
-import { CollectionsPage } from './pages/admin/CollectionsPage'
 import { TransferPage } from './pages/admin/TransferPage'
 import { LicensesPage } from './pages/admin/LicensesPage'
 
@@ -146,11 +146,16 @@ function AuthedApp() {
             (LibraryLayout) — each tab keeps its existing page component
             unchanged. Old /drills and /tactics kept as redirects, same
             shape as the /login redirect above, since a fair number of
-            in-app links and any external bookmarks still point at them. */}
+            in-app links and any external bookmarks still point at them.
+            Collections joined it (2026-08-28), moved from /settings —
+            CollectionsPage carries its own admin guard now (it's no longer
+            nested under AdminLayout's), the route itself is open like every
+            other page here. */}
         <Route path="library" element={<LibraryLayout />}>
           <Route index element={<Navigate to="/library/drills" replace />} />
           <Route path="drills" element={<DrillLibraryPage />} />
           <Route path="tactics" element={<TacticsPage />} />
+          <Route path="collections" element={<CollectionsPage />} />
         </Route>
         <Route path="drills" element={<Navigate to="/library/drills" replace />} />
         <Route path="drills/:drillId/view" element={<DrillViewPage />} />
@@ -164,10 +169,11 @@ function AuthedApp() {
         <Route path="settings" element={<AdminLayout />}>
           <Route index element={<Navigate to="/settings/coaches" replace />} />
           <Route path="coaches" element={<CoachesPage />} />
-          <Route path="collections" element={<CollectionsPage />} />
           <Route path="transfer" element={<TransferPage />} />
           <Route path="licenses" element={<LicensesPage />} />
         </Route>
+        {/* Old /settings/collections kept as a redirect for any bookmark. */}
+        <Route path="settings/collections" element={<Navigate to="/library/collections" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
