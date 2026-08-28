@@ -18,8 +18,23 @@ export interface LibraryColumn {
   sortable?: boolean
   /** Direction a first click on this column sorts in — dates want newest first. */
   naturalDir?: SortDir
-  /** Width and responsive-visibility utilities, applied to both header and cell. */
-  className?: string
+  /**
+   * Column width in px. Applied as an inline style on the header and cell,
+   * AND as a max-width on the value's own inner wrapper (see
+   * `LibraryTable`) — the second part is load-bearing, not decoration.
+   * Under `table-layout: auto` (deliberate — see the note by `<table>`
+   * below), a `width` on a `<td>` is only ever a hint the browser can grow
+   * past to fit content; `overflow: hidden` on the `<td>` itself doesn't
+   * change that; only a real max-width on an ELEMENT WITH TEXT bounds what
+   * the browser will ever try to render, which is what makes the column
+   * actually hold to this number. Found live (2026-08-28): without it,
+   * "Conditioning" in a 112px Category column simply pushed the table
+   * wider than its container, and the un-scrolled view sheared the word
+   * off mid-glyph with nothing to say a scrollbar was the reason.
+   */
+  width: number
+  /** Responsive visibility only, e.g. "hidden md:table-cell" — width lives in `width` now. */
+  visibilityClassName?: string
 }
 
 export interface LibraryItemView {
@@ -113,6 +128,18 @@ export function LibraryTable({
   onToggleAll: () => void
   allSelected: boolean
 }) {
+  // Checkbox (36px, `w-9`) + actions (40px, `w-10`) + a floor for name that
+  // keeps it legible even when squeezed, plus whatever the actually-visible
+  // metadata columns need. Computed from `columns` (already filtered to
+  // compact/full by the caller) rather than a flat constant, so a table
+  // showing 2 metadata columns while the details rail is open asks its
+  // container for real less room than one showing all 4 — the previous
+  // fixed `min-w-[34rem]` didn't know that, and forced itself wider than a
+  // squeezed list column could offer regardless of how few columns were
+  // actually on screen.
+  const NAME_FLOOR = 160
+  const minTableWidth = 36 + NAME_FLOOR + columns.reduce((sum, c) => sum + c.width, 0) + 40
+
   const sortIcon = (key: string) =>
     sort.key === key ? (
       sort.dir === 'asc' ? (
@@ -124,13 +151,29 @@ export function LibraryTable({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line">
-      {/* Auto layout, deliberately: `table-fixed` makes the declared widths
-          bind, which at the list's narrowest (details rail open) left the
-          name column ~90px and truncated every drill to one letter. The
-          name is the one column that must never be sacrificed, so the
-          widths stay hints and the caller drops whole columns instead when
-          the rail opens — see DRILL_COLUMNS / COMPACT_COLUMN_KEYS. */}
-      <table className="w-full min-w-[34rem] border-collapse text-left">
+      {/* `table-fixed`, not auto — found the hard way (2026-08-28). Auto
+          layout doesn't just treat a `width` hint as soft; a `white-space:
+          nowrap` descendant ANYWHERE in a column (the name cell's subtitle
+          paragraph carries `truncate`, and a drill's objective sentence is
+          long) makes the auto-sizing algorithm consider that unwrapped
+          text's full natural width when sizing the column — even though
+          the paragraph's OWN overflow-hidden means it would never actually
+          render that wide. That inflated one real table to 879px against
+          a 560px container with only 4 short metadata columns and nothing
+          else unusual, which is what actually sheared "Conditioning" in
+          half at the scroll edge, not the table's stated min-width (the
+          candidate first fixed, and it did nothing — verified live).
+          `table-fixed` is what makes the browser stop consulting content
+          for sizing at all: every column with a `width` gets exactly that,
+          and name (the one column here with none) takes the rest.
+          The earlier revert away from table-fixed ("squished name to one
+          letter") was a real symptom but the wrong diagnosis — that was
+          this same nowrap-inflation bug, just manifesting as an
+          artificially tiny remainder instead of a torn word. `minTableWidth`
+          (computed from the columns actually visible, not a flat guess)
+          is what actually prevents that: below it, the table scrolls
+          instead of squeezing name past readability. */}
+      <table className="w-full table-fixed border-collapse text-left" style={{ minWidth: minTableWidth }}>
         <thead>
           <tr className="border-b border-line bg-panel-raised">
             <th scope="col" className="w-9 py-2 pl-3 pr-0">
@@ -155,7 +198,12 @@ export function LibraryTable({
               </button>
             </th>
             {columns.map((column) => (
-              <th key={column.key} scope="col" className={`px-3 py-2 ${column.className ?? ''}`}>
+              <th
+                key={column.key}
+                scope="col"
+                style={{ width: column.width }}
+                className={`px-3 py-2 ${column.visibilityClassName ?? ''}`}
+              >
                 {column.sortable ? (
                   <button
                     type="button"
@@ -240,11 +288,29 @@ export function LibraryTable({
                     </div>
                   </div>
                 </td>
-                {columns.map((column) => (
-                  <td key={column.key} className={`px-3 py-2 align-middle text-xs text-ink-muted ${column.className ?? ''}`}>
-                    {item.cells[column.key] ?? <span className="text-ink-faint">—</span>}
-                  </td>
-                ))}
+                {columns.map((column) => {
+                  const value = item.cells[column.key]
+                  return (
+                    <td
+                      key={column.key}
+                      style={{ width: column.width }}
+                      className={`px-3 py-2 align-middle text-xs text-ink-muted ${column.visibilityClassName ?? ''}`}
+                    >
+                      {/* The `truncate` + max-width has to live on THIS
+                          inner span, not the `<td>` — see LibraryColumn.width's
+                          comment for why the `<td>`'s own width is only ever
+                          a hint under auto layout. px-3 either side of the
+                          cell accounts for the -24. */}
+                      <span
+                        className="block truncate"
+                        style={{ maxWidth: column.width - 24 }}
+                        title={typeof value === 'string' ? value : undefined}
+                      >
+                        {value ?? <span className="text-ink-faint">—</span>}
+                      </span>
+                    </td>
+                  )
+                })}
                 <td className="px-1 py-2 text-right align-middle">
                   <RowMenu items={item.menu} label={`Actions for ${item.name}`} />
                 </td>

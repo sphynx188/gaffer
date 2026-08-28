@@ -124,11 +124,15 @@ function activeFilterCount(filters: Filters): number {
 // list ~300px at a page width `<main>`'s max-w-6xl already caps — so the
 // two lowest-value columns are dropped for as long as it's open, rather
 // than letting five columns fight over half the room.
+// Widths are real content budgets now, not Tailwind hints (see
+// LibraryColumn.width) — Players got bumped from its old 96px: "10–14
+// players" never fit that even before today's layout changes, it just
+// silently grew past it under auto layout whenever the table had slack.
 const DRILL_COLUMNS: LibraryColumn[] = [
-  { key: 'category', label: 'Category', sortable: true, className: 'hidden w-28 md:table-cell' },
-  { key: 'duration', label: 'Duration', sortable: true, className: 'hidden w-20 sm:table-cell' },
-  { key: 'players', label: 'Players', sortable: true, className: 'hidden w-24 lg:table-cell' },
-  { key: 'created', label: 'Added', sortable: true, naturalDir: 'desc', className: 'hidden w-24 xl:table-cell' },
+  { key: 'category', label: 'Category', sortable: true, width: 112, visibilityClassName: 'hidden md:table-cell' },
+  { key: 'duration', label: 'Duration', sortable: true, width: 80, visibilityClassName: 'hidden sm:table-cell' },
+  { key: 'players', label: 'Players', sortable: true, width: 116, visibilityClassName: 'hidden lg:table-cell' },
+  { key: 'created', label: 'Added', sortable: true, naturalDir: 'desc', width: 96, visibilityClassName: 'hidden xl:table-cell' },
 ]
 
 const COMPACT_COLUMN_KEYS = ['category', 'duration']

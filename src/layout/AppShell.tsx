@@ -191,6 +191,15 @@ export function AppShell() {
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
   const navItems = isAdmin ? [...NAV_ITEMS, SETTINGS_NAV_ITEM] : NAV_ITEMS
   const [navOpen, setNavOpen] = useState(false)
+  // The Library's three-pane file-manager layout (2026-08-28) genuinely
+  // wants more than the 1152px every other page in the app is built for —
+  // a single-column form or report doesn't need the room, but a places
+  // rail + list + details rail does, and on a wide monitor the reading-width
+  // cap was leaving real, visible margin unused on both sides while the
+  // list and details columns were fighting each other for space. Scoped to
+  // this one route rather than raising the app-wide cap, since nothing else
+  // was designed or asked to change.
+  const isLibrary = useLocation().pathname.startsWith('/library')
 
   // Kept despite the team module being shelved (Task 7): SquadPanel's
   // opposition-team picker (dormant-legal on an old, real-team_id tactic —
@@ -326,7 +335,7 @@ export function AppShell() {
       </div>
 
       <main className="lg:pl-16">
-        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${isLibrary ? 'max-w-[96rem]' : 'max-w-6xl'}`}>
           <Outlet />
         </div>
       </main>

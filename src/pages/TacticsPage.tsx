@@ -60,11 +60,16 @@ import type { LibraryOutletContext } from './LibraryLayout'
 
 const SKELETON_CARDS = [0, 1, 2, 3, 4, 5]
 
+// Widths are real content budgets now, not Tailwind hints (see
+// LibraryColumn.width). Formation got a little extra: "4-3-3 v 4-4-2" is
+// the common case, but a coach's own custom formation name can run longer,
+// and it now truncates cleanly with a tooltip instead of quietly growing
+// the column.
 const TACTIC_COLUMNS: LibraryColumn[] = [
-  { key: 'formation', label: 'Formation', sortable: true, className: 'hidden w-32 md:table-cell' },
-  { key: 'phase', label: 'Phase', sortable: true, className: 'hidden w-28 lg:table-cell' },
-  { key: 'duration', label: 'Duration', sortable: true, className: 'hidden w-20 sm:table-cell' },
-  { key: 'created', label: 'Added', sortable: true, naturalDir: 'desc', className: 'hidden w-24 xl:table-cell' },
+  { key: 'formation', label: 'Formation', sortable: true, width: 140, visibilityClassName: 'hidden md:table-cell' },
+  { key: 'phase', label: 'Phase', sortable: true, width: 112, visibilityClassName: 'hidden lg:table-cell' },
+  { key: 'duration', label: 'Duration', sortable: true, width: 80, visibilityClassName: 'hidden sm:table-cell' },
+  { key: 'created', label: 'Added', sortable: true, naturalDir: 'desc', width: 96, visibilityClassName: 'hidden xl:table-cell' },
 ]
 
 // Dropped while the details rail is open — see DrillLibrary's note.

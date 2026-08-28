@@ -44,7 +44,9 @@ function PlaceRow({
         }
       >
         <Icon className="h-4 w-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">{place.title}</span>
+        <span className="min-w-0 flex-1 truncate" title={place.title}>
+          {place.title}
+        </span>
         <span className={`shrink-0 text-xs tabular-nums ${active ? 'text-accent' : 'text-ink-faint'}`}>
           {place.ids.length}
         </span>

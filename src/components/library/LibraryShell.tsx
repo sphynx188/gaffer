@@ -7,8 +7,12 @@ import { PanelRight, X } from 'lucide-react'
 // alike.
 //
 // How it degrades is the whole point of it existing as one component:
-//   • ≥ xl — all three panes side by side. `<main>` caps at max-w-6xl, so
-//     this is as wide as the app ever gets; the list still keeps ~560px.
+//   • ≥ xl — all three panes side by side. AppShell caps the Library's
+//     content at max-w-[96rem] rather than the app's usual max-w-6xl (see
+//     AppShell's `isLibrary` branch) — this is the one page dense enough
+//     to want it, and screenshotted evidence (2026-08-28) showed real,
+//     unused margin on both sides of the old cap while the list and
+//     details columns fought each other for space.
 //   • lg   — rail + list; details becomes a right-hand slide-over.
 //   • < lg — list only. The rail is a left drawer behind a "Places" button
 //     that names where you are, and details is the same slide-over. That
@@ -16,11 +20,25 @@ import { PanelRight, X } from 'lucide-react'
 //     sidebar was carrying is "which folder am I in", and a hamburger hides
 //     exactly that.
 //
+// Rail narrowed from 13rem to 10rem (2026-08-28) — it was mostly empty
+// height under a handful of short rows. 10rem (not 9rem) is the width "All
+// tactics"/"My tactics" need to render in full at this font size — a fixed
+// root label truncating reads as broken in a way a long, coach-authored
+// collection name doesn't, so that one was tested against the actual text
+// rather than picked round. LibrarySidebar's PlaceRow still carries a
+// `title` tooltip for whichever collection name is long enough to truncate
+// anyway.
+//
+// Details widened 17rem -> 20rem -> 24rem the same day, the last bump once
+// the page's own width cap grew — 24rem now matches the below-xl slide-over
+// (`w-96`), so the preview is the same size whichever way it's shown rather
+// than shrinking just because it's in the inline column.
+//
 // The two column templates are written out as whole literal class strings
 // rather than composed from fragments — Tailwind only ships classes it can
 // find verbatim in the source.
-const GRID_WITH_DETAILS = 'lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-6 xl:grid-cols-[13rem_minmax(0,1fr)_17rem]'
-const GRID_WITHOUT_DETAILS = 'lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-6'
+const GRID_WITH_DETAILS = 'lg:grid lg:grid-cols-[10rem_minmax(0,1fr)] lg:gap-6 xl:grid-cols-[10rem_minmax(0,1fr)_24rem]'
+const GRID_WITHOUT_DETAILS = 'lg:grid lg:grid-cols-[10rem_minmax(0,1fr)] lg:gap-6'
 
 export function LibraryShell({
   sidebar,

@@ -23,9 +23,11 @@ import { Badge } from '../ui/Badge'
 // drill (the caller keys this component on drill.id) so a new selection
 // never inherits the previous drill's clock.
 //
-// Rendered at a fixed canvas width because both of its homes are narrow and
-// fixed: a 17rem column at xl, a 24rem slide-over below it.
-const CANVAS_WIDTH = 236
+// Rendered at a fixed canvas width because both of its homes are the same
+// fixed 24rem (LibraryShell's inline xl column and its below-xl slide-over
+// now match). Sized against that minus DetailsPane's own p-3 and this
+// component's p-2 wrapper around the canvas.
+const CANVAS_WIDTH = 336
 
 export function DrillDetails({
   drill,
