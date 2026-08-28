@@ -276,6 +276,106 @@ in.
 
 ---
 
+## Session log — Library layout fixes: rail width, preview size, table overflow (2026-08-28)
+
+Follow-up to the file-manager rework above, from live feedback after using
+it: the places rail wasted width, the details/preview pane read as a
+narrow sliver, and — the one that mattered — a metadata value in the list
+table was getting silently sheared off mid-word rather than shown in full
+or truncated cleanly (reported as "covering the categories," with a
+screenshot).
+
+### What changed
+
+- **Places rail 13rem -> 10rem** (`LibraryShell.tsx`'s `GRID_WITH_DETAILS`/
+  `GRID_WITHOUT_DETAILS`). Tried 9rem first; reverted up to 10rem because
+  "All tactics"/"My tactics" — fixed root labels, not coach-authored names —
+  truncated with an ellipsis at 9rem, which reads as broken in a way a long
+  collection name doesn't.
+- **The Library gets its own wider page cap.** `AppShell.tsx` now computes
+  `isLibrary = useLocation().pathname.startsWith('/library')` and uses
+  `max-w-[96rem]` instead of the app's usual `max-w-6xl` for that one route
+  — screenshotted evidence showed real, unused margin on both sides of the
+  old cap on a wide monitor while the list and details columns fought each
+  other for space. Scoped to `/library` only; nothing else in the app
+  changed width.
+- **Details/preview pane 17rem -> 20rem -> 24rem** (the freed width above
+  funded this), now matching its own below-`xl` slide-over's width exactly
+  — the preview is the same size whichever way it's shown. `DrillDetails`'s
+  pitch canvas grew 236px -> 336px to actually fill it.
+
+### The table bug — two compounding causes, not one
+
+First attempt: added `overflow-hidden`/`truncate` directly to the `<td>`,
+reasoning that `overflow: hidden` would make the browser respect the
+column's declared width under `table-layout: auto`. **Verified live before
+calling it done** (per verification-before-completion habit) by injecting
+a temporary CSS override to force the list container to 560px and
+re-checking — still broken, same mid-word shear. That disproved the fix
+before it shipped.
+
+Actual root cause, found by inspecting computed styles live: a
+`white-space: nowrap` descendant ANYWHERE in a column — here, the Name
+cell's subtitle paragraph (`truncate`, rendering a drill's full objective
+sentence) — makes the browser's auto-layout column-sizing algorithm
+consider that paragraph's full unwrapped width as a candidate, even though
+the paragraph's own `overflow: hidden` means it would never actually
+render that wide. One real case measured the table at 879px against a
+560px container, over just four short metadata columns — nowhere close to
+any `min-width` that had been set, which is why the first fix's premise
+(the min-width was too small) was already wrong before the CSS-side
+mistake compounded it.
+
+Fixed by switching `LibraryTable` to `table-layout: fixed`, which stops
+the browser from consulting content for column sizing at all:
+- `LibraryColumn` gained a `width: number` (px) field, replacing the old
+  `className` width hints; `visibilityClassName` is what's left for the
+  responsive `hidden md:table-cell` etc. classes.
+- Each metadata cell's value renders inside a `<span className="block
+  truncate" style={{maxWidth: column.width - 24}}>` — under fixed layout
+  this genuinely binds now, so a too-long value (a coach's own long
+  formation name, an unusually long category) truncates with a real
+  ellipsis and a `title` tooltip instead of growing the column.
+- The table's own `min-width` is computed from whichever columns are
+  actually passed in (`checkbox + NAME_FLOOR(160) + sum(column.width) +
+  actions`), not a flat constant — so the compact 2-column table (details
+  rail open) asks its container for meaningfully less room than the full
+  4-column one, and Name (the one column with no fixed width) absorbs a
+  genuine squeeze with an ellipsis rather than a metadata value tearing.
+- Bumped `DRILL_COLUMNS`' Players width 96px -> 116px and `TACTIC_COLUMNS`'
+  Formation 128px -> 140px — both were already marginal for their real
+  content ("10–14 players", a longer custom formation match-up) even
+  before this session, just papered over by auto-layout's willingness to
+  grow past a hint whenever the table had slack.
+- The code comment at `table-fixed`'s use site explicitly documents that
+  the EARLIER revert away from table-fixed (recorded in the previous
+  session's log above, "squished name to one letter") was a real symptom
+  but the wrong diagnosis — same nowrap-inflation bug, just manifesting as
+  an artificially tiny remainder instead of a torn word, because auto
+  layout was masking it differently in that specific narrower scenario.
+
+### Verified live
+
+Full width (1728px window): rail visibly narrower, details pane
+substantially bigger with the pitch preview filling it, table columns all
+legible with no clipping. Re-created the ORIGINAL bug by injecting a
+temporary `<style>` capping the list container to 560px (`resize_window`
+doesn't actually shrink this environment's browser — same limitation
+noted in the previous session's log): before the `table-fixed` fix, this
+reproduced the exact reported symptom ("Conditionin" sheared, no
+ellipsis, "Duration" column not even rendered); after, the same squeeze
+correctly truncates Name ("1v1 Fin…", "Cool-Dow…") with every metadata
+column still fully legible — the intended degrade. Confirmed on grid view
+(unaffected, doesn't use the table) and the Tactics tab (a genuinely long
+formation match-up, "4-3-3 (2) CDM v 3…", truncates cleanly). Build and
+lint clean throughout (only the three pre-existing unrelated warnings).
+
+Committed as `575e0a4` on `club-tenancy`, then pushed — first push of this
+branch, no CI/deploy pipeline in this repo so nothing auto-deploys from it;
+`main` is unaffected and still 26 commits behind.
+
+---
+
 ## Session log — Library reworked into a file manager (2026-08-28)
 
 The Library (`/library/drills`, `/library/tactics`) was rebuilt as a
