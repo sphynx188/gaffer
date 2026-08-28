@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
-import { CheckSquare, Shield, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
+import { CheckSquare, FolderCog, Shield, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
@@ -17,6 +17,7 @@ import { Dropdown } from '../components/ui/Dropdown'
 import { LibraryGroups } from '../components/design/LibraryGroups'
 import { buildLibraryGroups } from '../components/design/buildLibraryGroups'
 import { AddToCollectionBar } from '../components/design/AddToCollectionBar'
+import { CollectionManagerPanel } from '../components/design/CollectionManagerPanel'
 import { useToast } from '../components/ui/useToast'
 import type { LibraryOutletContext } from './LibraryLayout'
 
@@ -69,6 +70,7 @@ export function TacticsPage() {
   const createTactic = useStore((s) => s.createTactic)
   const createCollection = useStore((s) => s.createCollection)
   const addTacticToCollection = useStore((s) => s.addTacticToCollection)
+  const removeTacticFromCollection = useStore((s) => s.removeTacticFromCollection)
   const showToast = useToast()
 
   const [name, setName] = useState('')
@@ -81,6 +83,7 @@ export function TacticsPage() {
   // whatever a plain card click already means (navigate to the editor here).
   const [bulkMode, setBulkMode] = useState(false)
   const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
+  const [manageOpen, setManageOpen] = useState(false)
 
   // Club tenancy (2026-08-28): fetchTactics takes no scope argument any
   // more (RLS decides visibility) — selectedClubId stays a dependency
@@ -165,10 +168,14 @@ export function TacticsPage() {
     setBulkIds(new Set())
   }
 
-  // Only this club's own collections — see DrillLibrary.tsx's identical
-  // `homeCollections`/RLS note.
+  // Only this club's own tactic-kind collections — see DrillLibrary.tsx's
+  // identical `homeCollections`/RLS note (collection_tactic's RLS checks
+  // collection.kind = 'tactic' since migration 032).
   const homeCollections = useMemo(
-    () => collections.filter((c) => c.club_id === selectedClubId).sort((a, b) => a.name.localeCompare(b.name)),
+    () =>
+      collections
+        .filter((c) => c.club_id === selectedClubId && c.kind === 'tactic')
+        .sort((a, b) => a.name.localeCompare(b.name)),
     [collections, selectedClubId]
   )
 
@@ -180,7 +187,7 @@ export function TacticsPage() {
   }
 
   const handleCreateAndAdd = async (newCollectionName: string) => {
-    const created = await createCollection(newCollectionName, null)
+    const created = await createCollection(newCollectionName, null, 'tactic')
     if (!created) return
     for (const id of bulkIds) await addTacticToCollection(created.id, id)
     showToast(`Added ${bulkIds.size} ${bulkIds.size === 1 ? 'tactic' : 'tactics'} to ${created.name}`)
@@ -273,7 +280,31 @@ export function TacticsPage() {
                       {bulkMode ? 'Selecting…' : 'Select'}
                     </button>
                   )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => setManageOpen((v) => !v)}
+                      aria-pressed={manageOpen}
+                      aria-expanded={manageOpen}
+                      className={
+                        'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors ' +
+                        (manageOpen ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+                      }
+                    >
+                      <FolderCog className="h-3.5 w-3.5" />
+                      Manage collections
+                    </button>
+                  )}
                 </div>
+
+                {manageOpen && (
+                  <CollectionManagerPanel
+                    kind="tactic"
+                    docs={tactics}
+                    collectionDocIds={collectionTacticIds}
+                    onRemoveDoc={removeTacticFromCollection}
+                  />
+                )}
 
                 {bulkMode && bulkIds.size > 0 && (
                   <AddToCollectionBar

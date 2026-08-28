@@ -13,24 +13,28 @@ here is faked client-side.
 | U18 coach | `barca.u18@gafferdemo.app` | `BarcaU18Coach2026!` |
 | Riverside coach | `riverside.coach@gafferdemo.app` | `RiversideCoach2026!` |
 
-Clubs: **FC Barcelona (demo)** (4 collections: U12 Foundation, U14 Passing
-Block, U18 Tactical, First Team Pressing — ~16 drills, 2 tactics) and
-**Riverside Academy** (near-empty — the "second academy" story).
+Clubs: **FC Barcelona (demo)** (5 collections — U12 Foundation, U14 Passing
+Block, U18 Tactical and First Team Pressing hold the ~16 drills; "U18
+Tactical (tactics)" holds the 2 tactics, since a collection is now always
+exactly one kind, never both) and **Riverside Academy** (near-empty — the
+"second academy" story).
 
 ## The arc
 
-1. **Sign in as the Barca admin.** Tour both libraries — Drill Library and
-   Tactic Library each show every collection as a folder (admin sees
+1. **Sign in as the Barca admin.** Tour the Library — its Drills and
+   Tactics tabs each show every collection as a folder (admin sees
    everything in the club), plus every coach's own creations grouped
    separately. This is the "the library is the product" beat.
 
-2. **`/admin/coaches`** — create a coach live, on stage. Fill in a display
-   name, a real email, a password; submit. New login works immediately (no
-   email confirmation step — disabled on the project).
+2. **`/settings/coaches`** — create a coach live, on stage. Fill in a
+   display name, a real email, a password; submit. New login works
+   immediately (no email confirmation step — disabled on the project).
 
-3. **`/admin/collections`** — pick a collection (e.g. "U12 Foundation"),
-   grant it to the coach just created via the "Coach access" toggle at the
-   bottom of the page.
+3. **Library → Drills → "Manage collections"** — pick a collection (e.g.
+   "U12 Foundation"), grant it to the coach just created via the "Coach
+   access" toggle. Collections management lives on the tab it belongs to
+   now (Drills manages drill-kind collections, Tactics manages tactic-kind)
+   rather than a separate admin page.
 
 4. **Sign in as the U12 coach.** Their library shows exactly their granted
    collections — nothing from other collections, nothing another coach
@@ -45,12 +49,12 @@ Block, U18 Tactical, First Team Pressing — ~16 drills, 2 tactics) and
    It lands in their folder — invisible to any other coach, visible to the
    admin (who sees every coach's folder).
 
-7. **Back as the admin — Transfer.** `/admin/transfer`: pick "U14 Passing
+7. **Back as the admin — Transfer.** `/settings/transfer`: pick "U14 Passing
    Block", copy it to Riverside Academy. Switch clubs (the header
    dropdown) — Riverside's library now shows the copy, fully editable, with
    no roster/team references carried over.
 
-8. **Licenses.** `/admin/licenses`: license "First Team Pressing" to
+8. **Licenses.** `/settings/licenses`: license "First Team Pressing" to
    Riverside Academy. Switch to Riverside, disperse the incoming license to
    Riley (the Riverside coach) via the same per-coach toggle Collections
    uses. Sign in as Riley — their library shows the licensed group with a

@@ -43,6 +43,7 @@ export type {
   ClubMembership,
   ClubMemberRow,
   Collection,
+  CollectionKind,
   ClubLicense,
 } from './types'
 export {

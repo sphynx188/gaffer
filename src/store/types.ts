@@ -540,11 +540,19 @@ export interface ClubMemberRow {
   created_at: string
 }
 
+// Enforced, not a convention (migration 032): a collection is always
+// exactly one kind, never both — collection_drill/collection_tactic's own
+// RLS refuses filing the wrong content type into it. Immutable after
+// creation; there is no rename-kind path, since that would mean silently
+// orphaning whatever's already filed under the old kind.
+export type CollectionKind = 'drill' | 'tactic'
+
 export interface Collection {
   id: string
   club_id: string
   name: string
   description: string | null
+  kind: CollectionKind
   created_by: string
   created_at: string
 }

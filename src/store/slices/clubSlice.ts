@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
-import type { Club, ClubLicense, ClubMemberRow, ClubMembership, ClubRole, Collection } from '../types'
+import type { Club, ClubLicense, ClubMemberRow, ClubMembership, ClubRole, Collection, CollectionKind } from '../types'
 import type { StoreState } from '../useStore'
 
 export interface NewCoachInput {
@@ -111,7 +111,7 @@ export interface ClubSlice {
   selectClub: (clubId: string) => void
   createClub: (name: string) => Promise<boolean>
   fetchClubData: () => Promise<void>
-  createCollection: (name: string, description: string | null) => Promise<Collection | null>
+  createCollection: (name: string, description: string | null, kind: CollectionKind) => Promise<Collection | null>
   updateCollection: (id: string, patch: CollectionUpdateInput) => Promise<boolean>
   deleteCollection: (id: string) => Promise<boolean>
   addDrillToCollection: (collectionId: string, drillId: string) => Promise<boolean>
@@ -347,12 +347,12 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     })
   },
 
-  createCollection: async (name, description) => {
+  createCollection: async (name, description, kind) => {
     const clubId = get().selectedClubId
     if (!clubId) return null
     set({ clubDataLoading: true, clubDataError: null })
     const { data, error } = await runSupabaseAction<Collection[]>(
-      () => supabase.from('collection').insert({ club_id: clubId, name, description }).select(),
+      () => supabase.from('collection').insert({ club_id: clubId, name, description, kind }).select(),
       "Couldn't create collection, try again."
     )
     const collection = data?.[0] ?? null

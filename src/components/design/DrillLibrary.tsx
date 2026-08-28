@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { CheckSquare, Copy, LibraryBig, Pause, PenSquare, Play, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
+import { CheckSquare, Copy, FolderCog, LibraryBig, Pause, PenSquare, Play, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
 import { selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
@@ -29,6 +29,7 @@ import { PitchCanvas } from './PitchCanvas'
 import { LibraryGroups } from './LibraryGroups'
 import { buildLibraryGroups } from './buildLibraryGroups'
 import { AddToCollectionBar } from './AddToCollectionBar'
+import { CollectionManagerPanel } from './CollectionManagerPanel'
 import { useToast } from '../ui/useToast'
 
 // Phase 3.1 — Drill library / browse & search (US-17), reworked by
@@ -122,6 +123,7 @@ export function DrillLibrary() {
   const deleteDrill = useStore((s) => s.deleteDrill)
   const createCollection = useStore((s) => s.createCollection)
   const addDrillToCollection = useStore((s) => s.addDrillToCollection)
+  const removeDrillFromCollection = useStore((s) => s.removeDrillFromCollection)
   const showToast = useToast()
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
@@ -136,6 +138,7 @@ export function DrillLibrary() {
   // preview panel below", a different selection with different UI.
   const [bulkMode, setBulkMode] = useState(false)
   const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
+  const [manageOpen, setManageOpen] = useState(false)
 
   // Club tenancy (2026-08-28): fetchDrills takes no scope argument any more
   // (RLS decides visibility) — selectedClubId stays a dependency purely so
@@ -269,12 +272,16 @@ export function DrillLibrary() {
     setBulkIds(new Set())
   }
 
-  // Only this club's own collections — a licensed-in collection belongs to
-  // the club that granted it, filing something new into it here would be
-  // filing into someone else's library (and collection_drill's RLS would
-  // refuse it anyway).
+  // Only this club's own drill-kind collections — a licensed-in collection
+  // belongs to the club that granted it (filing here would be filing into
+  // someone else's library, and RLS would refuse it anyway), and a
+  // tactic-kind collection can't take a drill at all since migration 032
+  // (collection_drill's RLS now checks collection.kind = 'drill').
   const homeCollections = useMemo(
-    () => collections.filter((c) => c.club_id === selectedClubId).sort((a, b) => a.name.localeCompare(b.name)),
+    () =>
+      collections
+        .filter((c) => c.club_id === selectedClubId && c.kind === 'drill')
+        .sort((a, b) => a.name.localeCompare(b.name)),
     [collections, selectedClubId]
   )
 
@@ -286,7 +293,7 @@ export function DrillLibrary() {
   }
 
   const handleCreateAndAdd = async (name: string) => {
-    const created = await createCollection(name, null)
+    const created = await createCollection(name, null, 'drill')
     if (!created) return
     for (const id of bulkIds) await addDrillToCollection(created.id, id)
     showToast(`Added ${bulkIds.size} ${bulkIds.size === 1 ? 'drill' : 'drills'} to ${created.name}`)
@@ -349,7 +356,31 @@ export function DrillLibrary() {
                 {bulkMode ? 'Selecting…' : 'Select'}
               </button>
             )}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setManageOpen((v) => !v)}
+                aria-pressed={manageOpen}
+                aria-expanded={manageOpen}
+                className={
+                  'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  (manageOpen ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+                }
+              >
+                <FolderCog className="h-3.5 w-3.5" />
+                Manage collections
+              </button>
+            )}
           </div>
+
+          {manageOpen && (
+            <CollectionManagerPanel
+              kind="drill"
+              docs={drills}
+              collectionDocIds={collectionDrillIds}
+              onRemoveDoc={removeDrillFromCollection}
+            />
+          )}
 
           {bulkMode && bulkIds.size > 0 && (
             <AddToCollectionBar

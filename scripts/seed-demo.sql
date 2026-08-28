@@ -7,6 +7,16 @@
 -- `phase_of_play`, which the plan-draft version omitted — real columns on
 -- `tactic`, the same silent-omission risk already found and fixed once in
 -- migration 030's copy_collection_to_club.
+--
+-- Amendment (migration 032, 2026-08-28): a collection is now always exactly
+-- one kind. "U18 Tactical" below stays drill-kind (unchanged, still 4
+-- drills, still one of the 4 named drill collections) — its 2 tactics move
+-- to a fifth, tactic-kind collection ("U18 Tactical (tactics)"), same name
+-- migration 032 itself gave the equivalent split on the real seeded data
+-- when it found this exact shape already live. Granted to the same U18
+-- coach so the demo narrative (that coach's library shows both drills and
+-- tactics) is unchanged, just across two typed collections instead of one
+-- mixed one.
 do $$
 declare
   v_admin uuid := (select id from auth.users where email = 'barca.admin@gafferdemo.app');
@@ -16,7 +26,7 @@ declare
   v_legacy_club uuid := (select cm.club_id from club_member cm
       join auth.users u on u.id = cm.user_id
       where u.email = 'maxburatto68@gmail.com' and cm.role = 'admin' limit 1);
-  v_barca uuid; v_riverside uuid; v_col uuid; new_id uuid; r record; n int;
+  v_barca uuid; v_riverside uuid; v_col uuid; v_tactic_col uuid; new_id uuid; r record; n int;
   cols text[] := array['U12 Foundation','U14 Passing Block','U18 Tactical','First Team Pressing'];
   prefixes text[] := array['U12','U14','U18','First Team'];
   col_ids uuid[] := array[]::uuid[];
@@ -35,8 +45,8 @@ begin
     (v_riverside, v_rvc, 'coach', 'Riley Donnelly');
 
   for n in 1..4 loop
-    insert into collection (club_id, name, created_by)
-      values (v_barca, cols[n], v_admin) returning id into v_col;
+    insert into collection (club_id, name, created_by, kind)
+      values (v_barca, cols[n], v_admin, 'drill') returning id into v_col;
     col_ids := col_ids || v_col;
     -- 4 renamed drill copies per collection from the legacy library
     for r in (select d.* from drill d where d.club_id = v_legacy_club
@@ -59,7 +69,12 @@ begin
     end loop;
   end loop;
 
-  -- one tactic copy into each of the two tactical collections
+  -- Tactic-kind collection for the 2 seeded tactics — see the amendment
+  -- note above for why this isn't filed into col_ids[3] (U18 Tactical)
+  -- any more.
+  insert into collection (club_id, name, created_by, kind)
+    values (v_barca, 'U18 Tactical (tactics)', v_admin, 'tactic') returning id into v_tactic_col;
+
   for r in (select t.* from tactic t where t.club_id = v_legacy_club
             order by t.created_at limit 2) loop
     insert into tactic (club_id, created_by, team_id, name, scene, keyframes,
@@ -73,11 +88,13 @@ begin
       r.description, r.phase_of_play, null, null)
     returning id into new_id;
     insert into collection_tactic (collection_id, tactic_id)
-      values (col_ids[3], new_id);
+      values (v_tactic_col, new_id);
   end loop;
 
-  -- grants: each coach gets their two collections
+  -- grants: each coach gets their two drill collections; the U18 coach also
+  -- gets the tactic-kind collection so their library still shows both.
   insert into collection_access (collection_id, user_id, granted_by) values
     (col_ids[1], v_u12, v_admin), (col_ids[2], v_u12, v_admin),
-    (col_ids[3], v_u18, v_admin), (col_ids[4], v_u18, v_admin);
+    (col_ids[3], v_u18, v_admin), (col_ids[4], v_u18, v_admin),
+    (v_tactic_col, v_u18, v_admin);
 end $$;
