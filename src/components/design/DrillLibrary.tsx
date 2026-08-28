@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
-import { Copy, LibraryBig, Pause, PenSquare, Play, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { CheckSquare, Copy, LibraryBig, Pause, PenSquare, Play, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
 import { selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
@@ -28,6 +28,8 @@ import { Dropdown } from '../ui/Dropdown'
 import { PitchCanvas } from './PitchCanvas'
 import { LibraryGroups } from './LibraryGroups'
 import { buildLibraryGroups } from './buildLibraryGroups'
+import { AddToCollectionBar } from './AddToCollectionBar'
+import { useToast } from '../ui/useToast'
 
 // Phase 3.1 — Drill library / browse & search (US-17), reworked by
 // DRILL_CREATOR_REWORK_PLAN.md Stage 9 into a card grid with real filters and
@@ -97,8 +99,8 @@ const EMPTY_FILTERS: Filters = {
   maxDurationMinutes: '',
 }
 
-function filtersActive(filters: Filters): boolean {
-  return Object.values(filters).some((v) => v !== '')
+function activeFilterCount(filters: Filters): number {
+  return Object.values(filters).filter((v) => v !== '').length
 }
 
 export function DrillLibrary() {
@@ -118,12 +120,22 @@ export function DrillLibrary() {
   const fetchDrills = useStore((s) => s.fetchDrills)
   const duplicateDrill = useStore((s) => s.duplicateDrill)
   const deleteDrill = useStore((s) => s.deleteDrill)
+  const createCollection = useStore((s) => s.createCollection)
+  const addDrillToCollection = useStore((s) => s.addDrillToCollection)
+  const showToast = useToast()
 
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedDrillId, setSelectedDrillId] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  // Bulk-file mode (2026-08-28, admin-only — collection_drill's own RLS
+  // requires is_club_admin, so this is hidden rather than shown-and-failing
+  // for a plain coach). Named `bulk*` rather than reusing
+  // `selectedDrillId`/`handleSelectDrill`: those already mean "open in the
+  // preview panel below", a different selection with different UI.
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
 
   // Club tenancy (2026-08-28): fetchDrills takes no scope argument any more
   // (RLS decides visibility) — selectedClubId stays a dependency purely so
@@ -243,6 +255,44 @@ export function DrillLibrary() {
     if (deleted) setSelectedDrillId(null)
   }
 
+  const handleToggleBulk = (id: string) => {
+    setBulkIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleCancelBulk = () => {
+    setBulkMode(false)
+    setBulkIds(new Set())
+  }
+
+  // Only this club's own collections — a licensed-in collection belongs to
+  // the club that granted it, filing something new into it here would be
+  // filing into someone else's library (and collection_drill's RLS would
+  // refuse it anyway).
+  const homeCollections = useMemo(
+    () => collections.filter((c) => c.club_id === selectedClubId).sort((a, b) => a.name.localeCompare(b.name)),
+    [collections, selectedClubId]
+  )
+
+  const handleAddExisting = async (collectionId: string) => {
+    for (const id of bulkIds) await addDrillToCollection(collectionId, id)
+    const name = homeCollections.find((c) => c.id === collectionId)?.name ?? 'the collection'
+    showToast(`Added ${bulkIds.size} ${bulkIds.size === 1 ? 'drill' : 'drills'} to ${name}`)
+    setBulkIds(new Set())
+  }
+
+  const handleCreateAndAdd = async (name: string) => {
+    const created = await createCollection(name, null)
+    if (!created) return
+    for (const id of bulkIds) await addDrillToCollection(created.id, id)
+    showToast(`Added ${bulkIds.size} ${bulkIds.size === 1 ? 'drill' : 'drills'} to ${created.name}`)
+    setBulkIds(new Set())
+  }
+
   return (
     <div className="space-y-4">
       {drillsLoading && drills.length === 0 && (
@@ -273,17 +323,44 @@ export function DrillLibrary() {
           <LibraryFilterBar
             filters={filters}
             onChange={setFilters}
-            moreOpen={moreOpen}
-            onToggleMore={() => setMoreOpen((v) => !v)}
+            filtersOpen={filtersOpen}
+            onToggleFilters={() => setFiltersOpen((v) => !v)}
             ageBandOptions={ageBandOptions}
             categoryOptions={categoryOptions}
           />
-          <Link
-            to="/design"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
-          >
-            + New drill
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/design"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
+            >
+              + New drill
+            </Link>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => (bulkMode ? handleCancelBulk() : setBulkMode(true))}
+                aria-pressed={bulkMode}
+                className={
+                  'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm font-medium transition-colors ' +
+                  (bulkMode ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+                }
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                {bulkMode ? 'Selecting…' : 'Select'}
+              </button>
+            )}
+          </div>
+
+          {bulkMode && bulkIds.size > 0 && (
+            <AddToCollectionBar
+              count={bulkIds.size}
+              docNoun="drill"
+              collections={homeCollections}
+              onAddExisting={handleAddExisting}
+              onCreateAndAdd={handleCreateAndAdd}
+              onCancel={handleCancelBulk}
+            />
+          )}
 
           {filteredDrills.length === 0 ? (
             <p className="text-sm text-ink-muted">No drills match these filters.</p>
@@ -295,13 +372,19 @@ export function DrillLibrary() {
                 const drill = filteredDrills.find((d) => d.id === id)
                 if (!drill) return null
                 return (
-                  <DrillCard drill={drill} selected={selectedDrillId === id} onSelect={() => handleSelectDrill(id)} view={view} />
+                  <DrillCard
+                    drill={drill}
+                    selected={bulkMode ? bulkIds.has(id) : selectedDrillId === id}
+                    onSelect={() => (bulkMode ? handleToggleBulk(id) : handleSelectDrill(id))}
+                    view={view}
+                    bulkMode={bulkMode}
+                  />
                 )
               }}
             />
           )}
 
-          {selectedDrill && (
+          {selectedDrill && !bulkMode && (
             <DrillPreviewPanel
               key={selectedDrill.id}
               drill={selectedDrill}
@@ -321,122 +404,123 @@ export function DrillLibrary() {
 const FIELD =
   'h-11 w-full rounded-md border border-line bg-panel-raised px-2 text-sm text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30 lg:h-9'
 
-// search · age · session block · players · level · more filters — the exact
-// bar the target editor's library uses (plan §1's "Library" inventory).
-// Duration, intensity, phase of play and category sit behind "more filters":
-// the plan names only the first five as the primary bar, but the stage's own
-// definition of done ("a 12-minute technical rondo for 8 players") needs a
-// duration filter to exist somewhere, so it lives with the others that
-// didn't make the primary five rather than crowding the bar past five
-// controls a coach has to scan every time.
+// Every filter lives behind one "Filters" toggle now (2026-08-28) — the bar
+// used to keep search/age/session block/players/level always visible with
+// only the remaining four behind "More filters"; now all nine collapse
+// together, so the library's default state is just the toggle, "Clear" (when
+// something's active) and the card list, not a row of controls competing
+// with it for attention. The toggle itself carries an active-count badge so
+// a coach who collapses the panel isn't left wondering why the list looks
+// short.
 function LibraryFilterBar({
   filters,
   onChange,
-  moreOpen,
-  onToggleMore,
+  filtersOpen,
+  onToggleFilters,
   ageBandOptions,
   categoryOptions,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
-  moreOpen: boolean
-  onToggleMore: () => void
+  filtersOpen: boolean
+  onToggleFilters: () => void
   ageBandOptions: string[]
   categoryOptions: string[]
 }) {
   const patch = (next: Partial<Filters>) => onChange({ ...filters, ...next })
+  const count = activeFilterCount(filters)
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="min-w-40 flex-1">
-          <label htmlFor="drill-library-search" className="block text-xs font-medium text-ink-muted">
-            Search
-          </label>
-          <input
-            id="drill-library-search"
-            type="search"
-            value={filters.query}
-            onChange={(e) => patch({ query: e.target.value })}
-            placeholder="Name, category, objective, pitch…"
-            className={`${FIELD} mt-1`}
-          />
-        </div>
-        <div className="w-36">
-          <label className="block text-xs font-medium text-ink-muted">Age</label>
-          <div className="mt-1">
-            <Dropdown
-              value={filters.ageBand}
-              onChange={(v) => patch({ ageBand: v })}
-              options={[{ value: '', label: 'Any age' }, ...ageBandOptions.map((b) => ({ value: b, label: b }))]}
-              searchable={false}
-              ariaLabel="Age band"
-              triggerClassName="h-11 w-full lg:h-9"
-            />
-          </div>
-        </div>
-        <div className="w-40">
-          <label className="block text-xs font-medium text-ink-muted">Session block</label>
-          <div className="mt-1">
-            <Dropdown
-              value={filters.sessionBlock}
-              onChange={(v) => patch({ sessionBlock: v as SessionBlock | '' })}
-              options={[{ value: '', label: 'Any block' }, ...SESSION_BLOCKS.map((b) => ({ value: b, label: SESSION_BLOCK_LABELS[b] }))]}
-              searchable={false}
-              ariaLabel="Session block"
-              triggerClassName="h-11 w-full lg:h-9"
-            />
-          </div>
-        </div>
-        <div className="w-28">
-          <label className="block text-xs font-medium text-ink-muted">Players</label>
-          <input
-            type="number"
-            min={1}
-            value={filters.minPlayers}
-            onChange={(e) => patch({ minPlayers: e.target.value })}
-            placeholder="e.g. 8"
-            className={`${FIELD} mt-1`}
-          />
-        </div>
-        <div className="w-32">
-          <label className="block text-xs font-medium text-ink-muted">Level</label>
-          <div className="mt-1">
-            <Dropdown
-              value={filters.difficulty}
-              onChange={(v) => patch({ difficulty: v as DrillDifficulty | '' })}
-              options={[{ value: '', label: 'Any level' }, ...DRILL_DIFFICULTIES.map((d) => ({ value: d, label: DRILL_DIFFICULTY_LABELS[d] }))]}
-              searchable={false}
-              ariaLabel="Level"
-              triggerClassName="h-11 w-full lg:h-9"
-            />
-          </div>
-        </div>
+      <div className="flex items-center gap-2">
         <button
           type="button"
-          onClick={onToggleMore}
-          aria-pressed={moreOpen}
+          onClick={onToggleFilters}
+          aria-pressed={filtersOpen}
+          aria-expanded={filtersOpen}
           className={
-            'flex h-11 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors lg:h-9 ' +
-            (moreOpen ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+            'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors ' +
+            (filtersOpen || count > 0
+              ? 'border-accent bg-accent/15 text-accent'
+              : 'border-line text-ink-muted hover:border-line-strong')
           }
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
-          More filters
+          Filters
+          {count > 0 && <span className="text-xs">({count})</span>}
         </button>
-        {filtersActive(filters) && (
-          <button
-            type="button"
-            onClick={() => onChange(EMPTY_FILTERS)}
-            className="h-11 px-2 text-sm text-ink-muted hover:text-ink lg:h-9"
-          >
+        {count > 0 && (
+          <button type="button" onClick={() => onChange(EMPTY_FILTERS)} className="h-9 px-2 text-sm text-ink-muted hover:text-ink">
             Clear
           </button>
         )}
       </div>
 
-      {moreOpen && (
+      {filtersOpen && (
         <div className="flex flex-wrap items-end gap-2 rounded-lg border border-line bg-panel-raised p-2">
+          <div className="min-w-40 flex-1">
+            <label htmlFor="drill-library-search" className="block text-xs font-medium text-ink-muted">
+              Search
+            </label>
+            <input
+              id="drill-library-search"
+              type="search"
+              value={filters.query}
+              onChange={(e) => patch({ query: e.target.value })}
+              placeholder="Name, category, objective, pitch…"
+              className={`${FIELD} mt-1`}
+            />
+          </div>
+          <div className="w-36">
+            <label className="block text-xs font-medium text-ink-muted">Age</label>
+            <div className="mt-1">
+              <Dropdown
+                value={filters.ageBand}
+                onChange={(v) => patch({ ageBand: v })}
+                options={[{ value: '', label: 'Any age' }, ...ageBandOptions.map((b) => ({ value: b, label: b }))]}
+                searchable={false}
+                ariaLabel="Age band"
+                triggerClassName="h-11 w-full lg:h-9"
+              />
+            </div>
+          </div>
+          <div className="w-40">
+            <label className="block text-xs font-medium text-ink-muted">Session block</label>
+            <div className="mt-1">
+              <Dropdown
+                value={filters.sessionBlock}
+                onChange={(v) => patch({ sessionBlock: v as SessionBlock | '' })}
+                options={[{ value: '', label: 'Any block' }, ...SESSION_BLOCKS.map((b) => ({ value: b, label: SESSION_BLOCK_LABELS[b] }))]}
+                searchable={false}
+                ariaLabel="Session block"
+                triggerClassName="h-11 w-full lg:h-9"
+              />
+            </div>
+          </div>
+          <div className="w-28">
+            <label className="block text-xs font-medium text-ink-muted">Players</label>
+            <input
+              type="number"
+              min={1}
+              value={filters.minPlayers}
+              onChange={(e) => patch({ minPlayers: e.target.value })}
+              placeholder="e.g. 8"
+              className={`${FIELD} mt-1`}
+            />
+          </div>
+          <div className="w-32">
+            <label className="block text-xs font-medium text-ink-muted">Level</label>
+            <div className="mt-1">
+              <Dropdown
+                value={filters.difficulty}
+                onChange={(v) => patch({ difficulty: v as DrillDifficulty | '' })}
+                options={[{ value: '', label: 'Any level' }, ...DRILL_DIFFICULTIES.map((d) => ({ value: d, label: DRILL_DIFFICULTY_LABELS[d] }))]}
+                searchable={false}
+                ariaLabel="Level"
+                triggerClassName="h-11 w-full lg:h-9"
+              />
+            </div>
+          </div>
           <div className="w-32">
             <label className="block text-xs font-medium text-ink-muted">Intensity</label>
             <div className="mt-1">
@@ -498,12 +582,17 @@ function DrillCard({
   selected,
   onSelect,
   view,
+  bulkMode = false,
 }: {
   drill: Drill
   selected: boolean
   onSelect: () => void
   view: LibraryView
+  bulkMode?: boolean
 }) {
+  const checkbox = bulkMode &&
+    (selected ? <CheckSquare className="h-4 w-4 shrink-0 text-accent" /> : <Square className="h-4 w-4 shrink-0 text-ink-faint" />)
+
   const meta = [
     drill.duration_minutes != null ? `${drill.duration_minutes} min` : null,
     drill.difficulty ? DRILL_DIFFICULTY_LABELS[drill.difficulty] : null,
@@ -534,7 +623,10 @@ function DrillCard({
         }
       >
         <div className="flex items-start justify-between gap-2">
-          <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
+          <span className="flex min-w-0 items-center gap-2">
+            {checkbox}
+            <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
+          </span>
           {drill.category && <Badge tone="neutral">{drill.category}</Badge>}
         </div>
         {drill.objective && <p className="truncate text-xs text-ink-muted">{drill.objective}</p>}
@@ -561,7 +653,10 @@ function DrillCard({
         )}
       </div>
       <div className="min-w-0 space-y-1">
-        <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
+        <span className="flex min-w-0 items-center gap-2">
+          {checkbox}
+          <p className="truncate text-sm font-medium text-ink">{drill.name}</p>
+        </span>
         {drill.category && (
           <div>
             <Badge tone="neutral">{drill.category}</Badge>

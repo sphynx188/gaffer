@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
-import { Shield, Trash2 } from 'lucide-react'
+import { CheckSquare, Shield, SlidersHorizontal, Square, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
@@ -16,6 +16,8 @@ import { Badge } from '../components/ui/Badge'
 import { Dropdown } from '../components/ui/Dropdown'
 import { LibraryGroups } from '../components/design/LibraryGroups'
 import { buildLibraryGroups } from '../components/design/buildLibraryGroups'
+import { AddToCollectionBar } from '../components/design/AddToCollectionBar'
+import { useToast } from '../components/ui/useToast'
 import type { LibraryOutletContext } from './LibraryLayout'
 
 // `/library/tactics` — the tactics library (TACTICS_BOARD_REWORK_PLAN.md
@@ -65,11 +67,20 @@ export function TacticsPage() {
   const tacticsError = useStore((s) => s.tacticsError)
   const fetchTactics = useStore((s) => s.fetchTactics)
   const createTactic = useStore((s) => s.createTactic)
+  const createCollection = useStore((s) => s.createCollection)
+  const addTacticToCollection = useStore((s) => s.addTacticToCollection)
+  const showToast = useToast()
 
   const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [query, setQuery] = useState('')
   const [phaseOfPlay, setPhaseOfPlay] = useState<DrillPhaseOfPlay | ''>('')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  // Bulk-file mode (2026-08-28, admin-only) — see DrillLibrary.tsx's
+  // identical pattern/comment for why this is a separate selection from
+  // whatever a plain card click already means (navigate to the editor here).
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
 
   // Club tenancy (2026-08-28): fetchTactics takes no scope argument any
   // more (RLS decides visibility) — selectedClubId stays a dependency
@@ -115,7 +126,7 @@ export function TacticsPage() {
     })
   }, [tactics, query, phaseOfPlay])
 
-  const filtersActive = query.trim() !== '' || phaseOfPlay !== ''
+  const activeFilterCount = (query.trim() !== '' ? 1 : 0) + (phaseOfPlay !== '' ? 1 : 0)
 
   // Keyed on an actual active license, not "club_id !== selectedClubId" —
   // see DrillLibrary.tsx's identical fix for why (found live in Task 10).
@@ -139,6 +150,42 @@ export function TacticsPage() {
       }),
     [filtered, collections, collectionTacticIds, licensedCollectionIds, selectedClubId, myUserId, isAdmin, clubMembers]
   )
+
+  const handleToggleBulk = (id: string) => {
+    setBulkIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleCancelBulk = () => {
+    setBulkMode(false)
+    setBulkIds(new Set())
+  }
+
+  // Only this club's own collections — see DrillLibrary.tsx's identical
+  // `homeCollections`/RLS note.
+  const homeCollections = useMemo(
+    () => collections.filter((c) => c.club_id === selectedClubId).sort((a, b) => a.name.localeCompare(b.name)),
+    [collections, selectedClubId]
+  )
+
+  const handleAddExisting = async (collectionId: string) => {
+    for (const id of bulkIds) await addTacticToCollection(collectionId, id)
+    const targetName = homeCollections.find((c) => c.id === collectionId)?.name ?? 'the collection'
+    showToast(`Added ${bulkIds.size} ${bulkIds.size === 1 ? 'tactic' : 'tactics'} to ${targetName}`)
+    setBulkIds(new Set())
+  }
+
+  const handleCreateAndAdd = async (newCollectionName: string) => {
+    const created = await createCollection(newCollectionName, null)
+    if (!created) return
+    for (const id of bulkIds) await addTacticToCollection(created.id, id)
+    showToast(`Added ${bulkIds.size} ${bulkIds.size === 1 ? 'tactic' : 'tactics'} to ${created.name}`)
+    setBulkIds(new Set())
+  }
 
   return (
     <Card>
@@ -182,46 +229,94 @@ export function TacticsPage() {
 
           {tactics.length > 0 && (
             <>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-48 flex-1">
-                  <label htmlFor="tactic-search" className="block text-xs font-medium text-ink-muted">
-                    Search
-                  </label>
-                  <input
-                    id="tactic-search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Name, description or formation"
-                    className={`${FIELD} mt-1`}
-                  />
-                </div>
-                <div className="w-44">
-                  <label className="block text-xs font-medium text-ink-muted">Phase of play</label>
-                  <div className="mt-1">
-                    <Dropdown
-                      value={phaseOfPlay}
-                      onChange={(v) => setPhaseOfPlay(v as DrillPhaseOfPlay | '')}
-                      options={[
-                        { value: '', label: 'Any phase' },
-                        ...DRILL_PHASES_OF_PLAY.map((p) => ({ value: p, label: DRILL_PHASE_OF_PLAY_LABELS[p] })),
-                      ]}
-                      searchable={false}
-                      ariaLabel="Phase of play"
-                      triggerClassName="h-11 w-full lg:h-9"
-                    />
-                  </div>
-                </div>
-                {filtersActive && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setQuery('')
-                      setPhaseOfPlay('')
-                    }}
-                    className="h-11 px-2 text-sm text-ink-muted hover:text-ink lg:h-9"
+                    onClick={() => setFiltersOpen((v) => !v)}
+                    aria-pressed={filtersOpen}
+                    aria-expanded={filtersOpen}
+                    className={
+                      'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors ' +
+                      (filtersOpen || activeFilterCount > 0
+                        ? 'border-accent bg-accent/15 text-accent'
+                        : 'border-line text-ink-muted hover:border-line-strong')
+                    }
                   >
-                    Clear
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Filters
+                    {activeFilterCount > 0 && <span className="text-xs">({activeFilterCount})</span>}
                   </button>
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery('')
+                        setPhaseOfPlay('')
+                      }}
+                      className="h-9 px-2 text-sm text-ink-muted hover:text-ink"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => (bulkMode ? handleCancelBulk() : setBulkMode(true))}
+                      aria-pressed={bulkMode}
+                      className={
+                        'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors ' +
+                        (bulkMode ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+                      }
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      {bulkMode ? 'Selecting…' : 'Select'}
+                    </button>
+                  )}
+                </div>
+
+                {bulkMode && bulkIds.size > 0 && (
+                  <AddToCollectionBar
+                    count={bulkIds.size}
+                    docNoun="tactic"
+                    collections={homeCollections}
+                    onAddExisting={handleAddExisting}
+                    onCreateAndAdd={handleCreateAndAdd}
+                    onCancel={handleCancelBulk}
+                  />
+                )}
+
+                {filtersOpen && (
+                  <div className="flex flex-wrap items-end gap-2 rounded-lg border border-line bg-panel-raised p-2">
+                    <div className="min-w-48 flex-1">
+                      <label htmlFor="tactic-search" className="block text-xs font-medium text-ink-muted">
+                        Search
+                      </label>
+                      <input
+                        id="tactic-search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Name, description or formation"
+                        className={`${FIELD} mt-1`}
+                      />
+                    </div>
+                    <div className="w-44">
+                      <label className="block text-xs font-medium text-ink-muted">Phase of play</label>
+                      <div className="mt-1">
+                        <Dropdown
+                          value={phaseOfPlay}
+                          onChange={(v) => setPhaseOfPlay(v as DrillPhaseOfPlay | '')}
+                          options={[
+                            { value: '', label: 'Any phase' },
+                            ...DRILL_PHASES_OF_PLAY.map((p) => ({ value: p, label: DRILL_PHASE_OF_PLAY_LABELS[p] })),
+                          ]}
+                          searchable={false}
+                          ariaLabel="Phase of play"
+                          triggerClassName="h-11 w-full lg:h-9"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -235,7 +330,16 @@ export function TacticsPage() {
                     const tactic = filtered.find((t) => t.id === id)
                     if (!tactic) return null
                     const canEdit = (isAdmin && tactic.club_id === selectedClubId) || tactic.created_by === myUserId
-                    return <TacticCardTile tactic={tactic} canEdit={canEdit} view={view} />
+                    return (
+                      <TacticCardTile
+                        tactic={tactic}
+                        canEdit={canEdit}
+                        view={view}
+                        bulkMode={bulkMode}
+                        bulkSelected={bulkIds.has(id)}
+                        onToggleBulk={() => handleToggleBulk(id)}
+                      />
+                    )
                   }}
                 />
               )}
@@ -246,7 +350,21 @@ export function TacticsPage() {
   )
 }
 
-function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: boolean; view: LibraryView }) {
+function TacticCardTile({
+  tactic,
+  canEdit,
+  view,
+  bulkMode = false,
+  bulkSelected = false,
+  onToggleBulk,
+}: {
+  tactic: Tactic
+  canEdit: boolean
+  view: LibraryView
+  bulkMode?: boolean
+  bulkSelected?: boolean
+  onToggleBulk?: () => void
+}) {
   const deleteTactic = useStore((s) => s.deleteTactic)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -300,7 +418,7 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
     )
   }
 
-  const deleteButton = canEdit && (
+  const deleteButton = canEdit && !bulkMode && (
     <button
       type="button"
       onClick={(e) => {
@@ -320,6 +438,9 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
     </button>
   )
 
+  const checkbox = bulkMode &&
+    (bulkSelected ? <CheckSquare className="h-4 w-4 shrink-0 text-accent" /> : <Square className="h-4 w-4 shrink-0 text-ink-faint" />)
+
   // A badge per side, which is the pair a coach actually reads a tactic by —
   // "our 4-3-3 against their 4-4-2".
   const formationBadges = (
@@ -330,34 +451,32 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
     </>
   )
 
-  if (view === 'list') {
-    // No thumbnail here on purpose (2026-08-28) — list view is for
-    // scanning/searching text fast, so formation badges that were hidden on
-    // small screens in the compact row now always show, alongside the
-    // tactic's description when it has one.
-    return (
-      <Link
-        to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
-        className="flex w-full flex-col gap-1 rounded-lg border border-line px-3 py-2.5 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
-      >
-        <div className="flex items-start justify-between gap-2">
+  // Bulk mode swaps the card from a navigating <Link> to a toggling
+  // <button> — same shape DrillCard already used, since "select for filing"
+  // and "open the editor" can't both own a click on the same element. Kept
+  // as two explicit branches rather than a polymorphic `Wrapper` component:
+  // <Link>'s and <button>'s prop types don't unify cleanly enough for a
+  // shared spread to typecheck without a cast, and the content is identical
+  // either way, so there's little to gain from forcing them into one.
+  const listContent = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          {checkbox}
           <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>
-          {deleteButton}
-        </div>
-        {tactic.description && <p className="truncate text-xs text-ink-muted">{tactic.description}</p>}
-        <div className="flex flex-wrap items-center gap-1.5">
-          {formationBadges}
-          <span className="text-xs text-ink-faint">{meta.join(' · ')}</span>
-        </div>
-      </Link>
-    )
-  }
+        </span>
+        {deleteButton}
+      </div>
+      {tactic.description && <p className="truncate text-xs text-ink-muted">{tactic.description}</p>}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {formationBadges}
+        <span className="text-xs text-ink-faint">{meta.join(' · ')}</span>
+      </div>
+    </>
+  )
 
-  return (
-    <Link
-      to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
-      className="relative flex w-full flex-col gap-2 rounded-lg border border-line p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5"
-    >
+  const gridContent = (
+    <>
       {deleteButton}
       <div className="flex aspect-video items-center justify-center overflow-hidden rounded-md bg-panel-raised">
         {tactic.thumbnail_url ? (
@@ -367,10 +486,44 @@ function TacticCardTile({ tactic, canEdit, view }: { tactic: Tactic; canEdit: bo
         )}
       </div>
       <div className="min-w-0 space-y-1">
-        <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>
+        <span className="flex min-w-0 items-center gap-2">
+          {checkbox}
+          <p className="truncate text-sm font-medium text-ink">{tactic.name}</p>
+        </span>
         <div className="flex flex-wrap gap-1">{formationBadges}</div>
         <p className="truncate text-xs text-ink-muted">{meta.join(' · ')}</p>
       </div>
+    </>
+  )
+
+  // No thumbnail in list view on purpose (2026-08-28) — list view is for
+  // scanning/searching text fast, so formation badges that were hidden on
+  // small screens in the compact row now always show, alongside the
+  // tactic's description when it has one.
+  const listClassName =
+    'flex w-full flex-col gap-1 rounded-lg border border-line px-3 py-2.5 text-left transition-colors hover:border-accent/40 hover:bg-accent/5'
+  const gridClassName =
+    'relative flex w-full flex-col gap-2 rounded-lg border border-line p-3 text-left transition-colors hover:border-accent/40 hover:bg-accent/5'
+
+  if (bulkMode) {
+    return (
+      <button
+        type="button"
+        onClick={onToggleBulk}
+        aria-pressed={bulkSelected}
+        className={view === 'list' ? listClassName : gridClassName}
+      >
+        {view === 'list' ? listContent : gridContent}
+      </button>
+    )
+  }
+
+  return (
+    <Link
+      to={canEdit ? `/tactics/${tactic.id}` : `/tactics/${tactic.id}/view`}
+      className={view === 'list' ? listClassName : gridClassName}
+    >
+      {view === 'list' ? listContent : gridContent}
     </Link>
   )
 }
