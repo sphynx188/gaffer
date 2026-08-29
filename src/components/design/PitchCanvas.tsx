@@ -306,19 +306,19 @@ export function PitchCanvas({
   onboardingAnchor,
 }: PitchCanvasProps) {
   const aspectRatio = getPitchAspectRatio(pitch) // width / length
-  // Box vs. content (first-phase-studio comparison, 2026-08-29): the turf-
-  // colored box is always the full available size — measured width capped at
-  // maxWidth, and maxHeight when the caller gives one — regardless of the
-  // preset's own shape. `width`/`height` below stay the CONTENT size (every
-  // other calculation in this file — scaleX/scaleY, toPx, drag bounds,
-  // marquee, grid lines — keeps using them exactly as before, unaware
-  // anything changed): the largest size that preserves the preset's real
-  // proportions within the box, same "fit the tighter axis" math as always.
-  // When content is smaller than the box on one axis, the render below
-  // centers it and fills the rest of the box with the same turf color, so
-  // the leftover space reads as more pitch rather than as a gap — the actual
-  // technique behind "different sizes fill the same room" (a fixed-size box
-  // with true-to-scale content centered in it), not a non-uniform stretch.
+  // Box vs. content: `width`/`height` below are the CONTENT size (every other
+  // calculation in this file — scaleX/scaleY, toPx, drag bounds, marquee, grid
+  // lines — keeps using them exactly as before, unaware anything changed) —
+  // the largest size that preserves the preset's real proportions within the
+  // available measured width capped at maxWidth, and maxHeight when the
+  // caller gives one. `renderBoxWidth`/`renderBoxHeight` below are the turf
+  // box actually drawn, and used to be pinned to the full available size
+  // regardless of the content's own shape — which for a preset whose aspect
+  // ratio didn't match the box's (a wide landscape pitch inside a box shaped
+  // by a tall available viewport, say) left a wide band of plain turf beside
+  // the pitch instead of "more pitch". The box now hugs the content plus the
+  // fixed margin on every side instead, so it only ever shows real leftover
+  // room, never dead space manufactured by the box/content mismatch.
   const { containerRef, width: boxWidth } = useMeasuredWidth(maxWidth)
   const boxHeight = maxHeight ?? boxWidth / aspectRatio
   // First-phase-studio keeps a fixed band of grass between the pitch's own
@@ -332,6 +332,8 @@ export function PitchCanvas({
     ? Math.min(Math.max(1, boxWidth - BOX_MARGIN * 2), Math.max(1, boxHeight - BOX_MARGIN * 2) * aspectRatio)
     : boxWidth
   const height = width / aspectRatio
+  const renderBoxWidth = maxHeight ? width + BOX_MARGIN * 2 : boxWidth
+  const renderBoxHeight = maxHeight ? height + BOX_MARGIN * 2 : boxHeight
   const markings = getPitchMarkings(pitch)
   const overlays = getPitchOverlays(pitch)
   const overlayOpacity = pitch.overlayOpacity ?? 0.4
@@ -883,7 +885,7 @@ export function PitchCanvas({
       data-pitch-canvas
       data-onboarding-anchor={onboardingAnchor}
       className={className}
-      style={{ width: '100%', maxWidth }}
+      style={{ width: '100%', maxWidth, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
       // Focusable so arrow-key nudge, Escape, Delete and space-to-pan reach
       // this canvas without a window-level listener that would fire while the
       // coach is typing in a form field somewhere else on the page.
@@ -891,15 +893,16 @@ export function PitchCanvas({
       onKeyDown={interactive ? handleKeyDown : undefined}
       onKeyUp={interactive ? handleKeyUp : undefined}
     >
-      {/* The turf box: always the full boxWidth x boxHeight, so a
-          smaller-than-box content size (below) is centered inside it with
-          the same turf color filling the rest — reading as more pitch
-          rather than as a gap around a shrunken diagram. */}
+      {/* The turf box: sized to the content plus the fixed margin, not the
+          full available space — see the comment above renderBoxWidth/Height.
+          The wrapping div above centers it when it's narrower than the space
+          on offer. */}
       <div
         className="overflow-hidden rounded-lg"
         style={{
-          width: '100%',
-          height: boxHeight,
+          width: renderBoxWidth,
+          height: renderBoxHeight,
+          flexShrink: 0,
           backgroundColor: TURF.fill,
           display: 'flex',
           alignItems: 'center',
