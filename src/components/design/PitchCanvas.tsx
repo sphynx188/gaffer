@@ -13,6 +13,7 @@ import {
   getPitchAspectRatio,
   getPitchMarkings,
   getPitchOverlays,
+  pitchOverhang,
   snapToPitchGrid,
 } from './pitchGeometry'
 
@@ -132,6 +133,11 @@ const DEFAULT_MAX_WIDTH = 420
 // has nothing to show, and it keeps the pan clamp below to one simple case.
 const MIN_SCALE = 1
 const MAX_SCALE = 5
+
+// The strip of grass kept between the pitch (or a goal behind it) and the edge
+// of the canvas, as a fraction of the pitch. Small — it exists so the boundary
+// doesn't sit flush against the frame, not to add empty space back.
+const GRASS_PAD_RATIO = 0.012
 
 // The drawing tools the markings panel arms. Each one commits a Marking.
 export type DrawTool =
@@ -385,8 +391,24 @@ export function PitchCanvas({
   // Meters -> pixels. Equal on both axes by construction (the Stage's
   // aspect ratio is derived from the same widthMeters/lengthMeters used
   // here), which is what keeps center circles circular instead of oval.
-  const scaleX = width / markings.widthMeters
-  const scaleY = height / markings.lengthMeters
+  // The pitch no longer runs edge to edge: goals are authored BEHIND the goal
+  // line (pitchGeometry's goalFrame), so the canvas has to hold the pitch plus
+  // whatever hangs off it, plus a thin strip of grass so the boundary isn't
+  // flush against the frame. Scaling to that larger span rather than to the
+  // pitch alone is what stops the stage clipping an outside goal — the reason
+  // the first attempt had to draw goals inside the line, on top of the
+  // six-yard box. Derived from the markings themselves rather than a fixed
+  // pixel inset, so it stays correct in either orientation and for any preset.
+  const overhang = pitchOverhang(markings)
+  const padX = markings.widthMeters * GRASS_PAD_RATIO
+  const padY = markings.lengthMeters * GRASS_PAD_RATIO
+  const scaleX = width / (markings.widthMeters + 2 * (overhang.x + padX))
+  const scaleY = height / (markings.lengthMeters + 2 * (overhang.y + padY))
+  // Where the pitch's own 0,0 sits on the stage, once that surround is
+  // allowed for. Every marking is drawn inside a Group carrying this, so the
+  // geometry below stays in plain pitch coordinates.
+  const pitchOffsetX = (overhang.x + padX) * scaleX
+  const pitchOffsetY = (overhang.y + padY) * scaleY
   const lineWidth = Math.max(1.5, width * 0.006)
 
   // Frame coordinates are normalized 0-1 and convert directly against Stage
@@ -946,6 +968,9 @@ export function PitchCanvas({
               something else, and never redraws while entities move. --- */}
           <Layer listening={false}>
             <Rect x={0} y={0} width={width} height={height} fill={TURF.fill} />
+            {/* Everything below is in pitch coordinates; the Group carries the
+                surround that makes room for the goals behind each goal line. */}
+            <Group x={pitchOffsetX} y={pitchOffsetY}>
             {markings.rects.map((r, i) => (
               <Rect
                 key={`rect-${i}`}
@@ -986,6 +1011,7 @@ export function PitchCanvas({
             {markings.dots.map((d, i) => (
               <Circle key={`dot-${i}`} x={d.x * scaleX} y={d.y * scaleY} radius={lineWidth * 1.5} fill={TURF.line} />
             ))}
+            </Group>
 
             {/* Grid & guides (Stage 6.6). Drawn on the pitch surface rather
                 than in a layer of its own — it's a backdrop, and the two layer
@@ -1016,6 +1042,9 @@ export function PitchCanvas({
               coach places. Only mounted when there's an overlay on. --- */}
           {(overlays.lines.length > 0 || overlays.rects.length > 0) && (
             <Layer listening={false} opacity={overlayOpacity}>
+              {/* Same pitch-coordinate Group as the markings above, or an
+                  overlay would sit offset from the lines it aligns to. */}
+              <Group x={pitchOffsetX} y={pitchOffsetY}>
               {overlays.rects.map((r, i) => (
                 <Rect
                   key={`overlay-rect-${i}`}
@@ -1036,6 +1065,7 @@ export function PitchCanvas({
                   dash={l.dashed ? [lineWidth * 3, lineWidth * 2] : undefined}
                 />
               ))}
+              </Group>
             </Layer>
           )}
 

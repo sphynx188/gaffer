@@ -76,11 +76,13 @@ const SIX_YARD_DEPTH = 5.5
 const CENTER_CIRCLE_RADIUS = 9.15
 const PENALTY_SPOT_DISTANCE = 11
 const GOAL_WIDTH = 7.32
-// Deliberately deeper than a real goal's ~2m. At true depth the frame is a
-// couple of pixels tall at any realistic canvas size — thinner than the line
-// used to draw it — so it collapses into a solid bar. Drawn at ~3.5% of the
-// pitch length it reads as a goal at every size, which is the point of it.
-const GOAL_DEPTH_RATIO = 0.035
+// The goal hangs OFF the pitch, past the goal line, which is where a goal
+// actually is. Deliberately deeper than a real goal's ~2m relative to a full
+// pitch: at true depth it is a couple of pixels at any realistic canvas size,
+// thinner than the line drawing it, and collapses into a bar. At ~2.5% of the
+// pitch length it reads as a goal at every size. PitchCanvas grows the area it
+// fits the pitch into by this overhang, so the goal is never clipped.
+const GOAL_DEPTH_RATIO = 0.025
 const GOAL_MIN_DEPTH = 2
 
 // A space smaller than this in either axis can't carry regulation markings
@@ -177,24 +179,40 @@ function fullMarkings(config: PitchConfig): PitchMarkings {
   return { widthMeters, lengthMeters, rects, lines, circles, dots }
 }
 
-// The goal, as a shallow frame rather than a thick segment sitting on the goal
-// line. first-phase-studio draws theirs as a rect too, but OUTSIDE the
-// boundary, in the band of grass their canvas keeps around it — we can't: the
-// Konva stage is exactly the pitch, so anything past the line is off-canvas,
-// and a fat line centred on y=0 lost its outer half to the clip and read as a
-// rendering artefact rather than as a goal. Drawn just inside the line it is
-// unambiguous at every size and never clips. It sits within the six-yard box,
-// which is where a goal actually is in plan view.
+// The goal, as a frame standing BEHIND the goal line — the same shape
+// first-phase-studio draws, and where a goal really is. Its coordinates are
+// deliberately outside the pitch (negative at the near end, past
+// `lengthMeters` at the far one); `pitchOverhang` below reports how far, and
+// PitchCanvas fits the pitch plus that overhang into the canvas rather than
+// the pitch alone, so nothing here is ever clipped.
 function goalFrame(widthMeters: number, lengthMeters: number, farEnd: boolean): MetersRect {
   const goal = Math.min(GOAL_WIDTH, widthMeters * 0.4)
   const depth = Math.max(GOAL_MIN_DEPTH, lengthMeters * GOAL_DEPTH_RATIO)
   return {
     x: (widthMeters - goal) / 2,
-    y: farEnd ? lengthMeters - depth : 0,
+    y: farEnd ? lengthMeters : -depth,
     w: goal,
     h: depth,
     strokeWidthScale: PITCH_LINE_WEIGHT.goal,
   }
+}
+
+/**
+ * How far the markings stick out past the pitch itself, per axis, in metres.
+ *
+ * Only goals do today. PitchCanvas adds this to the area it scales the pitch
+ * into, which is what lets a marking be authored outside the boundary without
+ * the stage clipping it — the alternative, drawing the goal inside the line,
+ * puts it on top of the six-yard box and reads as a diagram error.
+ */
+export function pitchOverhang(markings: PitchMarkings): { x: number; y: number } {
+  let x = 0
+  let y = 0
+  for (const r of markings.rects) {
+    x = Math.max(x, -Math.min(0, r.x), Math.max(0, r.x + r.w - markings.widthMeters))
+    y = Math.max(y, -Math.min(0, r.y), Math.max(0, r.y + r.h - markings.lengthMeters))
+  }
+  return { x, y }
 }
 
 // A training space: boundary, a thirds-by-thirds possession grid, and goal
