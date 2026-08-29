@@ -36,7 +36,10 @@ interface PitchCanvasProps {
   maxWidth?: number
   // Caps the rendered height as well as the width. A tall pitch preset in a
   // wide column would otherwise run past the bottom of the viewport and push
-  // whatever is docked under it — the timeline — out of reach.
+  // whatever is docked under it — the timeline — out of reach. Also sets how
+  // tall the surrounding turf-colored box is: when the preset's own aspect
+  // ratio doesn't fill it, the box stays this size and the extra space reads
+  // as more pitch (see the box/content split below) rather than as a gap.
   maxHeight?: number
   className?: string
 
@@ -303,10 +306,31 @@ export function PitchCanvas({
   onboardingAnchor,
 }: PitchCanvasProps) {
   const aspectRatio = getPitchAspectRatio(pitch) // width / length
-  // The height cap is applied as a width cap, since this is the one place that
-  // knows the aspect ratio the two are related by.
-  const effectiveMaxWidth = maxHeight ? Math.min(maxWidth, maxHeight * aspectRatio) : maxWidth
-  const { containerRef, width } = useMeasuredWidth(effectiveMaxWidth)
+  // Box vs. content (first-phase-studio comparison, 2026-08-29): the turf-
+  // colored box is always the full available size — measured width capped at
+  // maxWidth, and maxHeight when the caller gives one — regardless of the
+  // preset's own shape. `width`/`height` below stay the CONTENT size (every
+  // other calculation in this file — scaleX/scaleY, toPx, drag bounds,
+  // marquee, grid lines — keeps using them exactly as before, unaware
+  // anything changed): the largest size that preserves the preset's real
+  // proportions within the box, same "fit the tighter axis" math as always.
+  // When content is smaller than the box on one axis, the render below
+  // centers it and fills the rest of the box with the same turf color, so
+  // the leftover space reads as more pitch rather than as a gap — the actual
+  // technique behind "different sizes fill the same room" (a fixed-size box
+  // with true-to-scale content centered in it), not a non-uniform stretch.
+  const { containerRef, width: boxWidth } = useMeasuredWidth(maxWidth)
+  const boxHeight = maxHeight ?? boxWidth / aspectRatio
+  // First-phase-studio keeps a fixed band of grass between the pitch's own
+  // boundary and the edge of its canvas (their `drawPitch` insets every
+  // format's outer line by a flat 28px) rather than letting the boundary
+  // touch the frame — fit the content within the box shrunk by this margin
+  // on every side, so even Full Pitch (which otherwise matches the box
+  // exactly) shows a sliver of turf beyond its own boundary line.
+  const BOX_MARGIN = 24
+  const width = maxHeight
+    ? Math.min(Math.max(1, boxWidth - BOX_MARGIN * 2), Math.max(1, boxHeight - BOX_MARGIN * 2) * aspectRatio)
+    : boxWidth
   const height = width / aspectRatio
   const markings = getPitchMarkings(pitch)
   const overlays = getPitchOverlays(pitch)
@@ -859,7 +883,7 @@ export function PitchCanvas({
       data-pitch-canvas
       data-onboarding-anchor={onboardingAnchor}
       className={className}
-      style={{ width: '100%', maxWidth: effectiveMaxWidth, position: 'relative' }}
+      style={{ width: '100%', maxWidth }}
       // Focusable so arrow-key nudge, Escape, Delete and space-to-pan reach
       // this canvas without a window-level listener that would fire while the
       // coach is typing in a form field somewhere else on the page.
@@ -867,6 +891,27 @@ export function PitchCanvas({
       onKeyDown={interactive ? handleKeyDown : undefined}
       onKeyUp={interactive ? handleKeyUp : undefined}
     >
+      {/* The turf box: always the full boxWidth x boxHeight, so a
+          smaller-than-box content size (below) is centered inside it with
+          the same turf color filling the rest — reading as more pitch
+          rather than as a gap around a shrunken diagram. */}
+      <div
+        className="overflow-hidden rounded-lg"
+        style={{
+          width: '100%',
+          height: boxHeight,
+          backgroundColor: TURF.fill,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+        }}
+      >
+      {/* Content wrapper: exactly the content size, unlike the box above —
+          this is what the "Fit" button below anchors its absolute position
+          against, so it stays pinned to the visible pitch's own corner
+          rather than the (possibly larger) box's. */}
+      <div style={{ position: 'relative', width, height }}>
       {width > 0 && (
         <Stage
           ref={stageRef}
@@ -1490,6 +1535,8 @@ export function PitchCanvas({
           Fit
         </button>
       )}
+      </div>
+      </div>
       {hintText && frame && <p className="mt-1 text-center text-xs text-amber-600">{hintText}</p>}
       {frame && entities.length === 0 && (
         <p className="mt-1 text-center text-xs text-slate-400">Nothing on the pitch yet.</p>
