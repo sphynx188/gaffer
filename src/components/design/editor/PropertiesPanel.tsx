@@ -1,6 +1,7 @@
 import {
   ChevronUp,
   Footprints,
+  Hash,
   Layers,
   Pause,
   Play,
@@ -274,18 +275,36 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             value={entity.team ?? 'A'}
             onChange={(value) => updateEntity(entity.id, { team: value })}
           />
-          <Field label="Number">
-            <input
-              type="number"
-              min={1}
-              value={entity.number ?? ''}
-              onChange={(e) => {
-                const parsed = Number(e.target.value)
-                updateEntity(entity.id, { number: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined })
-              }}
-              className={FIELD}
-            />
-          </Field>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Field label="Number">
+                <input
+                  type="number"
+                  min={1}
+                  value={entity.number ?? ''}
+                  onChange={(e) => {
+                    const parsed = Number(e.target.value)
+                    updateEntity(entity.id, { number: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined })
+                  }}
+                  className={FIELD}
+                />
+              </Field>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                updateEntity(entity.id, { display: (entity.display ?? 'standard') === 'dot' ? 'standard' : 'dot' })
+              }
+              aria-pressed={(entity.display ?? 'standard') !== 'dot'}
+              title={(entity.display ?? 'standard') === 'dot' ? 'Show number' : 'Hide number'}
+              className={
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors ' +
+                ((entity.display ?? 'standard') !== 'dot' ? ON : OFF)
+              }
+            >
+              <Hash className="h-4 w-4" />
+            </button>
+          </div>
           <Field label="Label">
             <input
               value={entity.label ?? ''}
