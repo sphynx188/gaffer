@@ -9,15 +9,19 @@ import type { MarkingTool } from './markingTools'
 import { GridPanel, type GridSettings } from './GridPanel'
 import { PitchPanel } from './PitchPanel'
 
-// The left rail (rework plan Stage 5.2). One canvas tool is active at a time;
-// the rail's other entries open a panel anchored to it rather than changing
-// what a tap on the pitch does.
+// The tool selector (rework plan Stage 5.2; moved from a left icon rail to a
+// labelled row atop the canvas 2026-08-29 — icon-only buttons relying on a
+// slow native tooltip made it hard to tell what a tool did before trying it,
+// and the row now sits where the top bar's name field used to leave a wide
+// stretch of visibly empty space). One canvas tool is active at a time; the
+// row's other entries open a panel anchored to it rather than changing what a
+// tap on the pitch does.
 //
 // Each tool offers exactly what the data model carries today. Equipment is the
 // three kinds that exist, Markings is arrows and notes, Pitch is the four
 // presets — Stages 6 and 7 widen those panels. Drill Details is the one entry
-// that doesn't open a panel anchored to the rail: it opens the full-height
-// drawer (Stage 8.2), which is too much form to fit beside a tool button.
+// that doesn't open a panel anchored to the row: it opens the full-height
+// drawer (Stage 8.2), which is too much form to fit in a dropdown.
 
 export type CanvasTool = 'select' | 'player' | 'ball' | 'equipment' | 'marking'
 export type { MarkingTool }
@@ -51,9 +55,10 @@ interface ToolRailProps {
   onPitchChange: (pitch: PitchConfig) => void
   onStartDrag: (placement: DragPlacement) => (event: ReactPointerEvent) => void
   onOpenDetails: () => void
-  // Laid out as a column on desktop and as a wrapping row inside the mobile
-  // drawer, where there's width to spare and no rail to anchor a popover to.
-  layout: 'rail' | 'drawer'
+  // A labelled row atop the canvas on desktop; a wrapping grid inside the
+  // mobile drawer, where there's width to spare and nothing to drop a panel
+  // below.
+  layout: 'topbar' | 'drawer'
 }
 
 
@@ -62,29 +67,15 @@ export function ToolRail(props: ToolRailProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   // Click-away closes an open panel, matching Dropdown.tsx's own popover
-  // behaviour so every popover in the app dismisses the same way.
-  //
-  // DrillEditor renders one `rail` element in TWO places — the desktop
-  // column and the always-mounted mobile Sheet — so two ToolRail instances
-  // exist at once, both with layout 'rail' whenever the Tools sheet is shut.
-  // Each used to register this listener against its own containerRef, and the
-  // hidden copy never contains the visible copy's panel: clicking any option
-  // made the hidden instance call onPanelChange(null), unmounting the panel
-  // mid-pointerdown so the `click` never landed and the option never applied.
-  // Every rail panel was unusable on desktop as a result.
-  //
-  // A hidden copy has no business policing clicks, so it stands down.
-  // `offsetParent` is null exactly when an ancestor is `display: none` —
-  // which is how the two copies are told apart (`hidden lg:block` on the
-  // desktop column, `lg:hidden` on the Sheet). Same test OnboardingTour uses
-  // to pick the on-screen anchor out of that same duplicated tree.
+  // behaviour so every popover in the app dismisses the same way. Only the
+  // topbar instance needs this — the mobile drawer's panel sits inline inside
+  // the already-modal Sheet, which closes it by closing the whole sheet.
   const { panel, onPanelChange } = props
   useEffect(() => {
-    if (!panel || layout !== 'rail') return
+    if (!panel || layout === 'drawer') return
     const onPointerDown = (event: PointerEvent) => {
       const container = containerRef.current
-      if (!container || container.offsetParent === null) return
-      if (!container.contains(event.target as Node)) onPanelChange(null)
+      if (!container || !container.contains(event.target as Node)) onPanelChange(null)
     }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onPanelChange(null)
@@ -105,11 +96,11 @@ export function ToolRail(props: ToolRailProps) {
     props.onPanelChange(props.panel === panel ? null : panel)
 
   return (
-    <div ref={containerRef} className={layout === 'rail' ? 'relative' : ''}>
+    <div ref={containerRef} className={layout === 'topbar' ? 'relative' : ''}>
       <div
         className={
-          layout === 'rail'
-            ? 'flex flex-col gap-1 rounded-xl border border-line bg-panel p-1.5'
+          layout === 'topbar'
+            ? 'flex flex-wrap items-center gap-1 rounded-xl border border-line bg-panel p-1.5'
             : 'grid grid-cols-2 gap-1.5'
         }
       >
@@ -248,15 +239,15 @@ export function ToolRail(props: ToolRailProps) {
   )
 }
 
-// Anchored beside the rail on desktop; inline under the tool grid inside the
-// mobile drawer, where there's no rail to anchor to and the sheet is already
+// Dropped below the row on desktop; inline under the tool grid inside the
+// mobile drawer, where there's no row to anchor to and the sheet is already
 // the popover.
-function Panel({ layout, children }: { layout: 'rail' | 'drawer'; children: ReactNode }) {
+function Panel({ layout, children }: { layout: 'topbar' | 'drawer'; children: ReactNode }) {
   if (layout === 'drawer') {
     return <div className="mt-3 rounded-lg border border-line bg-panel-raised p-3">{children}</div>
   }
   return (
-    <div className="absolute left-full top-0 z-30 ml-2 max-h-[70vh] w-56 overflow-y-auto rounded-xl border border-line bg-panel p-3">
+    <div className="absolute left-0 top-full z-30 mt-2 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-line bg-panel p-3">
       {children}
     </div>
   )
@@ -309,7 +300,7 @@ function RailButton({
   label: string
   icon: ReactNode
   active?: boolean
-  layout: 'rail' | 'drawer'
+  layout: 'topbar' | 'drawer'
   onClick?: () => void
   onPointerDown?: (event: ReactPointerEvent) => void
   // Rework plan Stage 11.1 — matched against a TourStep's `anchor`.
@@ -325,13 +316,13 @@ function RailButton({
       title={label}
       // 44px minimum on touch, tightened on desktop where a pointer is precise.
       className={
-        'flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium transition-colors ' +
-        (layout === 'rail' ? 'lg:min-h-10 lg:w-10 lg:justify-center lg:px-0 ' : '') +
+        'flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors ' +
+        (layout === 'topbar' ? 'lg:min-h-9 lg:px-2.5' : '') +
         (active ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
       }
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
-      <span className={layout === 'rail' ? 'lg:hidden' : ''}>{label}</span>
+      <span>{label}</span>
     </button>
   )
 }

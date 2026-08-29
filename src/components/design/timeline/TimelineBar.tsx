@@ -1,6 +1,6 @@
-import { ChevronDown, ChevronUp, Footprints, Layers, Pause, Play, Repeat, SkipBack, SkipForward, Spline } from 'lucide-react'
+import { ChevronDown, ChevronUp, Footprints, Layers, Pause, Play, Plus, Repeat, SkipBack, SkipForward, Spline } from 'lucide-react'
 import type { Keyframe } from '../../../store'
-import { formatClock, stepKeyframe } from './cursor'
+import { formatClock, keyframeAt, stepKeyframe } from './cursor'
 import type { TimelinePlayback } from './useTimelinePlayback'
 import { useTimelineKeys } from './useTimelineKeys'
 
@@ -20,6 +20,11 @@ interface TimelineBarProps {
   onToggleExpanded: () => void
   // `K`, and the context-aware button in the track editor, share this.
   onToggleKeyframe?: () => void
+  // The always-available "add the next keyframe" chip strip (first-phase-
+  // studio comparison, 2026-08-29) — one click, no play/pause/scrub first.
+  // Optional the same way onToggleKeyframe is: a host that doesn't pass it
+  // just doesn't get the strip.
+  onAppendKeyframe?: () => void
 
   // Player paths (`T`) and ghost trails (`G`), rework plan Stage 5.5. Optional
   // and independent of each other and of onion skin — a coach turns on the one
@@ -49,6 +54,7 @@ export function TimelineBar({
   expanded,
   onToggleExpanded,
   onToggleKeyframe,
+  onAppendKeyframe,
   playerPaths,
   onTogglePlayerPaths,
   ghostTrails,
@@ -83,9 +89,39 @@ export function TimelineBar({
         {formatClock(playback.currentTime)}
         <span className="text-ink-faint"> / {formatClock(duration)}</span>
       </p>
-      <p className="text-xs text-ink-muted">
-        {keyframes.length} {keyframes.length === 1 ? 'keyframe' : 'keyframes'}
-      </p>
+      {onAppendKeyframe && (
+        <div className="flex items-center gap-1" role="group" aria-label="Keyframes">
+          {keyframes.map((keyframe, index) => {
+            const isParked = keyframeAt(keyframes, playback.currentTime)?.id === keyframe.id
+            return (
+              <button
+                key={keyframe.id}
+                type="button"
+                onClick={() => playback.seek(keyframe.t)}
+                aria-pressed={isParked}
+                title={`Keyframe ${index + 1} — ${keyframe.t}s`}
+                className={
+                  'flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors ' +
+                  (isParked
+                    ? 'bg-accent text-white'
+                    : 'bg-panel-raised text-ink-muted hover:text-ink')
+                }
+              >
+                {index + 1}
+              </button>
+            )
+          })}
+          <button
+            type="button"
+            onClick={onAppendKeyframe}
+            title="Add the next keyframe, starting from where the last one left off"
+            aria-label="Add next keyframe"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-line text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-0.5">
         <button type="button" className={CONTROL} onClick={() => playback.seek(0)} title="Skip to start" aria-label="Skip to start">

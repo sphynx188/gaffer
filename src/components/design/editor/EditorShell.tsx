@@ -96,7 +96,13 @@ export function EditorNameField({
 
 interface EditorLayoutProps {
   topBar: ReactNode
+  // Rendered in the mobile drawer (Sheet) always, and in the desktop column
+  // too UNLESS `hideDesktopRail` is set — the drill editor moved its tool
+  // selector into its own top bar (2026-08-29) and has nothing left to put in
+  // this column, but `rail` still needs to exist for the mobile drawer to
+  // show. Tactics doesn't pass `hideDesktopRail` and is unaffected.
   rail: ReactNode
+  hideDesktopRail?: boolean
   canvas: ReactNode
   inspector: ReactNode
   timeline: ReactNode
@@ -126,6 +132,7 @@ interface EditorLayoutProps {
 export function EditorLayout({
   topBar,
   rail,
+  hideDesktopRail = false,
   canvas,
   inspector,
   timeline,
@@ -147,7 +154,7 @@ export function EditorLayout({
 
       <div className="flex min-w-0 gap-3">
         {/* Rail — desktop only; below lg it lives in the drawer. */}
-        {!boardOnly && <div className="hidden shrink-0 lg:block">{!railOpen && rail}</div>}
+        {!boardOnly && !hideDesktopRail && <div className="hidden shrink-0 lg:block">{!railOpen && rail}</div>}
 
         <div className="flex min-w-0 flex-1 flex-col items-center gap-2">{canvas}</div>
 

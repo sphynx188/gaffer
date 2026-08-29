@@ -10,6 +10,12 @@ import type { Drill, SaveState } from '../../../store'
 // the only way back into it after that. The 2D/3D toggle stays disabled:
 // Stage 11 decided to defer 3D rather than build it (see HANDOFF.md), so
 // there is nothing yet for this button to open.
+//
+// This is the top HALF of the drill editor's header now (2026-08-29): the
+// tool row that used to be a left-side icon rail sits directly beneath it,
+// see DrillEditor's `topBar` construction — this component no longer owns
+// the bottom border/padding that used to separate it from the canvas, since
+// that separator now sits between the two rows instead.
 
 const SAVE_LABEL: Record<SaveState, string> = {
   saved: 'Saved',
@@ -57,8 +63,8 @@ export function EditorTopBar({
   }
 
   return (
-    <div className="flex items-center gap-1 border-b border-line pb-3">
-      <Link to="/design" aria-label="Back to drills" title="Back to drills" className={ICON_BUTTON}>
+    <div className="flex items-center gap-1">
+      <Link to="/library/drills" aria-label="Back to drills" title="Back to drills" className={ICON_BUTTON}>
         <ChevronLeft className="h-5 w-5" />
       </Link>
 

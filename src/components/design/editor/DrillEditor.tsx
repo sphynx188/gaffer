@@ -2,15 +2,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent
 import type Konva from 'konva'
 import { PanelRight, Pause, Play, Wrench } from 'lucide-react'
 import { useStore } from '../../../store'
-import type { Drill, EquipmentType, Marking, PhasePoint } from '../../../store'
+import type { Drill, EquipmentType, Marking, PhasePoint, PitchConfig } from '../../../store'
 import { EQUIPMENT_LABELS } from '../../../store'
 import { PitchCanvas, type EntityMove } from '../PitchCanvas'
 import { frameAt } from '../canvas/interpolate'
-import { TimelineBar } from '../timeline/TimelineBar'
-import { TimelineEditor } from '../timeline/TimelineEditor'
 import { onionFramesFor } from '../timeline/onionSkin'
 import { motionPathsFor, trailFramesFor } from '../timeline/motion'
 import { useTimelinePlayback } from '../timeline/useTimelinePlayback'
+import { useTimelineKeys } from '../timeline/useTimelineKeys'
 import { useKeyframeToggle } from '../timeline/useKeyframeToggle'
 import { useDrillTimelineHost } from './useDrillTimelineHost'
 import { useToast } from '../../ui/useToast'
@@ -83,7 +82,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // other and of onion skin; each costs nothing while off.
   const [playerPaths, setPlayerPaths] = useState(false)
   const [ghostTrails, setGhostTrails] = useState(false)
-  const [timelineOpen, setTimelineOpen] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [propsOpen, setPropsOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -152,6 +150,19 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   )
   const timelineHost = useDrillTimelineHost(drill)
   const keyframeToggle = useKeyframeToggle(timelineHost, frame, playback)
+
+  // Was TimelineBar's own internal call — moved here now that this editor no
+  // longer renders that bar (2026-08-29, its controls live in the Keyframes
+  // panel instead), since the shortcuts still need to fire regardless of
+  // what's on screen. TacticEditor still renders TimelineBar, which still
+  // does this itself; nothing there changed.
+  useTimelineKeys({
+    playback,
+    keyframes: drill.keyframes,
+    onToggleKeyframe: keyframeToggle.toggle,
+    onTogglePlayerPaths: () => setPlayerPaths((v) => !v),
+    onToggleGhostTrails: () => setGhostTrails((v) => !v),
+  })
 
   // Switching drills, or arming a different tool, abandons anything half-drawn
   // rather than letting it be consumed by whatever comes next.
@@ -454,32 +465,35 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         ? 'Tap the pitch to place, or drag the tool onto it'
         : null
 
-  const rail = (
-    <ToolRail
-      layout={toolsOpen ? 'drawer' : 'rail'}
-      tool={tool}
-      onToolChange={setTool}
-      panel={panel}
-      onPanelChange={setPanel}
-      team={team}
-      onTeamChange={setTeam}
-      equipment={equipment}
-      onEquipmentChange={setEquipment}
-      marking={marking}
-      onMarkingChange={setMarking}
-      markingCount={drill.scene.markings.length}
-      onClearMarkings={clearMarkings}
-      grid={grid}
-      onGridChange={setGrid}
-      pitch={drill.pitch}
-      onPitchChange={(next) => setDrillPitch(drill.id, next)}
-      onStartDrag={startDrag}
-      onOpenDetails={() => {
-        setToolsOpen(false)
-        setDetailsOpen(true)
-      }}
-    />
-  )
+  // Shared between the two ToolRail instances below — same tool/panel state,
+  // just two different presentations of it (2026-08-29: topbar replaced the
+  // old desktop rail; drawer still serves the mobile sheet unchanged).
+  const railProps = {
+    tool,
+    onToolChange: setTool,
+    panel,
+    onPanelChange: setPanel,
+    team,
+    onTeamChange: setTeam,
+    equipment,
+    onEquipmentChange: setEquipment,
+    marking,
+    onMarkingChange: setMarking,
+    markingCount: drill.scene.markings.length,
+    onClearMarkings: clearMarkings,
+    grid,
+    onGridChange: setGrid,
+    pitch: drill.pitch,
+    onPitchChange: (next: PitchConfig) => setDrillPitch(drill.id, next),
+    onStartDrag: startDrag,
+    onOpenDetails: () => {
+      setToolsOpen(false)
+      setDetailsOpen(true)
+    },
+  }
+
+  const rail = <ToolRail layout="drawer" {...railProps} />
+  const railTopbar = <ToolRail layout="topbar" {...railProps} />
 
   const properties = (
     <PropertiesPanel
@@ -498,6 +512,13 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       onSeek={playback.seek}
       onRemoveSelection={() => removeSelection(selectedIds)}
       onDuplicateAlongLine={duplicateAlongLine}
+      playback={playback}
+      onionSkin={onionSkin}
+      onToggleOnionSkin={() => setOnionSkin((v) => !v)}
+      playerPaths={playerPaths}
+      onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
+      ghostTrails={ghostTrails}
+      onToggleGhostTrails={() => setGhostTrails((v) => !v)}
     />
   )
 
@@ -511,7 +532,13 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         onionFrames={onion}
         motionPaths={paths}
         trailFrames={trails}
-        maxWidth={720}
+        // 720 used to be the ceiling regardless of screen size, leaving wide
+        // margins either side even once AppShell gave this route more room
+        // to work with. PitchCanvas already measures its own container via
+        // ResizeObserver and clamps to whichever is smaller, so raising this
+        // just lets it use the extra width now available rather than
+        // stopping short of it.
+        maxWidth={1200}
         maxHeight={Math.max(260, viewportHeight - 260)}
         editable
         onEntitiesMove={handleEntitiesMove}
@@ -575,33 +602,24 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     </>
   )
 
-  const timeline = (
-    <>
-      <TimelineBar
-        playback={playback}
-        duration={drill.duration_seconds}
-        keyframes={drill.keyframes}
-        onionSkin={onionSkin}
-        onToggleOnionSkin={() => setOnionSkin((v) => !v)}
-        playerPaths={playerPaths}
-        onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
-        ghostTrails={ghostTrails}
-        onToggleGhostTrails={() => setGhostTrails((v) => !v)}
-        expanded={timelineOpen}
-        onToggleExpanded={() => setTimelineOpen((v) => !v)}
-        onToggleKeyframe={keyframeToggle.toggle}
-      />
-      {timelineOpen && <TimelineEditor host={timelineHost} playback={playback} frame={frame} />}
-    </>
+  // The tool row only shows here on desktop — below `lg` the mobile dock's
+  // "Tools" button still opens `rail` (the drawer instance) in its Sheet, so
+  // showing this too would be the same controls twice.
+  const topBar = (
+    <div className="flex flex-col gap-3 border-b border-line pb-3">
+      <EditorTopBar drill={drill} onExport={() => setExportOpen(true)} onReplayTour={tour.restart} />
+      <div className="hidden lg:block">{railTopbar}</div>
+    </div>
   )
 
   return (
     <EditorLayout
-      topBar={<EditorTopBar drill={drill} onExport={() => setExportOpen(true)} onReplayTour={tour.restart} />}
+      topBar={topBar}
       rail={rail}
+      hideDesktopRail
       canvas={canvas}
       inspector={properties}
-      timeline={timeline}
+      timeline={null}
       railOpen={toolsOpen}
       onRailClose={() => setToolsOpen(false)}
       railTitle="Tools"

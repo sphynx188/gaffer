@@ -1,4 +1,17 @@
-import { Route, Trash2 } from 'lucide-react'
+import {
+  ChevronUp,
+  Footprints,
+  Layers,
+  Pause,
+  Play,
+  Plus,
+  Repeat,
+  Route,
+  SkipBack,
+  SkipForward,
+  Spline,
+  Trash2,
+} from 'lucide-react'
 import type {
   BodyShape,
   EntityState,
@@ -13,8 +26,10 @@ import type {
 import { EQUIPMENT_ADVANCED, EQUIPMENT_CORE, EQUIPMENT_LABELS } from '../../../store'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
 import { EQUIPMENT } from '../pitchTheme'
-import { formatClock } from '../timeline/cursor'
+import { stepKeyframe } from '../timeline/cursor'
 import type { TimelineHost } from '../timeline/TimelineHost'
+import { appendKeyframe } from '../timeline/useKeyframeToggle'
+import type { TimelinePlayback } from '../timeline/useTimelinePlayback'
 
 // The right-hand panel (rework plan Stages 5.2 and 6.5): the drill's keyframes
 // when nothing is selected, and the selected thing's properties when something
@@ -49,6 +64,21 @@ interface PropertiesPanelProps {
   // booking, and switching them on in a shipped editor is not what this stage
   // was asked to do.
   showMarkerOverrides?: boolean
+
+  // The bottom timeline bar's controls, folded into the Keyframes view
+  // instead (2026-08-29, first-phase-studio comparison) — a coach's whole
+  // keyframe workflow (add/seek/play/preview toggles) now lives in one place
+  // rather than split between this panel and a bar under the pitch. All
+  // optional and gated together: a host that doesn't pass `playback` gets the
+  // plain read-only keyframe list this panel has always had (which is what
+  // the tactics editor still gets — this migration is drill-only for now).
+  playback?: TimelinePlayback
+  onionSkin?: boolean
+  onToggleOnionSkin?: () => void
+  playerPaths?: boolean
+  onTogglePlayerPaths?: () => void
+  ghostTrails?: boolean
+  onToggleGhostTrails?: () => void
 }
 
 const FIELD =
@@ -128,11 +158,25 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
   }
 
   if (selectedIds.length === 0) {
+    const { playback } = props
     return (
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-ink-muted">Keyframes</p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-ink-muted">Keyframes</p>
+          {playback && (
+            <button
+              type="button"
+              onClick={() => appendKeyframe(host, playback)}
+              title="Add the next keyframe, starting from where the last one left off"
+              className="flex h-7 items-center gap-1 rounded-md border border-dashed border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </button>
+          )}
+        </div>
         {host.keyframes.length === 0 && (
-          <p className="text-xs text-ink-faint">No keyframes yet — add one from the timeline.</p>
+          <p className="text-xs text-ink-faint">No keyframes yet — add one above.</p>
         )}
         <ul className="space-y-1">
           {[...host.keyframes]
@@ -140,23 +184,46 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             .map((keyframe, index) => {
               const here = Math.abs(keyframe.t - currentTime) < 0.05
               return (
-                <li key={keyframe.id}>
+                <li key={keyframe.id} className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => onSeek(keyframe.t)}
                     className={
-                      'flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ' +
+                      'flex min-h-11 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ' +
                       (here ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
                     }
                   >
                     <span className="font-mono text-xs tabular-nums">{String(index + 1).padStart(2, '0')}</span>
                     <span className="flex-1 truncate">{keyframe.name ?? 'Keyframe'}</span>
-                    <span className="font-mono text-xs tabular-nums text-ink-faint">{formatClock(keyframe.t)}</span>
                   </button>
+                  {props.playback && host.keyframes.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => host.deleteKeyframe(keyframe.id)}
+                      title="Delete this keyframe"
+                      aria-label={`Delete keyframe ${index + 1}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-bad/10 hover:text-bad"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </li>
               )
             })}
         </ul>
+
+        {playback && (
+          <TimelineControls
+            host={host}
+            playback={playback}
+            onionSkin={props.onionSkin}
+            onToggleOnionSkin={props.onToggleOnionSkin}
+            playerPaths={props.playerPaths}
+            onTogglePlayerPaths={props.onTogglePlayerPaths}
+            ghostTrails={props.ghostTrails}
+            onToggleGhostTrails={props.onToggleGhostTrails}
+          />
+        )}
       </div>
     )
   }
@@ -437,6 +504,138 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
 
       {entity.kind === 'ball' && <p className="text-xs text-ink-faint">A ball carries nothing beyond its position.</p>}
     </Shell>
+  )
+}
+
+// The bottom timeline bar's playback/preview controls, relocated here
+// (2026-08-29) so the keyframe workflow lives in one column instead of
+// being split between this panel and a bar under the pitch. Presentational,
+// same as TimelineBar was — every action is a playback call or a callback
+// the caller passed in.
+function TimelineControls({
+  host,
+  playback,
+  onionSkin,
+  onToggleOnionSkin,
+  playerPaths,
+  onTogglePlayerPaths,
+  ghostTrails,
+  onToggleGhostTrails,
+}: {
+  host: TimelineHost
+  playback: TimelinePlayback
+  onionSkin?: boolean
+  onToggleOnionSkin?: () => void
+  playerPaths?: boolean
+  onTogglePlayerPaths?: () => void
+  ghostTrails?: boolean
+  onToggleGhostTrails?: () => void
+}) {
+  const previous = stepKeyframe(host.keyframes, playback.currentTime, -1)
+  const next = stepKeyframe(host.keyframes, playback.currentTime, 1)
+  const ICON = 'flex h-9 w-9 items-center justify-center rounded-md text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted'
+
+  return (
+    <div className="space-y-2 border-t border-line pt-3">
+      <div className="flex items-center justify-center gap-0.5">
+        <button type="button" className={ICON} onClick={() => playback.seek(0)} title="Skip to start" aria-label="Skip to start">
+          <SkipBack className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          className={ICON}
+          onClick={() => previous && playback.seek(previous.t)}
+          disabled={!previous}
+          title="Previous keyframe (,)"
+          aria-label="Previous keyframe"
+        >
+          <ChevronUp className="h-4 w-4 -rotate-90" />
+        </button>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+          onClick={playback.togglePlay}
+          disabled={host.duration <= 0}
+          title={playback.playing ? 'Pause (space)' : 'Play (space)'}
+          aria-label={playback.playing ? 'Pause' : 'Play'}
+        >
+          {playback.playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          className={ICON}
+          onClick={() => next && playback.seek(next.t)}
+          disabled={!next}
+          title="Next keyframe (.)"
+          aria-label="Next keyframe"
+        >
+          <ChevronUp className="h-4 w-4 rotate-90" />
+        </button>
+        <button type="button" className={ICON} onClick={() => playback.seek(host.duration)} title="Skip to end" aria-label="Skip to end">
+          <SkipForward className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="flex gap-1.5">
+        <button type="button" onClick={playback.cycleSpeed} className={ROW + ' ' + OFF + ' font-mono'} title="Playback speed">
+          {playback.speed}×
+        </button>
+        <button
+          type="button"
+          onClick={playback.toggleLoop}
+          aria-pressed={playback.loop}
+          className={ROW + ' gap-1.5 ' + (playback.loop ? ON : OFF)}
+          title="Loop"
+        >
+          <Repeat className="h-3.5 w-3.5" />
+          Loop
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onToggleOnionSkin?.()}
+        aria-pressed={onionSkin}
+        className={'w-full ' + ROW + ' justify-between ' + (onionSkin ? ON : OFF)}
+        title="Show the keyframes either side at low opacity"
+      >
+        <span className="flex items-center gap-1.5">
+          <Layers className="h-3.5 w-3.5" />
+          Onion skin
+        </span>
+        <span className={'h-2 w-2 rounded-full ' + (onionSkin ? 'bg-white' : 'bg-line-strong')} />
+      </button>
+      {onTogglePlayerPaths && (
+        <button
+          type="button"
+          onClick={onTogglePlayerPaths}
+          aria-pressed={playerPaths}
+          className={'w-full ' + ROW + ' justify-between ' + (playerPaths ? ON : OFF)}
+          title="Show the route each moving player takes (T)"
+        >
+          <span className="flex items-center gap-1.5">
+            <Spline className="h-3.5 w-3.5" />
+            Player paths
+          </span>
+          <span className={'h-2 w-2 rounded-full ' + (playerPaths ? 'bg-white' : 'bg-line-strong')} />
+        </button>
+      )}
+      {onToggleGhostTrails && (
+        <button
+          type="button"
+          onClick={onToggleGhostTrails}
+          aria-pressed={ghostTrails}
+          className={'w-full ' + ROW + ' justify-between ' + (ghostTrails ? ON : OFF)}
+          title="Trail faded copies behind whatever is moving (G)"
+        >
+          <span className="flex items-center gap-1.5">
+            <Footprints className="h-3.5 w-3.5" />
+            Ghost trails
+          </span>
+          <span className={'h-2 w-2 rounded-full ' + (ghostTrails ? 'bg-white' : 'bg-line-strong')} />
+        </button>
+      )}
+    </div>
   )
 }
 

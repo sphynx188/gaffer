@@ -92,3 +92,31 @@ export function useKeyframeToggle(
 
   return { parked, dirty, label: parked ? 'Update keyframe' : 'Add keyframe', toggle }
 }
+
+// The default spacing a one-click "next keyframe" lands at. Arbitrary but
+// reasonable — a coach retimes it same as any other keyframe afterward.
+const APPEND_GAP_SECONDS = 2
+
+/**
+ * Always-available "add the next keyframe" — the first-phase-studio
+ * comparison flow (2026-08-29): set up keyframe 1, click once, move things,
+ * repeat, with no play/pause/scrub step to reach an empty moment in time
+ * first. `toggle` above still requires the playhead to already be parked
+ * somewhere empty (which is exactly the step this skips), so this is a
+ * second, simpler entry point rather than a replacement — seeds the new
+ * keyframe from the LAST keyframe's own stored states (not whatever the
+ * playhead happens to be showing right now, which may be mid-scrub
+ * somewhere else), extends the drill's duration first if the new keyframe
+ * would otherwise land past the end, and parks the playhead on it so
+ * dragging works immediately.
+ */
+export function appendKeyframe(host: TimelineHost, playback: TimelinePlayback): void {
+  const last = host.keyframes.reduce<Keyframe | null>(
+    (latest, k) => (latest === null || k.t > latest.t ? k : latest),
+    null
+  )
+  const target = (last?.t ?? 0) + APPEND_GAP_SECONDS
+  if (target > host.duration) host.setDuration(target)
+  const id = host.addKeyframe(target, last ? { ...last.states } : undefined)
+  if (id) playback.seek(target)
+}
