@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
-import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Shape, Stage, Tag, Text, Transformer } from 'react-konva'
+import { Arc, Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Shape, Stage, Tag, Text, Transformer } from 'react-konva'
 import type { Marking, PhasePoint, PitchConfig } from '../../store'
 import { isOverlayMarking } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
 import type { MotionPath } from './timeline/motion'
-import { ANNOTATION, ARROW, BALL, EMPHASIS, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TURF } from './pitchTheme'
+import { ANNOTATION, ARROW, BALL, EMPHASIS, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TOKEN_SHADOW, TURF } from './pitchTheme'
 import { EquipmentShape } from './canvas/EquipmentShapes'
 import {
   GRID_STEP_METERS,
@@ -1299,7 +1299,46 @@ export function PitchCanvas({
               return (
                 <Group key={ball.id} x={p.x} y={p.y} {...entityHandlers(ball.id, ballRadius)}>
                   {isSelected(ball.id) && <SelectionHalo radius={ballRadius + haloWidth * 1.5} strokeWidth={haloWidth} />}
-                  <Circle x={0} y={0} radius={ballRadius} fill={BALL.fill} stroke={BALL.stroke} strokeWidth={1.5} />
+                  <Circle
+                    x={0}
+                    y={0}
+                    radius={ballRadius}
+                    fill={BALL.fill}
+                    stroke={BALL.stroke}
+                    strokeWidth={1.5}
+                    shadowColor={TOKEN_SHADOW.color}
+                    shadowOpacity={TOKEN_SHADOW.opacity}
+                    shadowBlur={TOKEN_SHADOW.blur}
+                    shadowOffsetY={TOKEN_SHADOW.offsetY}
+                  />
+                  {/* A hint of panel seams — one ring, two mirrored arcs — rather
+                      than a literal pentagon pattern, which stops reading as a
+                      ball at the size a coach actually draws one. */}
+                  <Circle x={0} y={0} radius={ballRadius * 0.45} stroke={BALL.seam} strokeWidth={0.9} opacity={0.75} listening={false} />
+                  <Arc
+                    x={0}
+                    y={0}
+                    innerRadius={ballRadius * 0.61}
+                    outerRadius={ballRadius * 0.61}
+                    angle={82}
+                    rotation={28}
+                    stroke={BALL.seam}
+                    strokeWidth={0.85}
+                    opacity={0.7}
+                    listening={false}
+                  />
+                  <Arc
+                    x={0}
+                    y={0}
+                    innerRadius={ballRadius * 0.61}
+                    outerRadius={ballRadius * 0.61}
+                    angle={82}
+                    rotation={208}
+                    stroke={BALL.seam}
+                    strokeWidth={0.85}
+                    opacity={0.7}
+                    listening={false}
+                  />
                 </Group>
               )
             })}
@@ -1324,7 +1363,29 @@ export function PitchCanvas({
               return (
                 <Group key={player.id} x={p.x} y={p.y} {...entityHandlers(player.id, radius)}>
                   {isSelected(player.id) && <SelectionHalo radius={radius + haloWidth} strokeWidth={haloWidth} />}
-                  <Circle x={0} y={0} radius={radius} fill={fill} />
+                  <Circle
+                    x={0}
+                    y={0}
+                    radius={radius}
+                    fill={fill}
+                    shadowColor={TOKEN_SHADOW.color}
+                    shadowOpacity={TOKEN_SHADOW.opacity}
+                    shadowBlur={TOKEN_SHADOW.blur}
+                    shadowOffsetY={TOKEN_SHADOW.offsetY}
+                  />
+                  {/* A subtle concentric highlight — the cheap trick behind
+                      reading as a lit sphere rather than a flat coin, without
+                      an actual gradient fighting the "team color reads as one
+                      solid hue" rule. */}
+                  <Circle
+                    x={0}
+                    y={0}
+                    radius={radius * 0.8}
+                    fill={PLAYER.ringFill}
+                    stroke={PLAYER.ringStroke}
+                    strokeWidth={1}
+                    listening={false}
+                  />
                   {showNumber && (
                     <Text
                       text={String(player.number)}

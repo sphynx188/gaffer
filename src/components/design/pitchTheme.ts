@@ -23,6 +23,13 @@ export const PLAYER = {
   colors: ['#152238', '#b91c1c'] as const, // navy, then red
   fallback: '#475569', // slate-600, a third+ team label (shouldn't normally happen)
   numberText: '#ffffff',
+  // A concentric ring just inside the marker's own edge, translucent enough
+  // that the team color still reads first — the cheap trick behind reading
+  // as a lit sphere rather than a flat coin without an actual gradient (a
+  // gradient fill would fight the "team color has to read as one solid hue"
+  // rule). Polish pass, 2026-08-29, first-phase-studio comparison.
+  ringFill: 'rgba(255, 255, 255, 0.08)',
+  ringStroke: 'rgba(255, 255, 255, 0.16)',
 } as const
 
 // Equipment palette (rework plan Stage 6.2). The house rule holds: types are
@@ -54,6 +61,22 @@ export const EQUIPMENT = {
 export const BALL = {
   fill: '#fefdf8', // off-white so it doesn't vanish against light markers
   stroke: '#1e293b',
+  // A hint of panel seams — one inner ring plus two mirrored arcs — rather
+  // than a literal pentagon pattern, which stops reading as a ball at the
+  // size a coach actually draws one. Polish pass, 2026-08-29.
+  seam: '#64748b',
+} as const
+
+// Shared by every "live" token on the pitch (player, ball) — a small drop
+// shadow that grounds them against the turf. Canvas-only: this isn't a
+// chrome surface treatment (design.md's "no drop shadows" rule is about UI
+// panels/buttons), and equipment/markings don't get one — just the pieces
+// that move.
+export const TOKEN_SHADOW = {
+  color: '#000000',
+  opacity: 0.35,
+  blur: 6,
+  offsetY: 2,
 } as const
 
 // Upgrade Phase 2C (UPGRADE_IMPLEMENTATION_PLAN.md): two visually distinct

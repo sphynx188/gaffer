@@ -302,7 +302,12 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   const place = (placement: DragPlacement, position: PhasePoint) => {
     if (placement.kind === 'player') {
-      addEntity(drill.id, 'player', position, { team: placement.team })
+      // Dot, not a numbered standard marker — a coach placing players to
+      // block out shape wants bare dots first and numbers only for the ones
+      // that need them, not every marker pre-numbered whether asked for or
+      // not. Switching a specific player to a numbered display is still a
+      // property-panel edit away.
+      addEntity(drill.id, 'player', position, { team: placement.team, display: 'dot' })
       showToast(`Player added to team ${placement.team}`)
       return
     }

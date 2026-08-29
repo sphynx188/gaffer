@@ -19,26 +19,57 @@ export interface EquipmentShapeProps {
   color?: string
 }
 
+// A tall, straight-sided taper up to a rounded tip, sitting on its own
+// distinct black base plate — an actual traffic/training cone, not the
+// bulging witch's-hat curve the first pass drew.
 function ConeShape({ unit, color }: EquipmentShapeProps) {
   const fill = color ?? EQUIPMENT.markerDeep
-  const height = unit * 1.8
+  const height = unit * 2.3
   const top = -height / 2
-  const bottom = height / 2
+  const plateHeight = unit * 0.32
+  const bodyBottom = height / 2 - plateHeight * 0.7
+  const bodyHalf = unit * 0.5
+  const plateHalf = unit * 0.85
+  const apexHalf = unit * 0.05
+  const widthAt = (t: number) => apexHalf + t * (bodyHalf - apexHalf)
   return (
     <>
+      <Ellipse y={height / 2 + unit * 0.14} radiusX={plateHalf} radiusY={unit * 0.14} fill={EQUIPMENT.ground} opacity={0.5} />
+      <Rect
+        x={-plateHalf}
+        y={height / 2 - plateHeight}
+        width={plateHalf * 2}
+        height={plateHeight}
+        cornerRadius={unit * 0.08}
+        fill={EQUIPMENT.ground}
+      />
+      {/* A sliver of a flat top rather than a true point, which is what
+          actually reads as "slightly rounded tip" at this size — a filled
+          circle stuck on top of a sharp point just looked like a ball on a
+          stick instead of blending into the taper. */}
       <Line
-        points={[-unit * 0.22, top, unit * 0.22, top, unit * 0.85, bottom * 0.72, -unit * 0.85, bottom * 0.72]}
+        points={[-unit * 0.05, top, unit * 0.05, top, bodyHalf, bodyBottom, -bodyHalf, bodyBottom]}
         closed
         fill={fill}
         lineJoin="round"
       />
-      <Rect
-        x={-unit}
-        y={bottom * 0.72}
-        width={unit * 2}
-        height={unit * 0.36}
-        cornerRadius={unit * 0.18}
-        fill={fill}
+      {/* A glossy vertical sheen down one side rather than a flat fill — the
+          same "hint of volume without a literal gradient" trick used on the
+          player and ball markers. Its x-offset has to track the taper: a
+          fixed offset off `bodyHalf` (the BASE half-width) stuck out past the
+          actual silhouette near the narrow apex, rendering as a stray pale
+          streak over the turf instead of a sheen on the cone. */}
+      <Line
+        points={[
+          -widthAt(0.42) * 0.5,
+          top + (bodyBottom - top) * 0.42,
+          -widthAt(0.88) * 0.5,
+          top + (bodyBottom - top) * 0.88,
+        ]}
+        stroke="rgba(255, 255, 255, 0.35)"
+        strokeWidth={Math.max(1.5, unit * 0.12)}
+        lineCap="round"
+        listening={false}
       />
     </>
   )
@@ -74,6 +105,7 @@ function MannequinShape({ unit, color }: EquipmentShapeProps) {
   const legLength = unit * 0.55
   return (
     <>
+      <Ellipse y={bodyHeight / 2 + legLength} radiusX={legSpread * 0.85} radiusY={unit * 0.16} fill={EQUIPMENT.ground} />
       <Circle y={-bodyHeight / 2 - headRadius} radius={headRadius} stroke={EQUIPMENT.frameDeep} strokeWidth={1.3} />
       <Rect
         x={-bodyWidth / 2}
@@ -106,6 +138,7 @@ function GoalShape({ unit, color, span, height }: EquipmentShapeProps & { span: 
   netLines.push(<Line key="h" points={[-half, -height / 2, half, -height / 2]} stroke={EQUIPMENT.net} strokeWidth={0.8} />)
   return (
     <>
+      <Ellipse y={unit * 0.14} radiusX={half + unit * 0.15} radiusY={unit * 0.14} fill={EQUIPMENT.ground} />
       {netLines}
       <Line points={[-half, 0, -half, -height, half, -height, half, 0]} stroke={stroke} strokeWidth={bar} lineJoin="round" lineCap="round" />
     </>
@@ -114,12 +147,15 @@ function GoalShape({ unit, color, span, height }: EquipmentShapeProps & { span: 
 
 function AgilityRingShape({ unit, color }: EquipmentShapeProps) {
   return (
-    <Ellipse
-      radiusX={unit * 0.9}
-      radiusY={unit * 0.45}
-      stroke={color ?? EQUIPMENT.markerDeep}
-      strokeWidth={Math.max(2, unit * 0.28)}
-    />
+    <>
+      <Ellipse radiusX={unit * 0.9} radiusY={unit * 0.45} fill={EQUIPMENT.ground} opacity={0.15} />
+      <Ellipse
+        radiusX={unit * 0.9}
+        radiusY={unit * 0.45}
+        stroke={color ?? EQUIPMENT.markerDeep}
+        strokeWidth={Math.max(2, unit * 0.28)}
+      />
+    </>
   )
 }
 
@@ -137,6 +173,15 @@ function LadderShape({ unit, color }: EquipmentShapeProps) {
   }
   return (
     <>
+      <Rect
+        x={-width / 2 - unit * 0.12}
+        y={-length / 2 - unit * 0.12}
+        width={width + unit * 0.24}
+        height={length + unit * 0.24}
+        cornerRadius={unit * 0.15}
+        fill={EQUIPMENT.ground}
+        opacity={0.12}
+      />
       <Line points={[-width / 2, -length / 2, -width / 2, length / 2]} stroke={stroke} strokeWidth={Math.max(1.2, unit * 0.13)} />
       <Line points={[width / 2, -length / 2, width / 2, length / 2]} stroke={stroke} strokeWidth={Math.max(1.2, unit * 0.13)} />
       {rungs}
@@ -153,6 +198,7 @@ function HurdleShape({ unit, color }: EquipmentShapeProps) {
   const bar = Math.max(1.6, unit * 0.18)
   return (
     <>
+      <Ellipse y={height / 2 + unit * 0.14} radiusX={span / 2 + unit * 0.35} radiusY={unit * 0.15} fill={EQUIPMENT.ground} />
       <Line points={[-span / 2, height / 2, -span / 2, -height / 2, span / 2, -height / 2, span / 2, height / 2]} stroke={stroke} strokeWidth={bar} lineJoin="round" />
       <Line points={[-span / 2 - unit * 0.25, height / 2, -span / 2 + unit * 0.25, height / 2]} stroke={EQUIPMENT.ground} strokeWidth={bar} lineCap="round" />
       <Line points={[span / 2 - unit * 0.25, height / 2, span / 2 + unit * 0.25, height / 2]} stroke={EQUIPMENT.ground} strokeWidth={bar} lineCap="round" />
@@ -168,6 +214,7 @@ function RebounderShape({ unit, color }: EquipmentShapeProps) {
   const stroke = color ?? EQUIPMENT.frame
   return (
     <>
+      <Ellipse y={height / 2 + unit * 0.14} radiusX={span / 2 + unit * 0.2} radiusY={unit * 0.15} fill={EQUIPMENT.ground} />
       <Line
         points={[-span / 2, height / 2, -span / 2 + unit * 0.35, -height / 2, span / 2 + unit * 0.35, -height / 2, span / 2, height / 2]}
         closed
@@ -251,8 +298,8 @@ export function EquipmentIcon({ type, color }: { type: EquipmentType; color?: st
 const ICON_BODY: Record<EquipmentType, (paint: string) => React.ReactNode> = {
   cone: (p) => (
     <>
-      <polygon points="-2,-8 2,-8 7,5 -7,5" fill={p} />
-      <rect x="-9" y="5" width="18" height="3.4" rx="1.7" fill={p} />
+      <rect x="-8" y="6" width="16" height="3" rx="1.5" fill={EQUIPMENT.ground} />
+      <polygon points="0,-10 5.5,6.5 -5.5,6.5" fill={p} />
     </>
   ),
   marker: (p) => (
