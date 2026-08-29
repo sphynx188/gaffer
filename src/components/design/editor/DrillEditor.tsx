@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type Konva from 'konva'
 import { PanelRight, Pause, Play, Wrench } from 'lucide-react'
 import { useStore } from '../../../store'
@@ -119,9 +119,8 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     setPropsOpen(false)
   }, [tour.open])
 
-  // Keeps the pitch inside the viewport so the docked timeline stays reachable
-  // without scrolling past a full-height canvas. The reserve covers the top
-  // bar, the timeline bar and the page's own padding.
+  // Keeps the pitch inside the viewport without scrolling past a full-height
+  // canvas.
   const [viewportHeight, setViewportHeight] = useState(() =>
     typeof window === 'undefined' ? 800 : window.innerHeight
   )
@@ -130,6 +129,30 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  // How much chrome sits above the canvas, MEASURED rather than assumed. This
+  // used to be a hardcoded 260px reserve whose own comment said it covered
+  // "the top bar, the timeline bar and the page's own padding" — but the
+  // timeline bar moved into the Keyframes panel on 2026-08-29 and this editor
+  // hasn't rendered one since, so the reserve was still holding back ~50px of
+  // height for a component that no longer exists. Measuring the canvas's own
+  // top can't go stale the next time the chrome above it changes. Reading it
+  // off the canvas rather than a wrapper of our own keeps EditorLayout's
+  // centering untouched; the canvas's height never feeds back into its own
+  // top, so there's no measure/resize loop.
+  const [canvasTop, setCanvasTop] = useState(260)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = document.querySelector('[data-pitch-canvas]')
+      if (el) setCanvasTop(el.getBoundingClientRect().top + window.scrollY)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+  // Room for the hint / "nothing on the pitch yet" line the canvas renders
+  // beneath itself.
+  const CANVAS_FOOTER = 24
 
   const playback = useTimelinePlayback(drill.duration_seconds)
   const frame = useMemo(
@@ -537,14 +560,15 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         onionFrames={onion}
         motionPaths={paths}
         trailFrames={trails}
-        // 720 used to be the ceiling regardless of screen size, leaving wide
-        // margins either side even once AppShell gave this route more room
-        // to work with. PitchCanvas already measures its own container via
-        // ResizeObserver and clamps to whichever is smaller, so raising this
-        // just lets it use the extra width now available rather than
-        // stopping short of it.
-        maxWidth={1200}
-        maxHeight={Math.max(260, viewportHeight - 260)}
+        // 720, then 1200, used to be the ceiling regardless of screen size,
+        // leaving wide margins either side even once AppShell gave this route
+        // more room to work with. PitchCanvas already measures its own
+        // container via ResizeObserver and clamps to whichever is smaller, so
+        // raising this just lets it use the extra width now available rather
+        // than stopping short of it — on a wide monitor width becomes the
+        // binding axis and the pitch fills the canvas edge to edge.
+        maxWidth={1600}
+        maxHeight={Math.max(260, viewportHeight - canvasTop - CANVAS_FOOTER)}
         editable
         onEntitiesMove={handleEntitiesMove}
         annotationMode={tool !== 'select' || routeDraft !== null}
@@ -632,7 +656,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       onInspectorClose={() => setPropsOpen(false)}
       inspectorTitle="Properties"
       inspectorAnchor="properties-panel"
-      maxPanelHeight={Math.max(260, viewportHeight - 260)}
+      maxPanelHeight={Math.max(260, viewportHeight - canvasTop - CANVAS_FOOTER)}
       dock={
         <>
           <DockButton label="Tools" icon={<Wrench className="h-4 w-4" />} onClick={() => setToolsOpen(true)} />

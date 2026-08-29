@@ -321,13 +321,15 @@ export function PitchCanvas({
   // room, never dead space manufactured by the box/content mismatch.
   const { containerRef, width: boxWidth } = useMeasuredWidth(maxWidth)
   const boxHeight = maxHeight ?? boxWidth / aspectRatio
-  // First-phase-studio keeps a fixed band of grass between the pitch's own
-  // boundary and the edge of its canvas (their `drawPitch` insets every
-  // format's outer line by a flat 28px) rather than letting the boundary
-  // touch the frame — fit the content within the box shrunk by this margin
-  // on every side, so even Full Pitch (which otherwise matches the box
-  // exactly) shows a sliver of turf beyond its own boundary line.
-  const BOX_MARGIN = 24
+  // A band of grass between the pitch's own boundary and the edge of its
+  // canvas, rather than letting the boundary touch the frame — fit the
+  // content within the box shrunk by this margin on every side, so even Full
+  // Pitch (which otherwise matches the box exactly) shows a sliver of turf
+  // beyond its own boundary line. Was 24px, matching first-phase-studio's
+  // flat 28px inset; halved on 2026-08-29 because at this canvas's size that
+  // read as a gap rather than a sliver, and the 24px it gave back on each
+  // side is 24px the pitch itself can use.
+  const BOX_MARGIN = 12
   const width = maxHeight
     ? Math.min(Math.max(1, boxWidth - BOX_MARGIN * 2), Math.max(1, boxHeight - BOX_MARGIN * 2) * aspectRatio)
     : boxWidth
