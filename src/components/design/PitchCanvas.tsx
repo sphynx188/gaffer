@@ -409,7 +409,13 @@ export function PitchCanvas({
   // geometry below stays in plain pitch coordinates.
   const pitchOffsetX = (overhang.x + padX) * scaleX
   const pitchOffsetY = (overhang.y + padY) * scaleY
-  const lineWidth = Math.max(1.5, width * 0.006)
+  // Was 0.006, which measured out about 2.2x first-phase-studio's markings
+  // relative to the pitch itself: their penalty box is 232px wide and stroked
+  // at 2 (0.86% of it), ours was 332px stroked at 6.3 (1.90%). Thick lines eat
+  // the space inside the boxes they enclose and make the pitch shout over the
+  // players on it. This lands between the two, nearer theirs. The boundary
+  // keeps its 1.5x, which is their 3-to-2 exactly.
+  const lineWidth = Math.max(1.5, width * 0.0038)
 
   // Frame coordinates are normalized 0-1 and convert directly against Stage
   // width/height — never against the pitch markings' meters scale, which is a
