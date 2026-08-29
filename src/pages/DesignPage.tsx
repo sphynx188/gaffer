@@ -1,89 +1,44 @@
-import { useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { PenTool } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import type { Drill } from '../store'
-import { formatDimensions, presetLabel } from '../components/design/canvas/pitchPresets'
-import { PageHeader } from '../components/ui/PageHeader'
-import { Card } from '../components/ui/Card'
-import { EmptyState } from '../components/ui/EmptyState'
+import { configFromPreset, findPreset } from '../components/design/canvas/pitchPresets'
 import { Skeleton } from '../components/ui/Skeleton'
-import { CreateDrillForm } from '../components/design/editor/CreateDrillForm'
 
-// `/design` is now the picker (rework plan Stage 5.1): choose a drill to open
-// in the editor at `/design/:drillId`, or create one and land straight in it.
-const SKELETON_ROWS = [0, 1, 2]
-
-// Preset name plus real dimensions, the same label the drill library and the
-// session picker show (rework plan Stage 7.6).
-function pitchLabel(drill: Drill): string {
-  const { pitch } = drill
-  return `${presetLabel(pitch.preset)} · ${formatDimensions(pitch.lengthMeters, pitch.widthMeters, pitch.units ?? 'm')}`
-}
-
+// `/design` creates a new drill and lands straight in its editor at
+// `/design/:drillId` — no separate create form. Name, pitch size and
+// orientation used to be collected here up front, but every one of them is
+// already editable inline once inside the editor (EditorTopBar's name
+// field; ToolRail/DrillDetailsDrawer's PitchPanel for size and orientation),
+// so asking for them twice was the redundant step. This page's only job now
+// is create-then-redirect; editing an EXISTING drill still goes through
+// Drill Library, which navigates straight to `/design/:id` itself.
 export function DesignPage() {
   const navigate = useNavigate()
-  const selectedClubId = useStore((s) => s.selectedClubId)
-  const drills = useStore((s) => s.drills)
-  const drillsLoading = useStore((s) => s.drillsLoading)
-  const drillsError = useStore((s) => s.drillsError)
-  const fetchDrills = useStore((s) => s.fetchDrills)
   const createDrill = useStore((s) => s.createDrill)
+  const drillsError = useStore((s) => s.drillsError)
+  const started = useRef(false)
 
-  // Club tenancy (2026-08-28): fetchDrills takes no scope argument any more
-  // (RLS decides visibility) — selectedClubId is still a dependency here
-  // even though the query itself doesn't filter by it, purely so switching
-  // clubs re-triggers a refetch rather than leaving the previous club's
-  // list on screen (clubSlice.selectClub clears `drills` on switch; this is
-  // what refills it).
   useEffect(() => {
-    void fetchDrills()
-  }, [fetchDrills, selectedClubId])
+    if (started.current) return
+    started.current = true
+    const preset = findPreset('full')!
+    void createDrill({
+      name: 'New drill',
+      orientation: preset.orientation,
+      pitch: configFromPreset(preset),
+    }).then((created) => {
+      if (created) navigate(`/design/${created.id}`, { replace: true })
+    })
+  }, [createDrill, navigate])
+
+  if (drillsError) {
+    return <p className="text-sm text-bad">{drillsError}</p>
+  }
 
   return (
-    <div>
-      <PageHeader title="Design" />
-      <Card>
-        <div className="space-y-4">
-          <CreateDrillForm onCreate={createDrill} onCreated={(created) => navigate(`/design/${created.id}`)} />
-
-          {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
-
-          {drillsLoading && drills.length === 0 && (
-            <div role="status" aria-busy="true" className="space-y-2">
-              <span className="sr-only">Loading drills…</span>
-              {SKELETON_ROWS.map((row) => (
-                <Skeleton key={row} className="h-14 w-full rounded-lg" />
-              ))}
-            </div>
-          )}
-
-          {!drillsLoading && drills.length === 0 && !drillsError && (
-            <EmptyState icon={PenTool} message="No drills yet — create one above." />
-          )}
-
-          {drills.length > 0 && (
-            <ul className="space-y-1 border-t border-line pt-4">
-              {drills.map((drill) => (
-                <li key={drill.id}>
-                  <Link
-                    to={`/design/${drill.id}`}
-                    className="flex min-h-14 items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-panel-raised"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-ink">{drill.name}</span>
-                      <span className="block truncate text-xs text-ink-muted">{pitchLabel(drill)}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-ink-faint">
-                      {drill.keyframes.length} {drill.keyframes.length === 1 ? 'keyframe' : 'keyframes'}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </Card>
+    <div role="status" aria-busy="true">
+      <span className="sr-only">Creating drill…</span>
+      <Skeleton className="aspect-[3/2] w-full max-w-[960px] rounded-lg" />
     </div>
   )
 }

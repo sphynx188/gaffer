@@ -334,6 +334,30 @@ function overlayGeometry(config: PitchConfig): PitchOverlayGeometry {
         for (let y = step; y < l - 0.01; y += step) across(y)
         break
       }
+      case 'coaching_zones': {
+        // First-phase-studio comparison, 2026-08-29: their "Coaching Zones"
+        // isn't a uniform grid (that's training_grid, and it's too dense to
+        // read as zones rather than graph paper) — per their own comment,
+        // it's four lines dividing a CENTRAL BAND the width of the penalty
+        // area into thirds (not the full pitch width — corrected 2026-08-29
+        // after the first pass used only 2 full-width lines, which doesn't
+        // match their screenshot), running only through the length corridor
+        // between the two penalty areas, plus one line across each half
+        // splitting penalty-area-edge-to-halfway-line in two.
+        const scale = boxScale(w)
+        const boxDepth = PENALTY_BOX_DEPTH * scale
+        const bandWidth = PENALTY_BOX_WIDTH * scale
+        const bandStart = (w - bandWidth) / 2
+        if (boxDepth * 2 < l && bandWidth < w) {
+          for (let i = 0; i <= 3; i++) {
+            const x = bandStart + (bandWidth * i) / 3
+            lines.push({ x1: x, y1: boxDepth, x2: x, y2: l - boxDepth, dashed: true })
+          }
+          across((boxDepth + l / 2) / 2)
+          across((l - boxDepth + l / 2) / 2)
+        }
+        break
+      }
     }
   }
 

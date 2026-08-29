@@ -294,7 +294,7 @@ export interface DrillScene {
 
 // Pitch overlays (rework plan Stage 7.4) — grid systems drawn over the pitch
 // rather than markings of it.
-export type OverlayKind = 'thirds' | 'channels' | 'lanes' | 'half_spaces' | 'pep_zones' | 'training_grid'
+export type OverlayKind = 'thirds' | 'channels' | 'lanes' | 'half_spaces' | 'pep_zones' | 'training_grid' | 'coaching_zones'
 
 // Real metre dimensions rather than a 4-value size enum, which is what makes
 // the Stage 4 speed readout meaningful. `widthMeters`/`lengthMeters` are the
