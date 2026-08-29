@@ -7,7 +7,6 @@ import {
   PenLine,
   Pentagon,
   Radius,
-  Ruler,
   Spline,
   Square,
   StickyNote,
@@ -26,12 +25,14 @@ import type { DrawTool } from '../PitchCanvas'
 // The plan says the set goes from 9 to 14. The 14 is the SHORTCUT MAP in its
 // §1 — `M A L V N C R Z D X H U S I` — which is Select plus thirteen drawing
 // tools. So `Marking.kind` goes from 8 to 13, and this rail covers all 14
-// keys. Gaffer's own `pass` (a dashed arrow) and `ruler` (measures, keeps
-// nothing) are extras beyond Teloframe's list; they are shipped and useful, so
-// they stay and simply have no key of their own.
+// keys. Gaffer's own `pass` (a dashed arrow) is an extra beyond Teloframe's
+// list; it is shipped and useful, so it stays and simply has no key of its
+// own. A `ruler` that reported a distance in metres was dropped on
+// 2026-08-29, when the drill canvas stopped rendering to scale: with the
+// pitch stretched to fill its canvas a metre across is a different number of
+// pixels from a metre down, so a single distance readout could only mislead.
 //
-// A tool is either the selection tool, a marking-placing tool, or the ruler,
-// which measures and keeps nothing.
+// A tool is either the selection tool or a marking-placing tool.
 export type MarkingTool =
   | 'select'
   | 'arrow'
@@ -47,7 +48,6 @@ export type MarkingTool =
   | 'multi'
   | 'spotlight'
   | 'highlight'
-  | 'ruler'
   | 'text'
 
 interface ToolSpec {
@@ -78,7 +78,6 @@ export const MARKING_TOOLS: ToolSpec[] = [
   { id: 'multi', label: 'Multi', icon: <Workflow className="h-4 w-4" />, draw: 'multi', hint: 'Tap each leg of the move, then tap the last point again — the arrowhead lands on the final leg', key: 'u' },
   { id: 'spotlight', label: 'Spotlight', icon: <Sun className="h-4 w-4" />, draw: 'spotlight', hint: 'Drag out from the middle to dim everything outside the circle', key: 's' },
   { id: 'highlight', label: 'Highlight', icon: <Highlighter className="h-4 w-4" />, draw: 'highlight', hint: 'Drag over a player or an area to emphasise it', key: 'i' },
-  { id: 'ruler', label: 'Ruler', icon: <Ruler className="h-4 w-4" />, draw: 'ruler', hint: 'Drag to measure — nothing is added to the drill' },
 ]
 
 export function markingToolSpec(id: MarkingTool): ToolSpec {

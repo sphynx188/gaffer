@@ -41,6 +41,14 @@ interface PitchCanvasProps {
   // ratio doesn't fill it, the box stays this size and the extra space reads
   // as more pitch (see the box/content split below) rather than as a gap.
   maxHeight?: number
+  /**
+   * Stretch the pitch to fill the whole canvas instead of keeping its real
+   * proportions (drills only — see the width/height block below for what this
+   * trades away). Off by default, so tactics keeps true scale: a formation is
+   * a shape on a real pitch, and squashing one moves every player's spacing
+   * relative to the lines they're being positioned against.
+   */
+  fillCanvas?: boolean
   className?: string
 
   // When true, entities become draggable Konva nodes. `onEntitiesMove` fires
@@ -79,8 +87,6 @@ interface PitchCanvasProps {
   onMarkingsTransform?: (updates: Array<{ id: string; points: PhasePoint[] }>) => void
 
   // Which marking the armed tool draws, if any (rework plan Stage 6.4).
-  // 'ruler' is the one that isn't a marking: it measures and reports nothing,
-  // so it's handled here and never reaches `onDrawMarking`.
   drawTool?: DrawTool | null
   drawStyle?: Marking['style']
   onDrawMarking?: (marking: Omit<Marking, 'id'>) => void
@@ -127,8 +133,7 @@ const DEFAULT_MAX_WIDTH = 420
 const MIN_SCALE = 1
 const MAX_SCALE = 5
 
-// The drawing tools the markings panel arms. Everything but 'ruler' commits a
-// Marking; the ruler only ever reports a distance on screen.
+// The drawing tools the markings panel arms. Each one commits a Marking.
 export type DrawTool =
   | 'arrow'
   | 'line'
@@ -142,14 +147,13 @@ export type DrawTool =
   | 'multi'
   | 'spotlight'
   | 'highlight'
-  | 'ruler'
 
 // Tools drawn by pressing, dragging and releasing. The rest are polylines
 // built tap by tap, or freehand. Every new tool from Stage 6.1 slots into one
 // of these two families rather than needing a third gesture — arc, spotlight
 // and highlight are all "drag out from a start point", and shape and multi are
 // polylines exactly as zone and curve already were.
-const DRAG_TOOLS: DrawTool[] = ['arrow', 'line', 'arc', 'circle', 'rect', 'spotlight', 'highlight', 'ruler']
+const DRAG_TOOLS: DrawTool[] = ['arrow', 'line', 'arc', 'circle', 'rect', 'spotlight', 'highlight']
 const POLYLINE_TOOLS: DrawTool[] = ['curve', 'zone', 'shape', 'multi']
 
 // How close two entities have to be on one axis for a smart guide to appear
@@ -279,6 +283,7 @@ export function PitchCanvas({
   frame,
   maxWidth = DEFAULT_MAX_WIDTH,
   maxHeight,
+  fillCanvas = false,
   className,
   editable = false,
   onEntitiesMove,
@@ -330,10 +335,19 @@ export function PitchCanvas({
   // read as a gap rather than a sliver, and the 24px it gave back on each
   // side is 24px the pitch itself can use.
   const BOX_MARGIN = 12
-  const width = maxHeight
-    ? Math.min(Math.max(1, boxWidth - BOX_MARGIN * 2), Math.max(1, boxHeight - BOX_MARGIN * 2) * aspectRatio)
-    : boxWidth
-  const height = width / aspectRatio
+  // `fillCanvas` drops the "fit the tighter axis" rule and scales each axis
+  // independently, so the pitch covers the whole canvas whatever its own
+  // proportions are. That is a real trade, made deliberately for drills: a
+  // 105x68 pitch is 1.54 wide-to-tall and the canvas it sits in is nearer
+  // 1.73, so keeping true proportions left ~15% of the width permanently
+  // empty. For a drill — where what matters is the shape a coach draws, not
+  // whether the pitch is to scale — the bigger canvas is worth more than the
+  // fidelity. scaleX/scaleY below were already derived per-axis, so every
+  // marking, entity and drawing follows without further change.
+  const fitWidth = Math.max(1, boxWidth - BOX_MARGIN * 2)
+  const fitHeight = Math.max(1, boxHeight - BOX_MARGIN * 2)
+  const width = maxHeight ? (fillCanvas ? fitWidth : Math.min(fitWidth, fitHeight * aspectRatio)) : boxWidth
+  const height = maxHeight && fillCanvas ? fitHeight : width / aspectRatio
   const renderBoxWidth = maxHeight ? width + BOX_MARGIN * 2 : boxWidth
   const renderBoxHeight = maxHeight ? height + BOX_MARGIN * 2 : boxHeight
   const markings = getPitchMarkings(pitch)
@@ -563,7 +577,7 @@ export function PitchCanvas({
   const commitDraft = (points: PhasePoint[]) => {
     setDraft(null)
     drawing.current = false
-    if (!drawTool || !onDrawMarking || drawTool === 'ruler' || points.length < 2) return
+    if (!drawTool || !onDrawMarking || points.length < 2) return
     onDrawMarking({ kind: drawTool, points, style: drawStyle })
   }
 
@@ -609,12 +623,6 @@ export function PitchCanvas({
   const handleDrawPointerUp = (): boolean => {
     if (!drawTool || !drawing.current || !draft) return false
     if (DRAG_TOOLS.includes(drawTool) || drawTool === 'freehand') {
-      if (drawTool === 'ruler') {
-        // Measured, shown, and deliberately not kept.
-        setDraft(null)
-        drawing.current = false
-        return true
-      }
       commitDraft(draft)
       return true
     }
@@ -838,19 +846,6 @@ export function PitchCanvas({
     PLAYER.fallback
   )
 
-  // Straight-line distance along the drafted points, in real metres — the same
-  // conversion the timeline's speed readout uses, so the two agree.
-  const rulerMeters = (points: PhasePoint[]): number => {
-    let total = 0
-    for (let i = 1; i < points.length; i++) {
-      total += Math.hypot(
-        (points[i].x - points[i - 1].x) * markings.widthMeters,
-        (points[i].y - points[i - 1].y) * markings.lengthMeters
-      )
-    }
-    return total
-  }
-
   const interactive = editable || annotationMode || removeMode || selectable || drawTool !== null
   const cursor = panning ? 'grab' : annotationMode ? 'crosshair' : removeMode ? 'pointer' : undefined
 
@@ -971,12 +966,19 @@ export function PitchCanvas({
                 dash={l.dashed ? [lineWidth * 2, lineWidth * 2] : undefined}
               />
             ))}
+            {/* An Ellipse rather than a Circle so the centre circle tracks
+                BOTH axes. It used to take its radius from scaleX alone, which
+                was fine while the two scales were equal by construction — but
+                with `fillCanvas` they differ, and a circle sized off one axis
+                would sit visibly wrong against the lines around it. Drawn
+                per-axis it stays inscribed in the pitch exactly as authored. */}
             {markings.circles.map((c, i) => (
-              <Circle
+              <Ellipse
                 key={`circle-${i}`}
                 x={c.cx * scaleX}
                 y={c.cy * scaleY}
-                radius={c.r * scaleX}
+                radiusX={c.r * scaleX}
+                radiusY={c.r * scaleY}
                 stroke={TURF.line}
                 strokeWidth={lineWidth}
               />
@@ -1561,21 +1563,13 @@ export function PitchCanvas({
                 closed={drawTool === 'zone' || drawTool === 'rect' || drawTool === 'circle'}
                 stroke={drawStyle?.stroke ?? SELECTION.marqueeStroke}
                 strokeWidth={arrowStrokeWidth}
-                dash={drawTool === 'ruler' ? [6, 4] : drawStyle?.dash ? ARROW.ball.dash : undefined}
+                dash={drawStyle?.dash ? ARROW.ball.dash : undefined}
                 fill={drawTool === 'zone' ? SELECTION.marqueeFill : undefined}
                 tension={drawTool === 'curve' || drawTool === 'freehand' ? 0.4 : 0}
                 lineJoin="round"
                 lineCap="round"
                 listening={false}
               />
-            )}
-
-            {/* The ruler reports a real distance and keeps nothing. */}
-            {drawTool === 'ruler' && draft && draft.length >= 2 && (
-              <Label x={toPx(draft[draft.length - 1]).x} y={toPx(draft[draft.length - 1]).y - baseUnit * 4} listening={false}>
-                <Tag fill={ANNOTATION.background} stroke={ANNOTATION.border} strokeWidth={1} cornerRadius={4} />
-                <Text text={`${rulerMeters(draft).toFixed(1)} m`} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
-              </Label>
             )}
 
             {guides.x !== undefined && (

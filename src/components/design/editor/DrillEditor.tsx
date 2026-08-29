@@ -569,6 +569,11 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         // binding axis and the pitch fills the canvas edge to edge.
         maxWidth={1600}
         maxHeight={Math.max(260, viewportHeight - canvasTop - CANVAS_FOOTER)}
+        // Drills stretch the pitch to fill the canvas rather than holding its
+        // real proportions — a drill is about the shape being drawn, not about
+        // the pitch being to scale, and true proportions were leaving ~15% of
+        // the canvas permanently empty. Tactics deliberately doesn't pass this.
+        fillCanvas
         editable
         onEntitiesMove={handleEntitiesMove}
         annotationMode={tool !== 'select' || routeDraft !== null}
