@@ -1,5 +1,5 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
-import { Grid3x3, Hash, MousePointer2, PenLine, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Grid3x3, MousePointer2, PenLine, SlidersHorizontal, Sparkles } from 'lucide-react'
 import type { EquipmentType, PitchConfig } from '../../../store'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
@@ -43,8 +43,6 @@ interface ToolRailProps {
   onPanelChange: (panel: RailPanel) => void
   team: string
   onTeamChange: (team: string) => void
-  numbered: boolean
-  onNumberedChange: (numbered: boolean) => void
   equipment: EquipmentType
   onEquipmentChange: (equipment: EquipmentType) => void
   marking: MarkingTool
@@ -174,13 +172,6 @@ export function ToolRail(props: ToolRailProps) {
               style={{ backgroundColor: props.team === 'B' ? PLAYER_B_COLOR : PLAYER_A_COLOR }}
             />
           }
-        />
-        <RailButton
-          label="Numbers"
-          active={props.numbered}
-          layout={layout}
-          onClick={() => props.onNumberedChange(!props.numbered)}
-          icon={<Hash className="h-4 w-4" />}
         />
         <RailButton
           label="Grid & guides"

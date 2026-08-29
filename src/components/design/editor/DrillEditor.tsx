@@ -72,7 +72,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [tool, setTool] = useState<CanvasTool>('select')
   const [panel, setPanel] = useState<RailPanel>(null)
   const [team, setTeam] = useState('A')
-  const [numbered, setNumbered] = useState(false)
   const [equipment, setEquipment] = useState<EquipmentType>('cone')
   const [marking, setMarking] = useState<MarkingTool>('arrow')
   const [grid, setGrid] = useState<GridSettings>({ showGrid: false, snapToGrid: false, smartGuides: true })
@@ -303,12 +302,12 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   const place = (placement: DragPlacement, position: PhasePoint) => {
     if (placement.kind === 'player') {
-      // Dot by default — a coach placing players to block out shape wants
-      // bare dots first and numbers only for the ones that need them, not
-      // every marker pre-numbered whether asked for or not. The Numbers
-      // toggle in the tool row flips this default for the session; a single
-      // player can still be switched either way from the property panel.
-      addEntity(drill.id, 'player', position, { team: placement.team, display: numbered ? 'standard' : 'dot' })
+      // Dot, not a numbered standard marker — a coach placing players to
+      // block out shape wants bare dots first and numbers only for the ones
+      // that need them, not every marker pre-numbered whether asked for or
+      // not. Switching a specific player to a numbered display is a click on
+      // the Number field's toggle in the property panel away.
+      addEntity(drill.id, 'player', position, { team: placement.team, display: 'dot' })
       showToast(`Player added to team ${placement.team}`)
       return
     }
@@ -481,8 +480,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     onPanelChange: setPanel,
     team,
     onTeamChange: setTeam,
-    numbered,
-    onNumberedChange: setNumbered,
     equipment,
     onEquipmentChange: setEquipment,
     marking,
