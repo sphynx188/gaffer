@@ -1,5 +1,6 @@
 import type { PitchConfig } from '../../store'
 import { findPreset } from './canvas/pitchPresets'
+import { PITCH_LINE_WEIGHT } from './pitchTheme'
 
 // Static pitch markings for Phase 2a (gaffer_mvp_build_steps.md), extended
 // in the Upgrade Phase 2A (UPGRADE_IMPLEMENTATION_PLAN.md) to 4 sizes x 2
@@ -34,6 +35,7 @@ export interface MetersRect {
   y: number
   w: number
   h: number
+  strokeWidthScale?: number // multiplier on the base stroke width; the boundary reads heavier
 }
 
 export interface MetersLine {
@@ -74,6 +76,12 @@ const SIX_YARD_DEPTH = 5.5
 const CENTER_CIRCLE_RADIUS = 9.15
 const PENALTY_SPOT_DISTANCE = 11
 const GOAL_WIDTH = 7.32
+// Deliberately deeper than a real goal's ~2m. At true depth the frame is a
+// couple of pixels tall at any realistic canvas size — thinner than the line
+// used to draw it — so it collapses into a solid bar. Drawn at ~3.5% of the
+// pitch length it reads as a goal at every size, which is the point of it.
+const GOAL_DEPTH_RATIO = 0.035
+const GOAL_MIN_DEPTH = 2
 
 // A space smaller than this in either axis can't carry regulation markings
 // without them swallowing the pitch, so it gets a training grid instead.
@@ -124,7 +132,9 @@ function fullMarkings(config: PitchConfig): PitchMarkings {
   const sixX = (widthMeters - sixWidth) / 2
   const ends = goalEndsFor(config, lengthMeters, boxDepth)
 
-  const rects: MetersRect[] = [{ x: 0, y: 0, w: widthMeters, h: lengthMeters }]
+  const rects: MetersRect[] = [
+    { x: 0, y: 0, w: widthMeters, h: lengthMeters, strokeWidthScale: PITCH_LINE_WEIGHT.boundary },
+  ]
   const lines: MetersLine[] = []
   const circles: MetersCircle[] = []
   const dots: MetersPoint[] = []
@@ -156,19 +166,35 @@ function fullMarkings(config: PitchConfig): PitchMarkings {
     dots.push({ x: widthMeters / 2, y: halfwayY })
   }
 
-  // A marked end with no room for a box still gets a goal mouth, so the
-  // direction of play is never ambiguous.
-  if (ends === 0) {
-    lines.push(goalMouth(widthMeters, 0))
-    lines.push(goalMouth(widthMeters, lengthMeters))
-  }
+  // Every end that is a goal end gets a goal mouth. This used to fire only
+  // when `ends === 0` — a fallback so an unmarked end still showed which way
+  // play went — which left a full pitch, the one that most obviously has
+  // goals, with no goal drawn on it at all. first-phase-studio draws a goal at
+  // every end for exactly this reason.
+  if (ends === 0 || ends >= 1) rects.push(goalFrame(widthMeters, lengthMeters, false))
+  if (ends === 0 || ends >= 2) rects.push(goalFrame(widthMeters, lengthMeters, true))
 
   return { widthMeters, lengthMeters, rects, lines, circles, dots }
 }
 
-function goalMouth(widthMeters: number, y: number): MetersLine {
+// The goal, as a shallow frame rather than a thick segment sitting on the goal
+// line. first-phase-studio draws theirs as a rect too, but OUTSIDE the
+// boundary, in the band of grass their canvas keeps around it — we can't: the
+// Konva stage is exactly the pitch, so anything past the line is off-canvas,
+// and a fat line centred on y=0 lost its outer half to the clip and read as a
+// rendering artefact rather than as a goal. Drawn just inside the line it is
+// unambiguous at every size and never clips. It sits within the six-yard box,
+// which is where a goal actually is in plan view.
+function goalFrame(widthMeters: number, lengthMeters: number, farEnd: boolean): MetersRect {
   const goal = Math.min(GOAL_WIDTH, widthMeters * 0.4)
-  return { x1: (widthMeters - goal) / 2, y1: y, x2: (widthMeters + goal) / 2, y2: y, strokeWidthScale: 3 }
+  const depth = Math.max(GOAL_MIN_DEPTH, lengthMeters * GOAL_DEPTH_RATIO)
+  return {
+    x: (widthMeters - goal) / 2,
+    y: farEnd ? lengthMeters - depth : 0,
+    w: goal,
+    h: depth,
+    strokeWidthScale: PITCH_LINE_WEIGHT.goal,
+  }
 }
 
 // A training space: boundary, a thirds-by-thirds possession grid, and goal
@@ -181,14 +207,16 @@ function gridMarkings(config: PitchConfig): PitchMarkings {
   return {
     widthMeters,
     lengthMeters,
-    rects: [{ x: 0, y: 0, w: widthMeters, h: lengthMeters }],
+    rects: [
+      { x: 0, y: 0, w: widthMeters, h: lengthMeters, strokeWidthScale: PITCH_LINE_WEIGHT.boundary },
+      goalFrame(widthMeters, lengthMeters, false),
+      goalFrame(widthMeters, lengthMeters, true),
+    ],
     lines: [
       { x1: thirdX, y1: 0, x2: thirdX, y2: lengthMeters, dashed: true },
       { x1: thirdX * 2, y1: 0, x2: thirdX * 2, y2: lengthMeters, dashed: true },
       { x1: 0, y1: thirdY, x2: widthMeters, y2: thirdY, dashed: true },
       { x1: 0, y1: thirdY * 2, x2: widthMeters, y2: thirdY * 2, dashed: true },
-      goalMouth(widthMeters, 0),
-      goalMouth(widthMeters, lengthMeters),
     ],
     circles: [],
     dots: [],
@@ -199,7 +227,15 @@ function bareMarkings(config: PitchConfig): PitchMarkings {
   return {
     widthMeters: config.widthMeters,
     lengthMeters: config.lengthMeters,
-    rects: [{ x: 0, y: 0, w: config.widthMeters, h: config.lengthMeters }],
+    rects: [
+      {
+        x: 0,
+        y: 0,
+        w: config.widthMeters,
+        h: config.lengthMeters,
+        strokeWidthScale: PITCH_LINE_WEIGHT.boundary,
+      },
+    ],
     lines: [],
     circles: [],
     dots: [],
@@ -213,7 +249,11 @@ function transpose(markings: PitchMarkings): PitchMarkings {
   return {
     widthMeters: markings.lengthMeters,
     lengthMeters: markings.widthMeters,
-    rects: markings.rects.map((r) => ({ x: r.y, y: r.x, w: r.h, h: r.w })),
+    // Spread first, like `lines` and `circles` below: this rebuilt the rect
+    // field by field, so anything carried alongside the geometry — currently
+    // `strokeWidthScale` — was silently dropped on every landscape pitch,
+    // which is most of them.
+    rects: markings.rects.map((r) => ({ ...r, x: r.y, y: r.x, w: r.h, h: r.w })),
     lines: markings.lines.map((l) => ({ ...l, x1: l.y1, y1: l.x1, x2: l.y2, y2: l.x2 })),
     circles: markings.circles.map((c) => ({ ...c, cx: c.cy, cy: c.cx })),
     dots: markings.dots.map((d) => ({ x: d.y, y: d.x })),

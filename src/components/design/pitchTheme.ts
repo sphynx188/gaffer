@@ -9,9 +9,30 @@
 // This is the ONE place canvas colors live. Nothing in PitchCanvas should
 // hardcode a hex value outside of here.
 
+// Polish pass, 2026-08-29, matched against first-phase-studio's own
+// `drawPitch`: they fill the surface `#177245` and stroke every marking a flat
+// `#e5f7df`. Two things that buys over the old mid-green/translucent-white
+// pair: a deeper, more saturated turf reads as grass rather than as a grey-
+// green panel, and an OPAQUE line is crisp at any size — the old
+// `rgba(255,255,255,0.75)` let the turf bleed through, which at the thin end
+// of the stroke range turned a marking into a soft grey smudge. The line is
+// very slightly green rather than pure white, which is what keeps it from
+// glaring against the darker surface.
 export const TURF = {
-  fill: '#3f7d52', // mid-green — not too saturated, so markers pop (visual-style discussion)
-  line: 'rgba(255, 255, 255, 0.75)', // thin white pitch lines
+  fill: '#177245',
+  line: '#e5f7df',
+} as const
+
+// The boundary carries more weight than what's inside it — first-phase-studio
+// strokes the outer rect at 3 and everything internal at 2. Without a
+// hierarchy every marking competes equally and the pitch reads as a flat mesh
+// of lines rather than as a shape with things drawn inside it.
+export const PITCH_LINE_WEIGHT = {
+  boundary: 1.5,
+  // The goal frame is stroked at the normal weight, not heavier: it is a small
+  // shape, and at 3x the stroke was thicker than the frame was deep, so it
+  // filled in as a solid block instead of reading as a goal.
+  goal: 1,
 } as const
 
 export const PLAYER = {

@@ -954,7 +954,7 @@ export function PitchCanvas({
                 width={r.w * scaleX}
                 height={r.h * scaleY}
                 stroke={TURF.line}
-                strokeWidth={lineWidth}
+                strokeWidth={lineWidth * (r.strokeWidthScale ?? 1)}
               />
             ))}
             {markings.lines.map((l, i) => (
