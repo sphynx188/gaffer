@@ -2,6 +2,18 @@ import type { ComponentType, KeyboardEvent as ReactKeyboardEvent, MouseEvent as 
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Checkbox } from './Checkbox'
 import { RowMenu, type RowMenuItem } from './RowMenu'
+import { PitchCanvas } from '../design/PitchCanvas'
+import type { RenderFrame } from '../design/canvas/interpolate'
+import type { PitchConfig } from '../../store'
+
+// The tile preview's box. BOTH dimensions are given: the tile is 16:9 and a
+// pitch preset is usually portrait, so passing width alone let PitchCanvas
+// derive a height from the pitch's own aspect (360 wide -> 480 tall for a
+// 30x40 area) and the tile's `overflow-hidden` simply cut the bottom off —
+// goals and half the players disappeared. Constrained to the tile's own ratio
+// and combined with `fillCanvas`, the whole board is visible instead.
+const THUMB_WIDTH = 360
+const THUMB_HEIGHT = Math.round((THUMB_WIDTH * 9) / 16)
 import type { LibrarySort, SortDir } from './useLibrarySort'
 import type { ToggleOptions } from './useLibrarySelection'
 
@@ -41,6 +53,15 @@ export interface LibraryItemView {
   id: string
   name: string
   thumbnailUrl: string | null
+  /**
+   * The drill/tactic's opening keyframe, rendered live in the tile view
+   * (2026-08-30). Preferred over `thumbnailUrl`: a stored PNG is only captured
+   * on the first save and goes stale the moment the board is edited, and a
+   * drill that has never been saved with something on it has none at all — so
+   * the grid was showing a wall of identical file glyphs. Drawing the frame
+   * itself is always current and needs no capture step.
+   */
+  preview?: { pitch: PitchConfig; frame: RenderFrame } | null
   /** Drawn when there's no thumbnail — the "file type" glyph. */
   icon: ComponentType<{ className?: string }>
   subtitle?: string | null
@@ -93,14 +114,38 @@ function ItemThumb({
   item,
   className,
   iconClassName,
+  live = false,
 }: {
   item: LibraryItemView
   className: string
   iconClassName: string
+  /**
+   * Draw the opening keyframe rather than the stored PNG. Only the tiles pass
+   * it: a tile is big enough for the board to be readable, while a row's thumb
+   * is 40x28 — too small to tell two drills apart, and one Konva stage per row
+   * is a real cost for no gain.
+   */
+  live?: boolean
 }) {
+  // A live preview sizes itself: the canvas needs pixel dimensions, so it is
+  // THUMB_WIDTH x THUMB_HEIGHT, and the tile's own `aspect-video` would crop it
+  // whenever the column is narrower than THUMB_WIDTH (a 342px column gives a
+  // 192px-tall tile around a 203px-tall canvas). Dropping the ratio lets the
+  // tile take the canvas's height instead, so every board is fully visible and
+  // all tiles line up at the same height regardless of column width.
+  const showLive = live && !!item.preview
+  const box = showLive ? className.replace('aspect-video', '') : className
   return (
-    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-panel-raised ${className}`}>
-      {item.thumbnailUrl ? (
+    <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-panel-raised ${box}`}>
+      {showLive && item.preview ? (
+        <PitchCanvas
+          pitch={item.preview.pitch}
+          frame={item.preview.frame}
+          maxWidth={THUMB_WIDTH}
+          maxHeight={THUMB_HEIGHT}
+          fillCanvas
+        />
+      ) : item.thumbnailUrl ? (
         <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
       ) : (
         <item.icon className={`text-ink-faint ${iconClassName}`} />
@@ -330,7 +375,7 @@ export function LibraryTiles({ items, selected, activeId, onToggle, onActivate, 
               }
             >
               <div className="relative">
-                <ItemThumb item={item} className="aspect-video w-full" iconClassName="h-6 w-6" />
+                <ItemThumb item={item} className="aspect-video w-full" iconClassName="h-6 w-6" live />
                 <Checkbox
                   checked={isSelected}
                   onToggle={() => onToggle(item.id, { additive: true })}

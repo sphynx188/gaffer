@@ -29,6 +29,8 @@ import {
   SESSION_BLOCK_LABELS,
 } from '../../store'
 import { formatDimensions, presetLabel } from './canvas/pitchPresets'
+import { frameAt } from './canvas/interpolate'
+import { openingFrame } from '../library/openingFrame'
 import { EmptyState } from '../ui/EmptyState'
 import { Skeleton } from '../ui/Skeleton'
 import { Dropdown } from '../ui/Dropdown'
@@ -461,6 +463,7 @@ export function DrillLibrary() {
     id: drill.id,
     name: drill.name,
     thumbnailUrl: drill.thumbnail_url,
+    preview: openingFrame(drill, frameAt),
     icon: LibraryBig,
     subtitle: drill.objective,
     metaLine:

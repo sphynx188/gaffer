@@ -21,6 +21,8 @@ import { DRILL_PHASES_OF_PLAY, DRILL_PHASE_OF_PLAY_LABELS } from '../store'
 import { formationLabel } from '../components/tactics/formationLabel'
 import { TacticDetails } from '../components/tactics/TacticDetails'
 import { formatClock } from '../components/design/timeline/cursor'
+import { frameAt } from '../components/design/canvas/interpolate'
+import { openingFrame } from '../components/library/openingFrame'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Badge } from '../components/ui/Badge'
@@ -346,6 +348,7 @@ export function TacticsPage() {
       id: tactic.id,
       name: tactic.name,
       thumbnailUrl: tactic.thumbnail_url,
+      preview: openingFrame(tactic, frameAt),
       icon: Shield,
       subtitle: tactic.description,
       // The pair a coach actually reads a tactic by — "our 4-3-3 against
