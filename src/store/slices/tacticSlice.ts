@@ -985,6 +985,13 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
             : { ...t, sides: { ...t.sides, [side]: { ...t.sides[side], formation: formationKey } } }
         }
         const byEntity = new Map(assignments.map((a) => [a.entityId, a.slot]))
+        // Anyone the shape has no slot for comes OFF the pitch, rather than
+        // being left standing wherever the last formation put them — picking a
+        // 7v7 shape with eleven out otherwise strands four of them mid-pitch.
+        // Benched, not deleted: `hidden` is the same off-pitch state the squad
+        // panel toggles, so they are one click from coming back on. Only when
+        // filling, so the squad panel's own picker still just re-shapes.
+        const benched = fillEmptySlots ? onPitch.filter((e) => !byEntity.has(e.id)) : []
         return {
           ...t,
           sides: { ...t.sides, [side]: { ...t.sides[side], formation: formationKey } },
@@ -999,7 +1006,10 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
             if (k.id !== keyframeId) return k
             const states = { ...k.states }
             for (const [entityId, slot] of byEntity) {
-              states[entityId] = { ...states[entityId], x: slot.x, y: slot.y }
+              states[entityId] = { ...states[entityId], x: slot.x, y: slot.y, hidden: undefined }
+            }
+            for (const entity of benched) {
+              states[entity.id] = { ...states[entity.id], hidden: true }
             }
             return { ...k, states }
           }),

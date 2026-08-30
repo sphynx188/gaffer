@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CircleDot, LayoutGrid, MousePointer2, PenLine, SlidersHorizontal } from 'lucide-react'
 import type { PitchConfig, Tactic } from '../../store'
 import { useStore } from '../../store'
@@ -6,7 +6,7 @@ import { Panel, RailButton } from '../design/editor/ToolRail'
 import { MarkingsPanel } from '../design/editor/MarkingsPanel'
 import { PitchPanel } from '../design/editor/PitchPanel'
 import type { MarkingTool } from '../design/editor/markingTools'
-import { FORMATIONS, slotsForSide } from './formations'
+import { FORMATIONS, FORMATION_SIZES, formationSize, slotsForSide, type Formation } from './formations'
 import { SquadPanel } from './SquadPanel'
 
 // The tactics tool row (2026-08-30), the same labelled row atop the canvas the
@@ -162,52 +162,30 @@ export function TacticToolRow({
             />
           )}
           {panel === 'formation' && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-ink-muted">
-                Formation — {side === 'home' ? 'home' : 'away'} side
-              </p>
-              <p className="text-[11px] text-ink-faint">
-                Picking one shapes the side, adding players if it needs them.
-              </p>
-              <div className="grid grid-cols-2 gap-1 pt-1">
-                {FORMATIONS.map((formation) => (
-                  <button
-                    key={formation.key}
-                    type="button"
-                    aria-pressed={formationKey === formation.key}
-                    disabled={!keyframeId}
-                    onClick={() => {
-                      if (!keyframeId) return
-                      // `true` fills empty slots: from the row a coach is
-                      // choosing a SHAPE, and on a board with nobody on it the
-                      // only useful answer is to put a side out.
-                      // slotsForSide mirrors x for the away team, the
-                      // convention formations.ts documents. SquadPanel's own
-                      // picker passes the unmirrored slots — worth reconciling,
-                      // but placing a side we are CREATING onto the wrong half
-                      // would be plainly broken, so this one follows the rule.
-                      applyTacticFormation(
-                        tactic.id,
-                        side,
-                        formation.key,
-                        slotsForSide(formation, side),
-                        keyframeId,
-                        true
-                      )
-                      onPanelChange(null)
-                    }}
-                    className={
-                      'flex min-h-11 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors disabled:opacity-40 lg:min-h-9 ' +
-                      (formationKey === formation.key
-                        ? 'border-accent bg-accent text-white'
-                        : 'border-line text-ink-muted hover:border-line-strong hover:text-ink')
-                    }
-                  >
-                    {formation.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <FormationPanel
+              side={side}
+              formationKey={formationKey}
+              disabled={!keyframeId}
+              onPick={(formation) => {
+                if (!keyframeId) return
+                // `true` fills empty slots: from the row a coach is choosing a
+                // SHAPE, and on a board with nobody on it the only useful
+                // answer is to put a side out. slotsForSide mirrors x for the
+                // away team, the convention formations.ts documents.
+                // SquadPanel's own picker passes the unmirrored slots — worth
+                // reconciling, but placing a side we are CREATING onto the
+                // wrong half would be plainly broken, so this follows the rule.
+                applyTacticFormation(
+                  tactic.id,
+                  side,
+                  formation.key,
+                  slotsForSide(formation, side),
+                  keyframeId,
+                  true
+                )
+                onPanelChange(null)
+              }}
+            />
           )}
           {panel === 'squad' && keyframeId && (
             <SquadPanel tactic={tactic} keyframeId={keyframeId} side={side} onSideChange={onSideChange} />
@@ -222,5 +200,85 @@ export function TacticToolRow({
 }
 
 function formationLabelFor(key: string): string {
-  return FORMATIONS.find((f) => f.key === key)?.label ?? 'Formation'
+  const found = FORMATIONS.find((f) => f.key === key)
+  if (!found) return 'Formation'
+  // A 9v9 3-2-3 and an 11v11 3-4-3 are both just digits on a button, so the
+  // smaller formats say which they are. Eleven-a-side is the unmarked default.
+  const size = formationSize(found)
+  return size === 11 ? found.label : `${found.label} (${size}v${size})`
+}
+
+/**
+ * The formation dropdown, grouped by team size.
+ *
+ * Its own component so that opening the dropdown mounts it fresh, which is
+ * what makes the size tab default to whatever the side is currently playing
+ * rather than to whichever tab was last looked at.
+ */
+function FormationPanel({
+  side,
+  formationKey,
+  disabled,
+  onPick,
+}: {
+  side: 'home' | 'away'
+  formationKey: string
+  disabled: boolean
+  onPick: (formation: Formation) => void
+}) {
+  const current = FORMATIONS.find((f) => f.key === formationKey)
+  const [size, setSize] = useState<number>(current ? formationSize(current) : 11)
+  const shown = FORMATIONS.filter((f) => formationSize(f) === size)
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-xs font-medium text-ink-muted">
+          Formation — {side === 'home' ? 'home' : 'away'} side
+        </p>
+        <p className="text-[11px] text-ink-faint">
+          Picking one shapes the side, adding players if it needs them.
+        </p>
+      </div>
+
+      <div role="tablist" aria-label="Team size" className="flex gap-1 rounded-md bg-panel-raised p-1">
+        {FORMATION_SIZES.map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="tab"
+            aria-selected={size === option}
+            onClick={() => setSize(option)}
+            className={
+              'flex-1 rounded px-2 py-1 text-xs font-medium transition-colors ' +
+              (size === option ? 'bg-accent text-white' : 'text-ink-muted hover:text-ink')
+            }
+          >
+            {option}v{option}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-1">
+        {shown.map((formation) => (
+          <button
+            key={formation.key}
+            type="button"
+            aria-pressed={formationKey === formation.key}
+            disabled={disabled}
+            title={formation.description}
+            onClick={() => onPick(formation)}
+            className={
+              'flex min-h-11 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors disabled:opacity-40 lg:min-h-9 ' +
+              (formationKey === formation.key
+                ? 'border-accent bg-accent text-white'
+                : 'border-line text-ink-muted hover:border-line-strong hover:text-ink')
+            }
+          >
+            {formation.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }

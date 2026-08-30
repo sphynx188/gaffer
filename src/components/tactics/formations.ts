@@ -44,7 +44,9 @@ export interface Formation {
   key: string
   label: string
   description: string
-  slots: FormationSlot[] // always exactly 11, always exactly one GK
+  // Always exactly one GK. The count is the team size — 11, 9 or 7 — and is
+  // what `formationSize` reads, so a formation never has to restate it.
+  slots: FormationSlot[]
 }
 
 // Depths, goal-line outward. Named rather than inlined so a whole line of the
@@ -144,6 +146,36 @@ const strikers2 = (): FormationSlot[] =>
   ])
 
 const loneStriker = (): FormationSlot[] => line(FWD, [['ST', CENTRE]])
+
+// ── Small-sided lines (2026-08-30) ────────────────────────────────────────
+//
+// 9v9 and 7v7 are the formats a youth coach actually spends the season in, so
+// the picker groups by team size and these fill the two smaller groups. They
+// reuse the depths above unchanged: a 7v7 pitch is smaller in metres, but the
+// slots are NORMALISED, so "the defensive line sits a fifth of the way up" is
+// the same instruction at any size and the shapes stay comparable.
+const back2 = (): FormationSlot[] =>
+  line(DEF, [
+    ['CB', PAIR[0]],
+    ['CB', PAIR[1]],
+  ])
+
+const mid2 = (): FormationSlot[] =>
+  line(MID, [
+    ['CM', PAIR[0]],
+    ['CM', PAIR[1]],
+  ])
+
+// Wide-centre-wide rather than three central: at nine and seven a side the
+// width has to come from the midfield, since there is no separate wing pair.
+const mid3 = (): FormationSlot[] =>
+  line(MID, [
+    ['LW', THREE[0]],
+    ['CM', THREE[1]],
+    ['RW', THREE[2]],
+  ])
+
+const holder = (): FormationSlot[] => line(DM, [['CDM', CENTRE]])
 
 export const FORMATIONS: Formation[] = [
   // ── Back three (5) ──────────────────────────────────────────────────────
@@ -577,7 +609,88 @@ export const FORMATIONS: Formation[] = [
     description: 'Maximum defensive cover — nine behind the ball and a lone striker to relieve pressure.',
     slots: [...GK, ...back5(), ...flatMid4(), ...loneStriker()],
   },
+
+  // ── Nine-a-side (5) ─────────────────────────────────────────────────────
+  {
+    key: '9-3-2-3',
+    label: '3-2-3',
+    description: 'The standard nine-a-side shape: a back three, a midfield pair, and width high up.',
+    slots: [...GK, ...back3(), ...mid2(), ...front3()],
+  },
+  {
+    key: '9-3-3-2',
+    label: '3-3-2',
+    description: 'Three across the middle to control it, with a front pair to press in twos.',
+    slots: [...GK, ...back3(), ...mid3(), ...strikers2()],
+  },
+  {
+    key: '9-2-3-3',
+    label: '2-3-3',
+    description: 'Two at the back and six ahead of the ball — the attacking end of nine-a-side.',
+    slots: [...GK, ...back2(), ...mid3(), ...front3()],
+  },
+  {
+    key: '9-3-4-1',
+    label: '3-4-1',
+    description: 'A packed midfield four behind a lone striker, hard to play through.',
+    slots: [...GK, ...back3(), ...flatMid4(), ...loneStriker()],
+  },
+  {
+    key: '9-2-4-2',
+    label: '2-4-2',
+    description: 'Width and numbers in midfield, with a front two to hold the line up.',
+    slots: [...GK, ...back2(), ...flatMid4(), ...strikers2()],
+  },
+
+  // ── Seven-a-side (5) ────────────────────────────────────────────────────
+  {
+    key: '7-2-3-1',
+    label: '2-3-1',
+    description: 'The default seven-a-side shape — a back pair, three across, one up.',
+    slots: [...GK, ...back2(), ...mid3(), ...loneStriker()],
+  },
+  {
+    key: '7-3-2-1',
+    label: '3-2-1',
+    description: 'Three at the back for cover, with a midfield pair feeding a lone striker.',
+    slots: [...GK, ...back3(), ...mid2(), ...loneStriker()],
+  },
+  {
+    key: '7-2-1-2-1',
+    label: '2-1-2-1',
+    description: 'A holding midfielder between the lines — the diamond, at seven a side.',
+    slots: [
+      ...GK,
+      ...back2(),
+      ...holder(),
+      ...line(MID, [
+        ['LW', PAIR[0]],
+        ['RW', PAIR[1]],
+      ]),
+      ...loneStriker(),
+    ],
+  },
+  {
+    key: '7-3-1-2',
+    label: '3-1-2',
+    description: 'Back three screened by a holder, with two to run in behind.',
+    slots: [...GK, ...back3(), ...holder(), ...strikers2()],
+  },
+  {
+    key: '7-2-2-2',
+    label: '2-2-2',
+    description: 'Even thirds — simple to coach and easy for young players to hold.',
+    slots: [...GK, ...back2(), ...mid2(), ...strikers2()],
+  },
 ]
+
+/** Team size a formation is for: 11, 9 or 7. Derived, never restated. */
+export function formationSize(formation: Formation): number {
+  return formation.slots.length
+}
+
+/** The sizes the picker groups by, largest first. */
+export const FORMATION_SIZES = [11, 9, 7] as const
 
 export function findFormation(key: string): Formation | null {
   return FORMATIONS.find((f) => f.key === key) ?? null
