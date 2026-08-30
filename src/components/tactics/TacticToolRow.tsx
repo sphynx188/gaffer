@@ -6,7 +6,15 @@ import { Panel, RailButton } from '../design/editor/ToolRail'
 import { MarkingsPanel } from '../design/editor/MarkingsPanel'
 import { PitchPanel } from '../design/editor/PitchPanel'
 import type { MarkingTool } from '../design/editor/markingTools'
-import { FORMATIONS, FORMATION_SIZES, formationSize, slotsForSide, type Formation } from './formations'
+import {
+  BACK_LINES,
+  FORMATIONS,
+  FORMATION_SIZES,
+  backLineCount,
+  formationSize,
+  slotsForSide,
+  type Formation,
+} from './formations'
 import { SquadPanel } from './SquadPanel'
 
 // The tactics tool row (2026-08-30), the same labelled row atop the canvas the
@@ -259,26 +267,71 @@ function FormationPanel({
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-1">
-        {shown.map((formation) => (
-          <button
-            key={formation.key}
-            type="button"
-            aria-pressed={formationKey === formation.key}
-            disabled={disabled}
-            title={formation.description}
-            onClick={() => onPick(formation)}
-            className={
-              'flex min-h-11 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors disabled:opacity-40 lg:min-h-9 ' +
-              (formationKey === formation.key
-                ? 'border-accent bg-accent text-white'
-                : 'border-line text-ink-muted hover:border-line-strong hover:text-ink')
-            }
-          >
-            {formation.label}
-          </button>
-        ))}
-      </div>
+      {/* Eleven-a-side is twenty-nine shapes, far too many to scan as one
+          grid, so it splits by defensive line — the first thing a coach picks
+          a shape by. Nine and seven are five each and stay flat. */}
+      {size === 11 ? (
+        BACK_LINES.map((back) => {
+          const group = shown.filter((f) => backLineCount(f) === back)
+          if (group.length === 0) return null
+          return (
+            <div key={back} className="space-y-1">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-ink-faint">
+                {BACK_LINE_LABEL[back]}
+              </p>
+              <FormationGrid
+                formations={group}
+                formationKey={formationKey}
+                disabled={disabled}
+                onPick={onPick}
+              />
+            </div>
+          )
+        })
+      ) : (
+        <FormationGrid formations={shown} formationKey={formationKey} disabled={disabled} onPick={onPick} />
+      )}
+    </div>
+  )
+}
+
+const BACK_LINE_LABEL: Record<number, string> = {
+  3: 'Back three',
+  4: 'Back four',
+  5: 'Back five',
+}
+
+function FormationGrid({
+  formations,
+  formationKey,
+  disabled,
+  onPick,
+}: {
+  formations: Formation[]
+  formationKey: string
+  disabled: boolean
+  onPick: (formation: Formation) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-1">
+      {formations.map((formation) => (
+        <button
+          key={formation.key}
+          type="button"
+          aria-pressed={formationKey === formation.key}
+          disabled={disabled}
+          title={formation.description}
+          onClick={() => onPick(formation)}
+          className={
+            'flex min-h-11 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors disabled:opacity-40 lg:min-h-9 ' +
+            (formationKey === formation.key
+              ? 'border-accent bg-accent text-white'
+              : 'border-line text-ink-muted hover:border-line-strong hover:text-ink')
+          }
+        >
+          {formation.label}
+        </button>
+      ))}
     </div>
   )
 }

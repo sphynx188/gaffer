@@ -684,6 +684,23 @@ export const FORMATIONS: Formation[] = [
   },
 ]
 
+/**
+ * How many players make up the defensive line — 3, 4 or 5.
+ *
+ * Read off the slots rather than the label, so it stays true to the shape that
+ * is actually drawn. The cutoff sits between WB_FLAT and WB_HIGH, which is
+ * exactly the distinction the two wing-back depths were introduced for: a 5-x
+ * wing-back is part of a back five and sits at WB_FLAT, while a 3-5-2's is a
+ * flank of the midfield five at WB_HIGH and is not a defender. Cross-checked
+ * against every 11v11 label's leading digit.
+ */
+export function backLineCount(formation: Formation): number {
+  return formation.slots.filter((slot) => slot.role !== 'GK' && slot.x <= WB_FLAT).length
+}
+
+/** The back lines the 11v11 group is split by. */
+export const BACK_LINES = [3, 4, 5] as const
+
 /** Team size a formation is for: 11, 9 or 7. Derived, never restated. */
 export function formationSize(formation: Formation): number {
   return formation.slots.length
