@@ -201,12 +201,17 @@ export function AppShell() {
   // was designed or asked to change.
   const isLibrary = useLocation().pathname.startsWith('/library')
 
-  // Same reasoning as isLibrary above, for the drill editor's three-column
-  // rail/canvas/inspector layout: the reading-width cap left the canvas
-  // artificially small with wide margins either side. Scoped to
-  // `/design/:drillId` specifically — bare `/design` is just the
-  // create-and-redirect spinner, and the tactic editor wasn't asked for.
-  const isDrillEditor = /^\/design\/[^/]+$/.test(useLocation().pathname)
+  // Same reasoning as isLibrary above, for the two editors' canvas/inspector
+  // layouts: the reading-width cap left the canvas artificially small with wide
+  // margins either side. Scoped to the editor routes specifically — bare
+  // `/design` is just the create-and-redirect spinner, `/tactics/new` is the
+  // name form, and `/tactics/:id/view` and the card routes are read-only pages
+  // that DO want the reading width. The tactics editor joined on 2026-08-30,
+  // when it was rebuilt on the drill editor's layout and inherited the same
+  // problem the cap causes.
+  const editorPath = useLocation().pathname
+  const isEditor =
+    /^\/design\/[^/]+$/.test(editorPath) || /^\/tactics\/(?!new$)[^/]+$/.test(editorPath)
 
   // Kept despite the team module being shelved (Task 7): SquadPanel's
   // opposition-team picker (dormant-legal on an old, real-team_id tactic —
@@ -343,7 +348,7 @@ export function AppShell() {
 
       <main className="lg:pl-16">
         <div
-          className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${isLibrary || isDrillEditor ? 'max-w-[96rem]' : 'max-w-6xl'}`}
+          className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 lg:py-8 ${isLibrary || isEditor ? 'max-w-[96rem]' : 'max-w-6xl'}`}
         >
           <Outlet />
         </div>
