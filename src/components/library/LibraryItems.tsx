@@ -110,22 +110,18 @@ function rowInteractionHandlers(
   }
 }
 
+// The tile's picture of a document: its opening keyframe drawn live, falling
+// back to the stored PNG and then to the file glyph. Tiles are the only caller
+// — the list dropped its 40x28 thumb, which was too small to tell two drills
+// apart — so there is no longer a flag for which mode to draw in.
 function ItemThumb({
   item,
   className,
   iconClassName,
-  live = false,
 }: {
   item: LibraryItemView
   className: string
   iconClassName: string
-  /**
-   * Draw the opening keyframe rather than the stored PNG. Only the tiles pass
-   * it: a tile is big enough for the board to be readable, while a row's thumb
-   * is 40x28 — too small to tell two drills apart, and one Konva stage per row
-   * is a real cost for no gain.
-   */
-  live?: boolean
 }) {
   // A live preview sizes itself: the canvas needs pixel dimensions, so it is
   // THUMB_WIDTH x THUMB_HEIGHT, and the tile's own `aspect-video` would crop it
@@ -133,7 +129,7 @@ function ItemThumb({
   // 192px-tall tile around a 203px-tall canvas). Dropping the ratio lets the
   // tile take the canvas's height instead, so every board is fully visible and
   // all tiles line up at the same height regardless of column width.
-  const showLive = live && !!item.preview
+  const showLive = !!item.preview
   const box = showLive ? className.replace('aspect-video', '') : className
   return (
     <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-panel-raised ${box}`}>
@@ -299,26 +295,27 @@ export function LibraryTable({
                   />
                 </td>
                 <td className="min-w-0 px-3 py-2 align-middle">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <ItemThumb item={item} className="h-7 w-10" iconClassName="h-3.5 w-3.5" />
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-sm font-medium text-ink">{item.name}</span>
+                  {/* No thumbnail in the list. At 40x28 it was too small to
+                      tell two drills apart, so it read as decoration next to
+                      the checkbox rather than information — the grid is where
+                      you look at boards (2026-08-30). */}
+                  <div className="min-w-0">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-medium text-ink">{item.name}</span>
                         {/* shrink-0: without it a flex badge gets squeezed
                             until its own text wraps mid-word, which is what
                             "4-3-3" did once the details rail narrowed the
                             column. The name truncates instead — it has the
                             room to. */}
-                        {item.badge && <span className="shrink-0 whitespace-nowrap">{item.badge}</span>}
-                      </div>
-                      {/* Below `sm` the metadata columns are hidden, so the
+                      {item.badge && <span className="shrink-0 whitespace-nowrap">{item.badge}</span>}
+                    </div>
+                    {/* Below `sm` the metadata columns are hidden, so the
                           row carries its own summary line instead of
                           becoming a bare name. */}
-                      {item.metaLine && <p className="truncate text-xs text-ink-faint sm:hidden">{item.metaLine}</p>}
-                      {item.subtitle && (
-                        <p className="hidden truncate text-xs text-ink-muted sm:block">{item.subtitle}</p>
-                      )}
-                    </div>
+                    {item.metaLine && <p className="truncate text-xs text-ink-faint sm:hidden">{item.metaLine}</p>}
+                    {item.subtitle && (
+                      <p className="hidden truncate text-xs text-ink-muted sm:block">{item.subtitle}</p>
+                    )}
                   </div>
                 </td>
                 {columns.map((column) => {
@@ -375,7 +372,7 @@ export function LibraryTiles({ items, selected, activeId, onToggle, onActivate, 
               }
             >
               <div className="relative">
-                <ItemThumb item={item} className="aspect-video w-full" iconClassName="h-6 w-6" live />
+                <ItemThumb item={item} className="aspect-video w-full" iconClassName="h-6 w-6" />
                 <Checkbox
                   checked={isSelected}
                   onToggle={() => onToggle(item.id, { additive: true })}
