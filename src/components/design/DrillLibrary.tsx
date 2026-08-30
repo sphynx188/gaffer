@@ -201,7 +201,16 @@ export function DrillLibrary() {
   const collectionDrillIds = useStore((s) => s.collectionDrillIds)
   const licensesIn = useStore((s) => s.licensesIn)
   const fetchClubData = useStore((s) => s.fetchClubData)
-  const drills = useStore((s) => s.drills)
+  // A drill the coach opened from /design but never edited exists only in
+  // local state — it has no row yet (drillSlice's startDrillDraft), so it is
+  // not a library item and must not be listed as one. It disappears on its own
+  // at the next reload; this keeps it out of the list until then. Discarding it
+  // on the editor's unmount was tried first and is not safe: StrictMode's
+  // mount/cleanup/mount would delete the draft between the two mounts, and the
+  // editor then rendered "That drill isn't in your library."
+  const isDrillDraft = useStore((s) => s.isDrillDraft)
+  const allDrills = useStore((s) => s.drills)
+  const drills = useMemo(() => allDrills.filter((d) => !isDrillDraft(d.id)), [allDrills, isDrillDraft])
   const drillsLoading = useStore((s) => s.drillsLoading)
   const drillsError = useStore((s) => s.drillsError)
   const fetchDrills = useStore((s) => s.fetchDrills)
@@ -794,7 +803,7 @@ function DrillFilters({
         aria-expanded={open}
         className={
           'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors ' +
-          (open || count > 0 ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+          (open || count > 0 ? 'border-accent bg-accent/15 text-accent-ink' : 'border-line text-ink-muted hover:border-line-strong')
         }
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -933,7 +942,7 @@ function DrillFilters({
             >
               Clear all
             </button>
-            <button type="button" onClick={onToggle} className="text-sm font-medium text-accent">
+            <button type="button" onClick={onToggle} className="text-sm font-medium text-accent-ink">
               Done
             </button>
           </div>

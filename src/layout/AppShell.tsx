@@ -40,7 +40,7 @@ const SETTINGS_NAV_ITEM: NavItem = { to: '/settings', label: 'Settings', icon: S
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ' +
-  (isActive ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+  (isActive ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
 
 // One icon+label list, shared by the mobile drawer and the desktop rail —
 // both are panels showing the same items, just at different widths. The

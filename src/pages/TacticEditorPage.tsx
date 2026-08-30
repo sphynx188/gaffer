@@ -47,7 +47,7 @@ export function TacticEditorPage() {
       <div className="space-y-3">
         {tacticsError && <p className="text-sm text-bad">{tacticsError}</p>}
         <EmptyState icon={Shield} message="That tactic isn't in your library." />
-        <Link to="/tactics" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/tactics" className="text-sm font-medium text-accent-ink hover:underline">
           Back to tactics
         </Link>
       </div>

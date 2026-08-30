@@ -37,7 +37,7 @@ export function MarkingsPanel({
           aria-pressed={value === tool.id}
           className={
             'flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors lg:min-h-9 ' +
-            (value === tool.id ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+            (value === tool.id ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
           }
         >
           {tool.icon}

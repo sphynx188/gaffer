@@ -22,7 +22,7 @@ const SUB_NAV = [
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
   'rounded-md px-3 py-1.5 text-sm font-medium transition-colors ' +
-  (isActive ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+  (isActive ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
 
 export function AdminLayout() {
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')

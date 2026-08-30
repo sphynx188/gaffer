@@ -24,7 +24,7 @@ export function CreatePage() {
         {OPTIONS.map(({ to, label, description, icon: Icon }) => (
           <Link key={to} to={to}>
             <Card className="flex h-full flex-col items-start gap-3 transition-colors hover:border-accent/40 hover:bg-accent/5">
-              <Icon className="h-8 w-8 text-accent" />
+              <Icon className="h-8 w-8 text-accent-ink" />
               <div>
                 <p className="text-base font-semibold text-ink">{label}</p>
                 <p className="mt-1 text-sm text-ink-muted">{description}</p>

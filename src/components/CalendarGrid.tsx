@@ -111,7 +111,7 @@ export function CalendarGrid() {
                 onClick={() => setView(opt.value)}
                 aria-pressed={view === opt.value}
                 className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                  view === opt.value ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:text-ink'
+                  view === opt.value ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:text-ink'
                 }`}
               >
                 {opt.label}

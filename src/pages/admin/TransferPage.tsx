@@ -108,7 +108,7 @@ export function TransferPage() {
           <button
             type="button"
             onClick={() => selectClub(successClub.id)}
-            className="mt-2 text-sm font-medium text-accent hover:underline"
+            className="mt-2 text-sm font-medium text-accent-ink hover:underline"
           >
             Switch to {successClub.name} →
           </button>

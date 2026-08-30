@@ -45,7 +45,7 @@ export function TacticViewPage() {
     return (
       <div className="mx-auto max-w-[560px] space-y-3 p-6">
         <EmptyState icon={Shield} message="That tactic isn't in your library." />
-        <Link to="/tactics" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/tactics" className="text-sm font-medium text-accent-ink hover:underline">
           Back to the tactic library
         </Link>
       </div>
@@ -55,7 +55,7 @@ export function TacticViewPage() {
   return (
     <div className="min-h-svh bg-surface px-4 py-6">
       <div className="mx-auto max-w-[560px] space-y-4">
-        <Link to="/tactics" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/tactics" className="text-sm font-medium text-accent-ink hover:underline">
           ← Back to the tactic library
         </Link>
         <SharedTactic tactic={tactic} />

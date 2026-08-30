@@ -158,6 +158,17 @@ export interface DrillSlice {
   // cosmetic. See plan Task 5 Step 0/1a.
   fetchDrills: (_teamId?: string) => Promise<void>
   createDrill: (input: NewDrillInput) => Promise<Drill | null>
+
+  // A drill that exists only in local state until the coach actually edits it
+  // (2026-08-30). `/design` used to INSERT on navigation, so every stray visit
+  // — a mistyped URL, a back-button bounce — left a permanent "New drill" row
+  // behind; 16 empty ones had accumulated by the time this was found. The
+  // draft carries a real client-generated id so every store action, the URL
+  // and undo all work on it unchanged; the first commit inserts it (see
+  // runFlush), and leaving without editing discards it with nothing written.
+  startDrillDraft: (input: NewDrillInput) => Drill | null
+  discardDrillDraft: (drillId: string) => void
+  isDrillDraft: (drillId: string) => boolean
   updateDrill: (id: string, patch: DrillUpdateInput) => Promise<Drill | null>
 
   // Whole-drill duplication (rework plan Stage 9.5) — the useful unit now
@@ -357,10 +368,26 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       // The debounce sits above runSupabaseAction, never inside it — every
       // Supabase call in this app still funnels through that one wrapper
       // (CLAUDE.md).
+      // A draft's first save is its INSERT, carrying the id it has been using
+      // locally all along so nothing — the URL, undo history, the open editor
+      // — has to be repointed afterwards.
+      //
+      // It sends the WHOLE row, not `payload`: a snapshot is only the four
+      // fields an edit can touch (scene/keyframes/duration_seconds/pitch), so
+      // inserting it alone omits club_id and name, both NOT NULL, and the row
+      // is rejected. `payload` still goes on top, since it is the newer copy
+      // of those four if an edit landed while this was queued.
+      const isDraft = unsavedDrafts.has(drillId)
+      const draftRow = isDraft ? get().drills.find((d) => d.id === drillId) : undefined
+      if (isDraft && !draftRow) continue
       const { error } = await runSupabaseAction<Drill[]>(
-        () => supabase.from('drill').update(payload).eq('id', drillId).select(),
-        "Couldn't save drill, try again."
+        () =>
+          draftRow
+            ? supabase.from('drill').insert({ ...draftRow, ...payload, id: drillId }).select()
+            : supabase.from('drill').update(payload).eq('id', drillId).select(),
+        isDraft ? "Couldn't create drill, try again." : "Couldn't save drill, try again."
       )
+      if (isDraft && !error) unsavedDrafts.delete(drillId)
       // Deliberately does not merge the response back into `drills`. The
       // coach may well have edited again while this request was in flight,
       // and overwriting local state with the server's copy would discard
@@ -417,6 +444,11 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
   // The one path a committed mutation takes: snapshot for undo, apply, mark
   // dirty, schedule the write. A mutator returns the drill it was handed to
   // decline (nothing to record, nothing to save).
+  // Ids of drills that exist locally but have never been written. Kept out of
+  // the store object deliberately, like `pendingSaves` and `history` — it is
+  // bookkeeping for the save path, not state any component renders.
+  const unsavedDrafts = new Set<string>()
+
   const commit = (drillId: string, mutate: (drill: Drill) => Drill) => {
     const current = get().drills.find((d) => d.id === drillId)
     if (!current) return
@@ -487,7 +519,11 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         // Drop history for drills no longer visible (RLS-scoped now, not
         // team-scoped), so a club switch doesn't leave undo pointing at
         // content the coach can no longer see.
-        const visible = new Set(data.map((d) => d.id))
+        // Drafts aren't on the server yet, so re-add them rather than letting
+        // the server's list silently delete the drill the coach has open.
+        const drafts = get().drills.filter((d) => unsavedDrafts.has(d.id))
+        if (drafts.length) drills = [...drills!, ...drafts]
+        const visible = new Set([...data.map((d) => d.id), ...unsavedDrafts])
         for (const drillId of [...history.keys()]) {
           if (!visible.has(drillId)) history.delete(drillId)
         }
@@ -498,6 +534,43 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         ...(drills ? { drills } : {}),
       })
     },
+
+    startDrillDraft: (input) => {
+      const clubId = get().selectedClubId
+      if (!clubId) return null
+      // The id becomes a real uuid PRIMARY KEY on insert, so unlike an entity
+      // id (which lives in jsonb and can be any string) it has to be a genuine
+      // uuid. `scene.generateId` falls back to a non-uuid string where
+      // crypto.randomUUID is missing, so bail here instead and let the caller
+      // use the eager createDrill path rather than queue an insert that would
+      // be rejected.
+      if (typeof crypto === 'undefined' || typeof crypto.randomUUID !== 'function') return null
+      // Same seeding as createDrill — a drill always keeps at least one
+      // keyframe, or addEntity has nowhere to record a position — but built
+      // here rather than round-tripped, so nothing is written yet.
+      const draft = {
+        id: crypto.randomUUID(),
+        club_id: clubId,
+        team_id: null,
+        keyframes: input.keyframes ?? [makeInitialKeyframe()],
+        scene: input.scene ?? { entities: [], markings: [] },
+        duration_seconds: input.duration_seconds ?? 15,
+        ...input,
+      } as unknown as Drill
+      unsavedDrafts.add(draft.id)
+      set({ drills: [...get().drills, draft] })
+      return draft
+    },
+
+    discardDrillDraft: (drillId) => {
+      if (!unsavedDrafts.has(drillId)) return
+      unsavedDrafts.delete(drillId)
+      pendingSaves.delete(drillId)
+      history.delete(drillId)
+      set({ drills: get().drills.filter((d) => d.id !== drillId) })
+    },
+
+    isDrillDraft: (drillId) => unsavedDrafts.has(drillId),
 
     createDrill: async (input) => {
       const clubId = get().selectedClubId

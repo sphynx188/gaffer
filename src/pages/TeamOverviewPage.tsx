@@ -51,7 +51,7 @@ export function TeamOverviewPage() {
           <p className="text-sm text-ink-muted">Select a team to see its overview.</p>
           <Link
             to="/"
-            className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-hover"
+            className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-accent-ink hover:text-accent-hover"
           >
             Go to Dashboard <ArrowRight className="h-3.5 w-3.5" />
           </Link>
@@ -73,7 +73,7 @@ export function TeamOverviewPage() {
       <Card>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink">Upcoming sessions</h2>
-          <Link to="/sessions" className="text-sm font-medium text-accent hover:text-accent-hover">
+          <Link to="/sessions" className="text-sm font-medium text-accent-ink hover:text-accent-hover">
             View all
           </Link>
         </div>
@@ -128,7 +128,7 @@ function QuickAction({ to, label }: { to: string; label: string }) {
   return (
     <Link
       to={to}
-      className="flex items-center justify-between rounded-lg border border-line bg-panel px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent"
+      className="flex items-center justify-between rounded-lg border border-line bg-panel px-4 py-3 text-sm font-medium text-ink transition-colors hover:border-accent/40 hover:text-accent-ink"
     >
       {label}
       <ArrowRight className="h-4 w-4" />

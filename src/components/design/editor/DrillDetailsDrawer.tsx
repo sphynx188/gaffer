@@ -116,7 +116,7 @@ export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, c
               aria-pressed={tab === option.id}
               className={
                 'min-h-11 shrink-0 rounded-md px-3 text-sm font-medium transition-colors lg:min-h-9 ' +
-                (tab === option.id ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+                (tab === option.id ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
               }
             >
               {option.label}
@@ -392,7 +392,7 @@ function Derived({
           <button
             type="button"
             onClick={() => onOverride(overridden ? undefined : derived)}
-            className="shrink-0 text-xs font-medium text-accent hover:underline"
+            className="shrink-0 text-xs font-medium text-accent-ink hover:underline"
           >
             {overridden ? 'Use the board' : 'Override'}
           </button>

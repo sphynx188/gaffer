@@ -34,7 +34,7 @@ export function GridPanel({
             title={option.hint}
             className={
               'flex min-h-11 w-full items-center justify-between gap-2 rounded-md px-2 text-left text-sm transition-colors lg:min-h-9 ' +
-              (on ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+              (on ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
             }
           >
             {option.label}

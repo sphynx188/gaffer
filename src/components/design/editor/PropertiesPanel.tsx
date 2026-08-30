@@ -426,7 +426,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
                   className={
                     'flex min-h-11 items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-colors lg:min-h-9 ' +
                     ((entity.equipment ?? 'cone') === type
-                      ? 'bg-accent/15 text-accent'
+                      ? 'bg-accent/15 text-accent-ink'
                       : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
                   }
                 >
@@ -823,7 +823,7 @@ export function KeyframeList({
                   onClick={() => onSeek(keyframe.t)}
                   className={
                     'flex min-h-11 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ' +
-                    (here ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+                    (here ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
                   }
                 >
                   <span className="font-mono text-xs tabular-nums">{String(index + 1).padStart(2, '0')}</span>

@@ -40,14 +40,14 @@ function PlaceRow({
         aria-current={active ? 'true' : undefined}
         className={
           'flex w-full items-center gap-2 rounded-md py-1.5 pl-2 pr-8 text-left text-sm transition-colors ' +
-          (active ? 'bg-accent/15 font-medium text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+          (active ? 'bg-accent/15 font-medium text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
         }
       >
         <Icon className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate" title={place.title}>
           {place.title}
         </span>
-        <span className={`shrink-0 text-xs tabular-nums ${active ? 'text-accent' : 'text-ink-faint'}`}>
+        <span className={`shrink-0 text-xs tabular-nums ${active ? 'text-accent-ink' : 'text-ink-faint'}`}>
           {place.ids.length}
         </span>
       </button>

@@ -97,7 +97,7 @@ export function DrillCardPage() {
     return (
       <div className="mx-auto max-w-[820px] space-y-3 p-6">
         <EmptyState icon={PenTool} message="That drill isn't in your library." />
-        <Link to="/drills" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/drills" className="text-sm font-medium text-accent-ink hover:underline">
           Back to the drill library
         </Link>
       </div>
@@ -137,7 +137,7 @@ export function DrillCard({ drill }: { drill: Drill }) {
       <style>{PRINT_STYLES}</style>
 
       <div className="card-print-hide sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-line bg-surface px-4 py-3">
-        <Link to={`/design/${drill.id}`} className="text-sm font-medium text-accent hover:underline">
+        <Link to={`/design/${drill.id}`} className="text-sm font-medium text-accent-ink hover:underline">
           ← Back to the editor
         </Link>
         <button

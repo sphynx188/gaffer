@@ -309,7 +309,7 @@ export function SessionPlanner() {
         <button
           type="button"
           onClick={() => setRecurringOpen(true)}
-          className="text-sm font-medium text-accent hover:text-accent-hover"
+          className="text-sm font-medium text-accent-ink hover:text-accent-hover"
         >
           + Add a recurring schedule
         </button>

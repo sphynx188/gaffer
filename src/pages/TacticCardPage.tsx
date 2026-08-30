@@ -88,7 +88,7 @@ export function TacticCardPage() {
     return (
       <div className="mx-auto max-w-[820px] space-y-3 p-6">
         <EmptyState icon={Shield} message="That tactic isn't in your library." />
-        <Link to="/tactics" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/tactics" className="text-sm font-medium text-accent-ink hover:underline">
           Back to tactics
         </Link>
       </div>
@@ -129,7 +129,7 @@ export function TacticCard({ tactic }: { tactic: Tactic }) {
       <style>{PRINT_STYLES}</style>
 
       <div className="card-print-hide sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-line bg-surface px-4 py-3">
-        <Link to={`/tactics/${tactic.id}`} className="text-sm font-medium text-accent hover:underline">
+        <Link to={`/tactics/${tactic.id}`} className="text-sm font-medium text-accent-ink hover:underline">
           ← Back to the editor
         </Link>
         <button

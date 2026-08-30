@@ -47,7 +47,7 @@ export function DrillViewPage() {
     return (
       <div className="mx-auto max-w-[560px] space-y-3 p-6">
         <EmptyState icon={LibraryBig} message="That drill isn't in your library." />
-        <Link to="/drills" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/drills" className="text-sm font-medium text-accent-ink hover:underline">
           Back to the drill library
         </Link>
       </div>
@@ -57,7 +57,7 @@ export function DrillViewPage() {
   return (
     <div className="min-h-svh bg-surface px-4 py-6">
       <div className="mx-auto max-w-[560px] space-y-4">
-        <Link to="/drills" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/drills" className="text-sm font-medium text-accent-ink hover:underline">
           ← Back to the drill library
         </Link>
         <SharedDrill drill={drill} />

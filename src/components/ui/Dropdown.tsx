@@ -127,7 +127,7 @@ export function Dropdown({
                     className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-panel-raised"
                   >
                     <span className="truncate">{option.label}</span>
-                    {option.value === value && <Check className="h-4 w-4 shrink-0 text-accent" />}
+                    {option.value === value && <Check className="h-4 w-4 shrink-0 text-accent-ink" />}
                   </button>
                 </li>
               ))}

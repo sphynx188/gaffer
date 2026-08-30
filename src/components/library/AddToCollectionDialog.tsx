@@ -78,7 +78,7 @@ export function AddToCollectionDialog({
         <li>
           {creating ? (
             <div className="flex items-center gap-2 rounded-md border border-accent/40 bg-accent/5 px-2 py-1.5">
-              <FolderPlus className="h-4 w-4 shrink-0 text-accent" />
+              <FolderPlus className="h-4 w-4 shrink-0 text-accent-ink" />
               <input
                 autoFocus
                 value={newName}
@@ -128,7 +128,7 @@ export function AddToCollectionDialog({
                 aria-pressed={selected}
                 className={
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ' +
-                  (selected ? 'bg-accent/15 text-accent' : 'text-ink hover:bg-panel-raised')
+                  (selected ? 'bg-accent/15 text-accent-ink' : 'text-ink hover:bg-panel-raised')
                 }
               >
                 <Folder className="h-4 w-4 shrink-0" />

@@ -19,7 +19,7 @@ export function EmptyState({
       <Icon className="h-6 w-6 text-ink-faint" />
       <p className="text-sm text-ink-muted">{message}</p>
       {action && (
-        <Link to={action.to} className="text-sm font-medium text-accent hover:text-accent-hover">
+        <Link to={action.to} className="text-sm font-medium text-accent-ink hover:text-accent-hover">
           {action.label}
         </Link>
       )}

@@ -367,7 +367,7 @@ export function SquadPanel({
           <button
             type="button"
             onClick={addPlaceholder}
-            className="flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover"
+            className="flex items-center gap-1.5 text-sm font-medium text-accent-ink hover:text-accent-hover"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Add placeholder
@@ -408,7 +408,7 @@ function SquadListRow({
             className={
               'min-h-11 rounded-md border px-2 text-xs font-medium transition-colors lg:min-h-8 ' +
               (row.onPitch
-                ? 'border-accent bg-accent/15 text-accent'
+                ? 'border-accent bg-accent/15 text-accent-ink'
                 : 'border-line text-ink-muted hover:border-line-strong hover:text-ink')
             }
           >

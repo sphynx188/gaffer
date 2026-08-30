@@ -12,6 +12,7 @@ import { downloadBlob, downloadDataUrl } from '../design/export/exportFile'
 import { recordGif } from '../design/export/recordGif'
 import { markingToolSpec, type MarkingTool } from '../design/editor/markingTools'
 import { useMarkingKeys } from '../design/editor/useMarkingKeys'
+import { useUndoKeys } from '../design/editor/useUndoKeys'
 import { motionPathsFor, trailFramesFor } from '../design/timeline/motion'
 import { onionFramesFor } from '../design/timeline/onionSkin'
 import { keyframeAt } from '../design/timeline/cursor'
@@ -50,6 +51,8 @@ const THUMBNAIL_WIDTH = 480
 // rather than layering it on top, so only one Konva stage is ever mounted.
 
 export function TacticEditor({ tactic }: { tactic: Tactic }) {
+  const undoTactic = useStore((s) => s.undoTactic)
+  const redoTactic = useStore((s) => s.redoTactic)
   const addTacticEntity = useStore((s) => s.addTacticEntity)
   const removeTacticEntity = useStore((s) => s.removeTacticEntity)
   const setTacticEntityPosition = useStore((s) => s.setTacticEntityPosition)
@@ -146,6 +149,9 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   // Anything still queued when the coach navigates away is written now rather
   // than lost to the debounce.
   useEffect(() => () => void flushTacticSave(), [flushTacticSave])
+
+  const canUndoTimeline = useStore((s) => s.canUndoTactic(tactic.id, 'timeline'))
+  const canRedoTimeline = useStore((s) => s.canRedoTactic(tactic.id, 'timeline'))
 
   const host = useTacticTimelineHost(tactic)
   const playback = useTimelinePlayback(tactic.duration_seconds)
@@ -259,6 +265,17 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
       playback.seek(resumeAt)
     }
   }
+
+  // Cmd/Ctrl+Z. Scoped to 'timeline', matching the top bar's undo button —
+  // tactics keeps a second stack for free-drawn markings, and the inspector's
+  // own Undo drives that one, so a bare Cmd+Z must not silently rewind
+  // drawings the coach never asked it to touch.
+  useUndoKeys({
+    onUndo: () => undoTactic(tactic.id, 'timeline'),
+    onRedo: () => redoTactic(tactic.id, 'timeline'),
+    canUndo: canUndoTimeline,
+    canRedo: canRedoTimeline,
+  })
 
   useMarkingKeys({
     onSelectTool: (next) => {

@@ -281,7 +281,7 @@ function OptionList<T extends string>({
           className={
             'flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors ' +
             (value === option.value
-              ? 'bg-accent/15 text-accent'
+              ? 'bg-accent/15 text-accent-ink'
               : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
           }
         >
@@ -323,7 +323,7 @@ export function RailButton({
       className={
         'flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors ' +
         (layout === 'topbar' ? 'lg:min-h-9 lg:px-2.5' : '') +
-        (active ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+        (active ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
       }
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>

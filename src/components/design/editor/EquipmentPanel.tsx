@@ -48,7 +48,7 @@ function Group({
           aria-pressed={value === type}
           className={
             'flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors lg:min-h-9 ' +
-            (value === type ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+            (value === type ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
           }
         >
           <EquipmentIcon type={type} />

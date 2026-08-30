@@ -127,7 +127,7 @@ export function LibraryToolbar({
             aria-pressed={view === 'grid'}
             aria-label="Thumbnail view"
             title="Thumbnail view"
-            className={`rounded p-1.5 transition-colors ${view === 'grid' ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:text-ink'}`}
+            className={`rounded p-1.5 transition-colors ${view === 'grid' ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:text-ink'}`}
           >
             <LayoutGrid className="h-4 w-4" />
           </button>
@@ -137,7 +137,7 @@ export function LibraryToolbar({
             aria-pressed={view === 'list'}
             aria-label="List view"
             title="List view"
-            className={`rounded p-1.5 transition-colors ${view === 'list' ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:text-ink'}`}
+            className={`rounded p-1.5 transition-colors ${view === 'list' ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:text-ink'}`}
           >
             <List className="h-4 w-4" />
           </button>

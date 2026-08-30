@@ -23,6 +23,7 @@ import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from '.
 import { markingToolSpec, type MarkingTool } from './markingTools'
 import { DockButton, EditorLayout, ExportDrawer } from './EditorShell'
 import { useMarkingKeys } from './useMarkingKeys'
+import { useUndoKeys } from './useUndoKeys'
 import type { GridSettings } from './GridPanel'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
@@ -54,6 +55,12 @@ function dragIcon(placement: DragPlacement) {
 }
 
 export function DrillEditor({ drill }: { drill: Drill }) {
+  const undo = useStore((s) => s.undo)
+  const redo = useStore((s) => s.redo)
+  // Evaluated inside the selector, not read as `s.canUndo` and called later —
+  // the store's own note is explicit that only the former subscribes properly.
+  const canUndoDrill = useStore((s) => s.canUndo(drill.id))
+  const canRedoDrill = useStore((s) => s.canRedo(drill.id))
   const addEntity = useStore((s) => s.addEntity)
   const removeEntity = useStore((s) => s.removeEntity)
   const setEntityPosition = useStore((s) => s.setEntityPosition)
@@ -451,6 +458,15 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // The tool shortcut map (Stage 6.2). 'select' drops back to the selection
   // tool; every other key arms its drawing tool and switches the canvas into
   // marking mode, which is exactly what clicking the rail does.
+  // Cmd/Ctrl+Z and Cmd/Ctrl+Shift+Z. The buttons in the top bar drive the same
+  // two store actions; this just gives them the shortcut every canvas tool has.
+  useUndoKeys({
+    onUndo: () => undo(drill.id),
+    onRedo: () => redo(drill.id),
+    canUndo: canUndoDrill,
+    canRedo: canRedoDrill,
+  })
+
   useMarkingKeys({
     onSelectTool: (next) => {
       if (next === 'select') {

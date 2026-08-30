@@ -143,9 +143,9 @@ export function LibraryTable({
   const sortIcon = (key: string) =>
     sort.key === key ? (
       sort.dir === 'asc' ? (
-        <ArrowUp className="h-3 w-3 shrink-0 text-accent" />
+        <ArrowUp className="h-3 w-3 shrink-0 text-accent-ink" />
       ) : (
-        <ArrowDown className="h-3 w-3 shrink-0 text-accent" />
+        <ArrowDown className="h-3 w-3 shrink-0 text-accent-ink" />
       )
     ) : null
 
@@ -177,15 +177,11 @@ export function LibraryTable({
         <thead>
           <tr className="border-b border-line bg-panel-raised">
             <th scope="col" className="w-9 py-2 pl-3 pr-0">
-              <button
-                type="button"
-                onClick={onToggleAll}
-                aria-label={allSelected ? 'Clear selection' : 'Select all'}
-                title={allSelected ? 'Clear selection' : 'Select all'}
-                className="flex items-center"
-              >
-                <Checkbox checked={allSelected} />
-              </button>
+              <Checkbox
+                checked={allSelected}
+                onToggle={onToggleAll}
+                label={allSelected ? 'Clear selection' : 'Select all'}
+              />
             </th>
             <th scope="col" className="px-3 py-2">
               <button
@@ -231,7 +227,6 @@ export function LibraryTable({
               <tr
                 key={item.id}
                 tabIndex={0}
-                aria-selected={isSelected}
                 {...rowInteractionHandlers(item.id, { onToggle, onActivate, onOpen })}
                 className={
                   // The global :focus-visible ring is a box-shadow, which
@@ -248,22 +243,15 @@ export function LibraryTable({
                       focused or already part of a selection — the row stays
                       quiet to read, and selecting is still one click away
                       rather than behind a mode. */}
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    aria-label={isSelected ? `Deselect ${item.name}` : `Select ${item.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggle(item.id, { additive: true })
-                    }}
-                    onDoubleClick={(e) => e.stopPropagation()}
+                  <Checkbox
+                    checked={isSelected}
+                    onToggle={() => onToggle(item.id, { additive: true })}
+                    label={isSelected ? `Deselect ${item.name}` : `Select ${item.name}`}
                     className={
-                      'flex transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ' +
+                      'transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ' +
                       (isSelected ? 'opacity-100' : 'opacity-0')
                     }
-                  >
-                    <Checkbox checked={isSelected} />
-                  </span>
+                  />
                 </td>
                 <td className="min-w-0 px-3 py-2 align-middle">
                   <div className="flex min-w-0 items-center gap-2.5">
@@ -332,9 +320,7 @@ export function LibraryTiles({ items, selected, activeId, onToggle, onActivate, 
         return (
           <li key={item.id}>
             <div
-              role="button"
               tabIndex={0}
-              aria-selected={isSelected}
               {...rowInteractionHandlers(item.id, { onToggle, onActivate, onOpen })}
               className={
                 // No focus classes: a tile is in normal flow, so index.css's
@@ -345,22 +331,15 @@ export function LibraryTiles({ items, selected, activeId, onToggle, onActivate, 
             >
               <div className="relative">
                 <ItemThumb item={item} className="aspect-video w-full" iconClassName="h-6 w-6" />
-                <span
-                  role="button"
-                  tabIndex={-1}
-                  aria-label={isSelected ? `Deselect ${item.name}` : `Select ${item.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggle(item.id, { additive: true })
-                  }}
-                  onDoubleClick={(e) => e.stopPropagation()}
+                <Checkbox
+                  checked={isSelected}
+                  onToggle={() => onToggle(item.id, { additive: true })}
+                  label={isSelected ? `Deselect ${item.name}` : `Select ${item.name}`}
                   className={
-                    'absolute left-2 top-2 flex rounded bg-panel/80 p-0.5 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ' +
+                    'absolute left-2 top-2 rounded bg-panel/80 p-0.5 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ' +
                     (isSelected ? 'opacity-100' : 'opacity-0')
                   }
-                >
-                  <Checkbox checked={isSelected} />
-                </span>
+                />
                 <span className="absolute right-1 top-1 rounded bg-panel/80 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   <RowMenu items={item.menu} label={`Actions for ${item.name}`} />
                 </span>

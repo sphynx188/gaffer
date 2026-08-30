@@ -32,7 +32,7 @@ export function PitchPanel({ pitch, onChange }: PitchPanelProps) {
             }
           >
             <PresetThumb widthMeters={preset.widthMeters} lengthMeters={preset.lengthMeters} orientation={preset.orientation} />
-            <span className={'text-xs font-medium ' + (selected ? 'text-accent' : 'text-ink')}>{preset.label}</span>
+            <span className={'text-xs font-medium ' + (selected ? 'text-accent-ink' : 'text-ink')}>{preset.label}</span>
             <span className="text-[10px] tabular-nums text-ink-faint">
               {formatDimensions(preset.lengthMeters, preset.widthMeters, preset.units ?? 'm')}
             </span>

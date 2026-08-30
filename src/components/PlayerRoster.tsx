@@ -208,7 +208,7 @@ export function PlayerRoster() {
         <button
           type="button"
           onClick={() => setAddingPlayer(true)}
-          className="flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover"
+          className="flex items-center gap-1.5 text-sm font-medium text-accent-ink hover:text-accent-hover"
         >
           <Plus className="h-4 w-4" />
           Add player

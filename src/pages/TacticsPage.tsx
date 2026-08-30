@@ -672,7 +672,7 @@ function TacticFilters({
         aria-expanded={open}
         className={
           'flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors ' +
-          (open || count > 0 ? 'border-accent bg-accent/15 text-accent' : 'border-line text-ink-muted hover:border-line-strong')
+          (open || count > 0 ? 'border-accent bg-accent/15 text-accent-ink' : 'border-line text-ink-muted hover:border-line-strong')
         }
       >
         <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -704,7 +704,7 @@ function TacticFilters({
             >
               Clear
             </button>
-            <button type="button" onClick={onToggle} className="text-sm font-medium text-accent">
+            <button type="button" onClick={onToggle} className="text-sm font-medium text-accent-ink">
               Done
             </button>
           </div>

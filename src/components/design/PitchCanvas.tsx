@@ -1641,9 +1641,9 @@ export function PitchCanvas({
       </div>
       {hintText && frame && <p className="mt-1 text-center text-xs text-amber-600">{hintText}</p>}
       {frame && entities.length === 0 && (
-        <p className="mt-1 text-center text-xs text-slate-400">Nothing on the pitch yet.</p>
+        <p className="mt-1 text-center text-xs text-ink-faint">Nothing on the pitch yet.</p>
       )}
-      {!frame && <p className="mt-1 text-center text-xs text-slate-400">No drill to display.</p>}
+      {!frame && <p className="mt-1 text-center text-xs text-ink-faint">No drill to display.</p>}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { useSession } from './hooks/useSession'
 import { useStore } from './store'
@@ -10,19 +10,25 @@ import { AppShell } from './layout/AppShell'
 import { HomePage } from './pages/HomePage'
 import { CreatePage } from './pages/CreatePage'
 import { LibraryLayout } from './pages/LibraryLayout'
-import { DesignPage } from './pages/DesignPage'
-import { DrillEditorPage } from './pages/DrillEditorPage'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
-import { DrillCardPage } from './pages/DrillCardPage'
-import { DrillViewPage } from './pages/DrillViewPage'
-import { SharedDrillPage } from './pages/SharedDrillPage'
-import { TacticsPage } from './pages/TacticsPage'
 import { TacticCreatePage } from './pages/TacticCreatePage'
-import { TacticViewPage } from './pages/TacticViewPage'
-import { TacticEditorPage } from './pages/TacticEditorPage'
-import { TacticCardPage } from './pages/TacticCardPage'
-import { SharedTacticPage } from './pages/SharedTacticPage'
 import { AdminLayout } from './pages/admin/AdminLayout'
+import { NotFoundPage } from './pages/NotFoundPage'
+
+// Split out of the main bundle (2026-08-30). These are the only screens that
+// mount PitchCanvas, and Konva is the single biggest thing in the app — before
+// this, the login screen downloaded the whole canvas engine before it could
+// paint. Everything else (login, home, library, settings) now loads without it.
+const DesignPage = lazy(() => import('./pages/DesignPage').then((m) => ({ default: m.DesignPage })))
+const DrillEditorPage = lazy(() => import('./pages/DrillEditorPage').then((m) => ({ default: m.DrillEditorPage })))
+const DrillCardPage = lazy(() => import('./pages/DrillCardPage').then((m) => ({ default: m.DrillCardPage })))
+const DrillViewPage = lazy(() => import('./pages/DrillViewPage').then((m) => ({ default: m.DrillViewPage })))
+const SharedDrillPage = lazy(() => import('./pages/SharedDrillPage').then((m) => ({ default: m.SharedDrillPage })))
+const TacticEditorPage = lazy(() => import('./pages/TacticEditorPage').then((m) => ({ default: m.TacticEditorPage })))
+const TacticCardPage = lazy(() => import('./pages/TacticCardPage').then((m) => ({ default: m.TacticCardPage })))
+const TacticViewPage = lazy(() => import('./pages/TacticViewPage').then((m) => ({ default: m.TacticViewPage })))
+const SharedTacticPage = lazy(() => import('./pages/SharedTacticPage').then((m) => ({ default: m.SharedTacticPage })))
+const TacticsPage = lazy(() => import('./pages/TacticsPage').then((m) => ({ default: m.TacticsPage })))
 import { CoachesPage } from './pages/admin/CoachesPage'
 import { TransferPage } from './pages/admin/TransferPage'
 import { LicensesPage } from './pages/admin/LicensesPage'
@@ -44,15 +50,28 @@ import { LicensesPage } from './pages/admin/LicensesPage'
 // down. OfflineBanner moved up with it and now covers the share pages too,
 // which is if anything more correct — the note applied to "every top-level
 // branch" before and still does, there are simply more branches.
+// Shown while a lazily-loaded screen's chunk is in flight. Deliberately plain:
+// on a warm cache it is on screen for a frame or two, and a spinner that brief
+// reads as a flicker.
+function RouteFallback() {
+  return (
+    <div role="status" aria-busy="true" className="p-6">
+      <span className="sr-only">Loading…</span>
+    </div>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
       <OfflineBanner />
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/d/:token" element={<SharedDrillPage />} />
         <Route path="/t/:token" element={<SharedTacticPage />} />
         <Route path="*" element={<AuthedApp />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }
@@ -117,6 +136,7 @@ function AuthedApp() {
   }
 
   return (
+    <Suspense fallback={<RouteFallback />}>
     <Routes>
       {/* Signed in, a stray /login (bookmark, back button) goes home. */}
       <Route path="login" element={<Navigate to="/" replace />} />
@@ -182,9 +202,10 @@ function AuthedApp() {
             management now lives inline on the Drills/Tactics tabs. */}
         <Route path="settings/collections" element={<Navigate to="/library/drills" replace />} />
         <Route path="library/collections" element={<Navigate to="/library/drills" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
+    </Suspense>
   )
 }
 

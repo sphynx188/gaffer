@@ -193,7 +193,7 @@ export function CollectionAccessDialog({
                   className={
                     'shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ' +
                     (isGranted
-                      ? 'border-accent bg-accent/15 text-accent'
+                      ? 'border-accent bg-accent/15 text-accent-ink'
                       : 'border-line text-ink-muted hover:border-line-strong hover:text-ink')
                   }
                 >

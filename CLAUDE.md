@@ -11,7 +11,7 @@ public signup flow beyond Supabase auth.
 
 Stack: React 19 + Vite + TypeScript (non-strict — see `tsconfig.app.json`,
 no `strict: true`) + Zustand 5 (slices) + Supabase (Postgres/Auth/RLS) +
-Tailwind v4 (CSS-first `@theme` tokens, dark-mode-only) + Konva/react-konva
+Tailwind v4 (CSS-first `@theme` tokens, dark by default with a light theme) + Konva/react-konva
 + react-router-dom v7.
 
 Read [HANDOFF.md](HANDOFF.md) first — it's kept up to date after every work
@@ -361,7 +361,21 @@ See **[design.md](design.md)** for the full design system — color/type
 tokens and component conventions. Briefly:
 `src/index.css` defines the entire color system as Tailwind v4 `@theme`
 CSS custom properties (`--color-surface`, `--color-panel`, `--color-ink`,
-`--color-accent`, etc.) — dark-mode-only, no light theme. Always reach for
+`--color-accent`, etc.). Dark is the default and the one the app is designed
+against, but a LIGHT theme also ships: `:root[data-theme='light']` redefines
+every token and the app shell has a working toggle. This file used to say
+"dark-mode-only, no light theme", which was wrong and quietly told
+contributors not to check the theme that in fact had the worst contrast in the
+app (2.47:1, fixed 2026-08-30). Any token change has to clear WCAG AA in BOTH
+blocks — there are three: the `@theme` default, `[data-theme='light']`, and
+the `[data-theme='dark']` block that mirrors the default.
+
+Two tokens carry contrast traps worth knowing about. `--color-ink-faint` is
+the lowest-contrast text in the system and sits right at the AA line, so it is
+for genuinely tertiary text only. And `--color-accent` is a BACKGROUND colour
+that also has white text on it, so it cannot be lightened; accent-coloured
+TEXT uses `--color-accent-ink` instead, which exists precisely because no
+single value clears 4.5:1 in both roles. Always reach for
 these tokens (`bg-panel`, `text-ink-muted`, `border-line`, `bg-accent`,
 `text-ok`/`text-warn`/`text-bad` for status colors) instead of raw Tailwind
 slate/indigo classes or arbitrary hex values.

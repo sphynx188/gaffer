@@ -45,7 +45,7 @@ export function DrillEditorPage() {
       <div className="space-y-3">
         {drillsError && <p className="text-sm text-bad">{drillsError}</p>}
         <EmptyState icon={PenTool} message="That drill isn't in your library." />
-        <Link to="/drills" className="text-sm font-medium text-accent hover:underline">
+        <Link to="/drills" className="text-sm font-medium text-accent-ink hover:underline">
           Back to drills
         </Link>
       </div>

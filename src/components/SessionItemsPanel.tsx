@@ -430,7 +430,7 @@ function SessionItemRow({
                   one panel would be the wrong trade. */}
               <Badge tone="neutral">{KIND_LABEL[item.kind]}</Badge>
               {item.href ? (
-                <Link to={item.href} className="text-sm font-medium text-ink hover:text-accent hover:underline">
+                <Link to={item.href} className="text-sm font-medium text-ink hover:text-accent-ink hover:underline">
                   {item.title}
                 </Link>
               ) : (

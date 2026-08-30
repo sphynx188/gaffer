@@ -7,7 +7,7 @@
 export function NumberBadge({ value, label }: { value: number; label: string }) {
   return (
     <div>
-      <p className="text-3xl font-semibold tracking-tight text-accent">{value}</p>
+      <p className="text-3xl font-semibold tracking-tight text-accent-ink">{value}</p>
       <p className="text-xs text-ink-muted">{label}</p>
     </div>
   )

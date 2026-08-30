@@ -131,7 +131,7 @@ export function TeamManagement() {
               aria-label="Grid view"
               title="Grid view"
               className={`rounded p-1.5 transition-colors ${
-                viewMode === 'grid' ? 'bg-accent/15 text-accent' : 'text-ink-faint hover:text-ink'
+                viewMode === 'grid' ? 'bg-accent/15 text-accent-ink' : 'text-ink-faint hover:text-ink'
               }`}
             >
               <LayoutGrid className="h-4 w-4" />
@@ -143,7 +143,7 @@ export function TeamManagement() {
               aria-label="List view"
               title="List view"
               className={`rounded p-1.5 transition-colors ${
-                viewMode === 'list' ? 'bg-accent/15 text-accent' : 'text-ink-faint hover:text-ink'
+                viewMode === 'list' ? 'bg-accent/15 text-accent-ink' : 'text-ink-faint hover:text-ink'
               }`}
             >
               <List className="h-4 w-4" />

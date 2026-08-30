@@ -24,9 +24,14 @@
   --color-line-strong: #34343a; /* dividers, stronger borders — hairline-strong */
   --color-ink: #f7f8f8; /* primary text */
   --color-ink-muted: #8a8f98; /* secondary text — ink-subtle */
-  --color-ink-faint: #62666d; /* placeholder/tertiary text — ink-tertiary */
+  --color-ink-faint: #7d828a; /* placeholder/tertiary text — ink-tertiary */
   --color-accent: #5e6ad2; /* lavender-blue — primary actions, active nav, chips, focus rings; used scarcely */
   --color-accent-hover: #828fff;
+  /* Accent as TEXT. Separate from --color-accent because that one is also a
+     BACKGROUND with white on it: white-on-accent needs a dark accent, accent-as-text
+     needs a light one, and no single value clears 4.5:1 for both. Measured 2026-08-30:
+     the old shared value gave 4.05:1 for active tools and 3.54:1 on an accent/15 chip. */
+  --color-accent-ink: #9aa3ee;
   --color-ok: #27a644; /* the one semantic color newdesign.md documents — status/success */
   --color-warn: #d08b3a; /* muted amber — unconfirmed / medium load; not in newdesign.md, extended to cover Gaffer's status states with the same desaturated restraint */
   --color-bad: #e5484d; /* muted red — unavailable / heavy load / destructive */
@@ -70,10 +75,11 @@
   --color-line-strong: #d4d4d8;
   --color-ink: #18181b;
   --color-ink-muted: #6b6b74;
-  --color-ink-faint: #a1a1aa;
+  --color-ink-faint: #6b6b73;
   --color-accent: #5e6ad2;
   --color-accent-hover: #4750b3;
-  --color-ok: #15803d;
+  --color-accent-ink: #4c56b0;
+  --color-ok: #0f6b30; /* darkened 2026-08-30: #15803d gave 4.09:1 on bg-ok/15 */
   --color-warn: #b45309;
   --color-bad: #dc2626;
 }
@@ -181,9 +187,14 @@ body {
   --color-line-strong: #34343a;
   --color-ink: #f7f8f8;
   --color-ink-muted: #8a8f98;
-  --color-ink-faint: #62666d;
+  --color-ink-faint: #7d828a;
   --color-accent: #5e6ad2;
   --color-accent-hover: #828fff;
+  /* Accent as TEXT. Separate from --color-accent because that one is also a
+     BACKGROUND with white on it: white-on-accent needs a dark accent, accent-as-text
+     needs a light one, and no single value clears 4.5:1 for both. Measured 2026-08-30:
+     the old shared value gave 4.05:1 for active tools and 3.54:1 on an accent/15 chip. */
+  --color-accent-ink: #9aa3ee;
   --color-ok: #27a644;
   --color-warn: #d08b3a;
   --color-bad: #e5484d;
