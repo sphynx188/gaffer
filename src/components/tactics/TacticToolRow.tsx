@@ -12,6 +12,7 @@ import {
   FORMATION_SIZES,
   backLineCount,
   formationSize,
+  pickerFormations,
   slotsForSide,
   type Formation,
 } from './formations'
@@ -236,7 +237,8 @@ function FormationPanel({
 }) {
   const current = FORMATIONS.find((f) => f.key === formationKey)
   const [size, setSize] = useState<number>(current ? formationSize(current) : 11)
-  const shown = FORMATIONS.filter((f) => formationSize(f) === size)
+  const offered = pickerFormations(formationKey)
+  const shown = offered.filter((f) => formationSize(f) === size)
 
   return (
     <div className="space-y-2">

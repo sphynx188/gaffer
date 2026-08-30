@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
 import { Dropdown } from '../ui/Dropdown'
 import {
-  FORMATIONS,
+  pickerFormations,
   customFormationId,
   customFormationKey,
   isCustomFormationKey,
@@ -49,7 +49,11 @@ export function FormationPicker({
   const selected = resolveFormation(formationKey, customFormations)
 
   const options = [
-    ...FORMATIONS.map((f) => ({ value: f.key, label: f.label })),
+    // The common shapes only, plus whatever this side is already playing —
+    // same list the tool row offers, so the two pickers can't disagree about
+    // what exists. Anything else stays reachable by being already selected or
+    // by saving a custom shape.
+    ...pickerFormations(formationKey).map((f) => ({ value: f.key, label: f.label })),
     // Visually separated from the built-ins, per 3.4. The Dropdown's option
     // list is flat, so the separation is carried in the label rather than by a
     // group header the component has no concept of.

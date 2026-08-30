@@ -698,6 +698,51 @@ export function backLineCount(formation: Formation): number {
   return formation.slots.filter((slot) => slot.role !== 'GK' && slot.x <= WB_FLAT).length
 }
 
+/**
+ * The shapes the pickers actually OFFER — the common ones per variety, on the
+ * principle that a coach picks a familiar shape and then drags it into their
+ * own, rather than hunting through every documented permutation. Save current
+ * shape... turns whatever they end up with into a reusable custom formation.
+ *
+ * The rest stay in FORMATIONS rather than being deleted, deliberately: seven
+ * of the tactics already saved reference `4-3-3-cdm`, `4-4-1-2`, `4-2-2-2`,
+ * `3-1-4-2` and `3-4-1-2` between them, and dropping those keys would leave
+ * `resolveFormation` returning null — a blank shape diagram and an empty
+ * dropdown on boards that are currently fine. `pickerFormations` keeps a
+ * tactic's own formation listed even when it isn't one of the common set.
+ */
+const COMMON_KEYS = new Set([
+  // Back three
+  '3-5-2',
+  '3-4-3',
+  '3-4-2-1',
+  // Back four
+  '4-4-2',
+  '4-3-3',
+  '4-2-3-1',
+  '4-1-4-1',
+  // Back five
+  '5-3-2',
+  '5-4-1',
+  // Nine-a-side
+  '9-3-2-3',
+  '9-3-3-2',
+  '9-2-3-3',
+  // Seven-a-side
+  '7-2-3-1',
+  '7-3-2-1',
+  '7-2-2-2',
+])
+
+/**
+ * What a picker should list: the common shapes, plus `currentKey` if the side
+ * is already playing something else — otherwise an existing tactic's own
+ * formation would vanish from the list that is meant to show it as selected.
+ */
+export function pickerFormations(currentKey: string): Formation[] {
+  return FORMATIONS.filter((f) => COMMON_KEYS.has(f.key) || f.key === currentKey)
+}
+
 /** The back lines the 11v11 group is split by. */
 export const BACK_LINES = [3, 4, 5] as const
 
