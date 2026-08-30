@@ -121,6 +121,13 @@ export interface ClubSlice {
   grantCollectionAccess: (collectionId: string, userId: string) => Promise<boolean>
   revokeCollectionAccess: (collectionId: string, userId: string) => Promise<boolean>
   createCoach: (input: NewCoachInput) => Promise<string | null>
+  // Coaches tab (2026-08-30). Both are plain club_member writes that
+  // club_member_admin_update/_delete (028) already permit; removing a coach
+  // removes their MEMBERSHIP (and every grant with it), not their login —
+  // deleting an auth user needs the service role, and a membership row is
+  // what actually decides what they can see.
+  updateCoach: (userId: string, displayName: string | null) => Promise<boolean>
+  removeCoach: (userId: string) => Promise<boolean>
   grantLicense: (collectionId: string, targetClubId: string) => Promise<boolean>
   revokeLicense: (licenseId: string) => Promise<boolean>
   copyCollectionToClub: (collectionId: string, targetClubId: string) => Promise<boolean>
@@ -528,6 +535,62 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     }
     await get().fetchClubData()
     return data.user_id as string
+  },
+
+  updateCoach: async (userId, displayName) => {
+    const clubId = get().selectedClubId
+    if (!clubId) return false
+    set({ clubActionError: null })
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.from('club_member').update({ display_name: displayName }).eq('club_id', clubId).eq('user_id', userId),
+      "Couldn't rename coach, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
+      return false
+    }
+    set((state) => ({
+      clubMembers: state.clubMembers.map((m) => (m.user_id === userId ? { ...m, display_name: displayName } : m)),
+    }))
+    return true
+  },
+
+  removeCoach: async (userId) => {
+    const clubId = get().selectedClubId
+    if (!clubId) return false
+    set({ clubActionError: null })
+    // Grants first: collection_access has no FK to club_member, so they would
+    // otherwise linger and silently re-apply if the same login were ever
+    // re-added.
+    const ownCollectionIds = get()
+      .collections.filter((c) => c.club_id === clubId)
+      .map((c) => c.id)
+    if (ownCollectionIds.length) {
+      const { error } = await runSupabaseAction<null>(
+        () => supabase.from('collection_access').delete().eq('user_id', userId).in('collection_id', ownCollectionIds),
+        "Couldn't remove coach, try again."
+      )
+      if (error) {
+        set({ clubActionError: error })
+        return false
+      }
+    }
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.from('club_member').delete().eq('club_id', clubId).eq('user_id', userId),
+      "Couldn't remove coach, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
+      return false
+    }
+    set((state) => {
+      const collectionAccess: Record<string, string[]> = {}
+      for (const [id, users] of Object.entries(state.collectionAccess)) {
+        collectionAccess[id] = users.filter((u) => u !== userId)
+      }
+      return { clubMembers: state.clubMembers.filter((m) => m.user_id !== userId), collectionAccess }
+    })
+    return true
   },
 
   grantLicense: async (collectionId, targetClubId) => {

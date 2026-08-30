@@ -276,6 +276,33 @@ in.
 
 ---
 
+## Session log — Coaches tab (2026-08-30)
+
+Coaches moved out of Settings into its own **admin-only rail entry**,
+`/coaches` (`src/pages/CoachesPage.tsx`; `/settings/coaches` redirects,
+Settings keeps Transfer/Licenses). One screen: members on the left (coaches
+first, "N of M collections" under each; admins say "Sees everything"), and
+for the selected member: rename, the club's own collections as a checklist
+of grants, and "Remove from club" behind a confirm.
+
+- **"What they can see" is collection grants, deliberately** — that is the
+  visibility model (028 `drill_club_read`: own boards + boards in granted
+  collections). There is no per-drill switch to build. Same
+  `grantCollectionAccess`/`revokeCollectionAccess` the Library's access
+  dialog uses, so the two stay in step.
+- New store actions `updateCoach` (display_name) and `removeCoach` — both
+  plain `club_member` writes 028 already permits admins. **Removing = the
+  membership row + that club's grants, not the auth user** (service role
+  only). The login survives and would land on CreateClub; a `delete-coach`
+  edge function is the follow-up if that ever matters.
+- Add coach is the old form in a Modal (edge function `create-coach`,
+  unchanged).
+
+Verified with Playwright: redirect, rail entry, rename round-trip, grant
+toggle 2→3→2, dialog, 1440 and 390 layouts, no console errors.
+
+---
+
 ## Session log — Home tab designed (2026-08-30)
 
 `/` was a placeholder card (club name + member count). It is now the app's

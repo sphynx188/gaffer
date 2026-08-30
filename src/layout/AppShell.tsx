@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Sun, X } from 'lucide-react'
+import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Sun, Users, X } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
@@ -38,6 +38,9 @@ const NAV_ITEMS: NavItem[] = [
 // non-admin (AdminLayout's own guard), so this is belt-and-braces UI
 // polish, not the actual access control.
 const SETTINGS_NAV_ITEM: NavItem = { to: '/settings', label: 'Settings', icon: Settings }
+// Coaches (2026-08-30): admin-only like Settings, but its own entry — who is
+// in the club and what each of them can see is the admin's day-to-day job.
+const COACHES_NAV_ITEM: NavItem = { to: '/coaches', label: 'Coaches', icon: Users }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ' +
@@ -190,7 +193,7 @@ export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
-  const navItems = isAdmin ? [...NAV_ITEMS, SETTINGS_NAV_ITEM] : NAV_ITEMS
+  const navItems = isAdmin ? [...NAV_ITEMS, COACHES_NAV_ITEM, SETTINGS_NAV_ITEM] : NAV_ITEMS
   const [navOpen, setNavOpen] = useState(false)
   // The Library's three-pane file-manager layout (2026-08-28) genuinely
   // wants more than the 1152px every other page in the app is built for —

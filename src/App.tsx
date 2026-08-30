@@ -29,7 +29,7 @@ const TacticCardPage = lazy(() => import('./pages/TacticCardPage').then((m) => (
 const TacticViewPage = lazy(() => import('./pages/TacticViewPage').then((m) => ({ default: m.TacticViewPage })))
 const SharedTacticPage = lazy(() => import('./pages/SharedTacticPage').then((m) => ({ default: m.SharedTacticPage })))
 const TacticsPage = lazy(() => import('./pages/TacticsPage').then((m) => ({ default: m.TacticsPage })))
-import { CoachesPage } from './pages/admin/CoachesPage'
+import { CoachesPage } from './pages/CoachesPage'
 import { TransferPage } from './pages/admin/TransferPage'
 import { LicensesPage } from './pages/admin/LicensesPage'
 
@@ -191,9 +191,14 @@ function AuthedApp() {
             the route itself is open, same shape as every other page here.
             Relabeled /admin → /settings (2026-08-28) for the nav; the
             component/file names underneath stay "Admin*", internal only. */}
+        {/* Coaches (2026-08-30): promoted out of Settings to its own
+            admin-only rail entry — adding coaches and choosing what they can
+            see is the admin's main job, not a setting. The page carries its
+            own role guard, same as AdminLayout; the old URL redirects. */}
+        <Route path="coaches" element={<CoachesPage />} />
+        <Route path="settings/coaches" element={<Navigate to="/coaches" replace />} />
         <Route path="settings" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/settings/coaches" replace />} />
-          <Route path="coaches" element={<CoachesPage />} />
+          <Route index element={<Navigate to="/settings/transfer" replace />} />
           <Route path="transfer" element={<TransferPage />} />
           <Route path="licenses" element={<LicensesPage />} />
         </Route>

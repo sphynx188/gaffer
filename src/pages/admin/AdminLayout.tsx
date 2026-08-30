@@ -14,8 +14,8 @@ import { PageHeader } from '../../components/ui/PageHeader'
 // moved out to /library/collections (2026-08-28) — it's still admin-only
 // (CollectionsPage carries its own guard now, since it's no longer nested
 // under this one), just relocated next to the library it manages.
+// Coaches left for its own rail entry (/coaches, 2026-08-30).
 const SUB_NAV = [
-  { to: '/settings/coaches', label: 'Coaches' },
   { to: '/settings/transfer', label: 'Transfer' },
   { to: '/settings/licenses', label: 'Licenses' },
 ]
