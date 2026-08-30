@@ -276,6 +276,48 @@ in.
 
 ---
 
+## Session log — Home tab designed (2026-08-30)
+
+`/` was a placeholder card (club name + member count). It is now the app's
+real front door — `src/pages/HomePage.tsx` plus `src/components/home/`.
+
+**What it does.** One job: put the coach back on the board they were working
+on in a single tap. Top to bottom: date eyebrow → club name → one sentence of
+facts (drills · tactics · collections · coaches; no stat tiles) with "New
+drill" / "New tactic" beside it → the **hero board**, drawn live and *playing*
+(the only place a drill runs without pressing play) with its facts, objective
+and first three coaching points beside it → a sideways-scrolling row of the
+next six boards → the club's collections as shelves, each deep-linked to the
+Library standing in that folder (`?place=c:<id>` / `l:<id>`).
+
+**"Recently opened" is local.** There is no `updated_at` / last-opened column
+and no wish to write on every open, so `src/hooks/useRecentBoards.ts` keeps a
+12-entry list in localStorage (`gaffer-recent-boards`), recorded by
+`RecentBoardsRecorder` — mounted once in `AppShell`, it matches the four
+board routes off the URL so no page has to know Home exists. With history the
+hero says "Pick up where you left off"; without it the page falls back to
+worked-up boards first (animated, more than a couple of entities), newest
+first, and labels itself honestly ("From the library" / "More from the
+library").
+
+**Playback** is `src/hooks/useBoardPlayback.ts`: rAF at 30fps from the first
+keyframe to the last, a hold at each end, paused while the tab is hidden,
+static under `prefers-reduced-motion` or with fewer than two keyframes.
+Not the editor's playhead — that is a transport, this is a loop.
+
+**Scoping** matches the Library's "All" place exactly: this club's docs plus
+licensed-in ones (the store's arrays are RLS-scoped across every club an
+admin runs, which is why the first draft counted 19 drills to the Library's
+18). Drafts filtered the same way the Library filters them.
+
+Verified with Playwright at 1440/390, dark and light: hero players move
+across samples with history seeded; static under reduced motion; opening
+`/design/<id>` then returning home leads with that drill; an empty club
+shows the empty pitch as the invitation. `npm run build` + `lint` clean
+(two pre-existing warnings only).
+
+---
+
 ## Session log — Library layout fixes: rail width, preview size, table overflow (2026-08-28)
 
 Follow-up to the file-manager rework above, from live feedback after using

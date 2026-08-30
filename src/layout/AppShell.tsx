@@ -7,6 +7,7 @@ import { useSession } from '../hooks/useSession'
 import { useTheme } from '../hooks/useTheme'
 import { supabase } from '../lib/supabase'
 import { Dropdown } from '../components/ui/Dropdown'
+import { RecentBoardsRecorder } from '../hooks/useRecentBoards'
 
 interface NavItem {
   to: string
@@ -235,6 +236,9 @@ export function AppShell() {
 
   return (
     <div className="min-h-svh bg-surface">
+      {/* Home's "Recently opened" (2026-08-30): notes every board route
+          this session visits. Renders nothing. */}
+      <RecentBoardsRecorder />
       <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-line bg-panel px-4">
         {/* Back arrow (mobile only) then "Gaffer", always here unchanged
             by route. */}
