@@ -113,6 +113,41 @@ body {
   }
 }
 
+/* While the theme is actually switching, force ONE uniform colour transition
+   onto everything — unlayered and `!important`, so it beats both the `base`
+   rule above and any Tailwind utility.
+
+   The base rule alone left the switch visibly ragged. `transition` is a
+   SHORTHAND, so a utility like `transition-opacity`, `transition-transform` or
+   `transition-[width]` doesn't add to it — it replaces `transition-property`
+   outright, dropping background/border/text colour from the list. Those
+   elements then snapped instantly while their neighbours faded over 150ms.
+   Measured 2026-08-30: 54 such elements on the Library against ~656 that
+   faded, which is exactly the stagger that reads as "some take longer".
+
+   Scoped to the swap rather than applied permanently, because forcing a shared
+   property list and duration on every element all the time would flatten the
+   deliberate per-element timings (hover fades, the sheet slides, the nav rail's
+   width animation) that the base rule was written to leave alone. */
+/* Gated on `no-preference`, NOT left to the reduced-motion block below to
+   override: that block's `*` is specificity (0,0,0) and this selector is
+   (0,2,0), so with both marked `!important` this one would win and force a
+   fade on exactly the people who asked for none. */
+@media (prefers-reduced-motion: no-preference) {
+  /* The root itself as well as its descendants: `*` matches descendants only,
+     which left <html> on the base rule. Same duration and same colour
+     properties, so it looked identical — included for exactness. */
+  :root.theme-switching,
+  :root.theme-switching *,
+  :root.theme-switching ::before,
+  :root.theme-switching ::after {
+    transition-property: background-color, border-color, color, box-shadow, fill, stroke !important;
+    transition-duration: 0.15s !important;
+    transition-timing-function: cubic-bezier(0, 0, 0.2, 1) !important;
+    transition-delay: 0s !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,
