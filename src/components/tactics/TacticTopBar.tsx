@@ -5,12 +5,8 @@ import {
   Download,
   HelpCircle,
   Maximize,
-  PanelLeft,
-  PanelRight,
   Play,
   Redo2,
-  RectangleHorizontal,
-  RectangleVertical,
   Square,
   Undo2,
 } from 'lucide-react'
@@ -26,7 +22,12 @@ import {
 } from '../design/editor/EditorShell'
 
 // The tactics top bar (TACTICS_BOARD_REWORK_PLAN.md Stage 7.2): back, inline
-// name, squad and inspector toggles, Single/Dual, Portrait/Landscape, 2D/3D,
+// name, Single/Dual, 2D/3D,
+// The panel toggles went on 2026-08-30: on desktop both columns are always up
+// and below lg the dock already opens them, so the buttons only ever duplicated
+// something else. Portrait/Landscape went with them — a pitch preset carries
+// its own orientation, and the drill editor dropped the same control when the
+// presets were simplified.
 // and the save indicator. Add Ball moved to the tool row and the Timeline
 // toggle went with the timeline itself, into the right-hand panel (2026-08-30).
 //
@@ -36,10 +37,12 @@ import {
 // and the save state, all of which come from EditorShell.
 //
 // ── Two things that are deliberately not here ─────────────────────────────
-// ORIENTATION sits in this bar rather than buried in a pitch panel (decided
-// 2026-08-26): it is a framing control a coach reaches for while thinking, not
-// a setup step. It calls `setTacticOrientation`, which transposes the content
-// as well as the markings — see canvas/transposeScene.ts for why that matters.
+// ORIENTATION is gone (2026-08-30). It sat here from 2026-08-26 as a framing
+// control, but a pitch preset already carries the orientation it is meant to be
+// read in, and the drill editor dropped the same control when its presets were
+// simplified. `setTacticOrientation` is left in the store — it is the only
+// caller-facing way to transpose a board and costs nothing to keep — but
+// nothing calls it now; a board keeps whatever orientation it was saved with.
 //
 // ACTIONS is still absent as a MENU. Teloframe collects Export, Presentation
 // and Customize behind one; Stage 8 built the first two and Customize is
@@ -52,20 +55,12 @@ import {
 
 export function TacticTopBar({
   tactic,
-  squadOpen,
-  onToggleSquad,
-  inspectorOpen,
-  onToggleInspector,
   onEnterBoardOnly,
   onExport,
   onPresent,
   onReplayTour,
 }: {
   tactic: Tactic
-  squadOpen: boolean
-  onToggleSquad: () => void
-  inspectorOpen: boolean
-  onToggleInspector: () => void
   onEnterBoardOnly: () => void
   onExport: () => void
   onPresent: () => void
@@ -78,9 +73,7 @@ export function TacticTopBar({
   const canUndo = useStore((s) => s.canUndoTactic(tactic.id, 'timeline'))
   const canRedo = useStore((s) => s.canRedoTactic(tactic.id, 'timeline'))
   const setTacticView = useStore((s) => s.setTacticView)
-  const setTacticOrientation = useStore((s) => s.setTacticOrientation)
 
-  const landscape = tactic.pitch.orientation === 'landscape'
 
   return (
     // Scrolls sideways rather than wrapping. This bar carries more controls
@@ -103,29 +96,6 @@ export function TacticTopBar({
       />
 
       <SaveIndicator state={saveState} />
-
-      {/* Panel toggles. On desktop these collapse the columns; below lg they
-          open the sheets, which is what the dock does too. */}
-      <button
-        type="button"
-        onClick={onToggleSquad}
-        aria-pressed={squadOpen}
-        className={EDITOR_ICON_BUTTON + ' shrink-0'}
-        aria-label="Toggle the squad panel"
-        title="Squad panel"
-      >
-        <PanelLeft className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={onToggleInspector}
-        aria-pressed={inspectorOpen}
-        className={EDITOR_ICON_BUTTON + ' shrink-0'}
-        aria-label="Toggle the inspector"
-        title="Inspector"
-      >
-        <PanelRight className="h-4 w-4" />
-      </button>
 
       {/* Single / Dual (7.4) — a filter over entities by team, not two scenes. */}
       <div data-onboarding-anchor="tactic-view" className="flex shrink-0 items-center gap-0.5">
@@ -150,20 +120,6 @@ export function TacticTopBar({
           Dual
         </button>
       </div>
-
-      <button
-        type="button"
-        onClick={() => setTacticOrientation(tactic.id, landscape ? 'portrait' : 'landscape')}
-        className={EDITOR_TOGGLE_OFF + ' shrink-0'}
-        title="Flip the pitch — the players and drawings turn with it"
-      >
-        {landscape ? (
-          <RectangleHorizontal className="h-3.5 w-3.5" />
-        ) : (
-          <RectangleVertical className="h-3.5 w-3.5" />
-        )}
-        {landscape ? 'Landscape' : 'Portrait'}
-      </button>
 
       <button
         type="button"

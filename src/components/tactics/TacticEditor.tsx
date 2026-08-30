@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Pause, PanelRight, Play, Users } from 'lucide-react'
+import { Pause, PanelRight, Play, Wrench } from 'lucide-react'
 import type Konva from 'konva'
 import { useStore } from '../../store'
 import type { Marking, PhasePoint, Tactic } from '../../store'
@@ -477,10 +477,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
         <div className="flex flex-col gap-3 border-b border-line pb-3">
         <TacticTopBar
           tactic={tactic}
-          squadOpen={squadOpen}
-          onToggleSquad={() => setSquadOpen((v) => !v)}
-          inspectorOpen={inspectorOpen}
-          onToggleInspector={() => setInspectorOpen((v) => !v)}
           onEnterBoardOnly={() => setBoardOnly(true)}
           onExport={() => setExportOpen(true)}
           onPresent={() => setPresenting(true)}
@@ -503,7 +499,7 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
       maxPanelHeight={Math.max(260, viewportHeight - canvasTop - CANVAS_FOOTER)}
       dock={
         <>
-          <DockButton label="Squad" icon={<Users className="h-4 w-4" />} onClick={() => setSquadOpen(true)} />
+          <DockButton label="Tools" icon={<Wrench className="h-4 w-4" />} onClick={() => setSquadOpen(true)} />
           <button
             type="button"
             onClick={playback.togglePlay}
@@ -512,7 +508,7 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
           >
             {playback.playing ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
           </button>
-          <DockButton label="Tools" icon={<PanelRight className="h-4 w-4" />} onClick={() => setInspectorOpen(true)} />
+          <DockButton label="Inspector" icon={<PanelRight className="h-4 w-4" />} onClick={() => setInspectorOpen(true)} />
         </>
       }
       extras={
