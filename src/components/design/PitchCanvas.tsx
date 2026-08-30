@@ -848,11 +848,17 @@ export function PitchCanvas({
   if (showGrid && gridStepY > 0) for (let f = gridStepY; f < 1; f += gridStepY) gridRows.push(Number(f.toFixed(5)))
 
   const baseUnit = width / 100
-  const playerRadius = baseUnit * 3.5
+  // Markers were 3.5 base units of radius, which on a full pitch made each
+  // player about 7m across — ten times life size, and enough that a full
+  // 11-a-side board crowded and tokens touched. 2.7 keeps them comfortably
+  // tappable while letting a whole team sit on the pitch with space between
+  // the lines showing through. The number scales with them, or a font sized
+  // for the old circle would overflow the new one.
+  const playerRadius = baseUnit * 2.7
   const coneRadius = baseUnit * 2.4
   const ballRadius = baseUnit * 1.6
   const arrowStrokeWidth = Math.max(2, baseUnit * 0.8)
-  const numberFontSize = baseUnit * 3
+  const numberFontSize = baseUnit * 2.3
   const labelFontSize = baseUnit * 2.3
   const annotationFontSize = baseUnit * 2.4
   const haloWidth = Math.max(2, baseUnit * 0.6)
