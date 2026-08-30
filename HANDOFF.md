@@ -276,6 +276,43 @@ in.
 
 ---
 
+## Session log — Fixed the generic "Edge Function returned a non-2xx status code" on Add coach (2026-08-30)
+
+Reported from the new Coaches tab: adding a coach failed with that exact
+string and nothing more actionable. Reproduced directly against the live
+`create-coach` function with curl (bypassing the UI to rule out a client
+bug) — a fresh email succeeds, a duplicate one returns
+`{"error":"A user with this email address has already been registered"}` at
+HTTP 400. So the function was fine; the bug was in how `createCoach`
+(`clubSlice.ts`) read the response.
+
+**Root cause**: `supabase.functions.invoke` calls `.json()` on the response
+body only on the 2xx path. On non-2xx it throws a `FunctionsHttpError`
+whose `.message` is hardcoded to "Edge Function returned a non-2xx status
+code" — always that exact string, regardless of what the function actually
+returned — and leaves the real `{error: "..."}` body sitting unread on
+`error.context` (the raw `Response`). `createCoach` was reading
+`error.message`, so every failure showed the same generic line no matter
+its cause (duplicate email, a role check failing, anything else the
+function might one day report).
+
+**Fix**: new `resolveFunctionError` helper in `clubSlice.ts` — on a
+`FunctionsHttpError`, awaits `error.context.json()` and surfaces its
+`error` field; falls back to the generic message only if the body isn't
+JSON. `createCoach` calls it instead of reading `error.message` directly.
+
+Verified live: Add coach with an already-used email now shows "A user with
+this email address has already been registered" in the dialog; a fresh
+email still succeeds and closes the dialog. Three throwaway auth accounts
+created while reproducing this (diagnostic emails, no display name
+collisions with real coaches) had their `club_member` rows removed via
+SQL; the underlying `auth.users` rows are orphaned (no membership, invisible
+anywhere in the app) since deleting an auth user needs the service-role key,
+which no MCP tool here exposes — harmless, but worth knowing if a future
+`delete-coach` edge function's user list looks longer than the app shows.
+
+---
+
 ## Session log — Coaches tab (2026-08-30)
 
 Coaches moved out of Settings into its own **admin-only rail entry**,

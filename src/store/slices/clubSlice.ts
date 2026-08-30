@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction } from '../supabaseAction'
 import type { Club, ClubLicense, ClubMemberRow, ClubMembership, ClubRole, Collection, CollectionKind } from '../types'
@@ -36,6 +37,31 @@ interface ClubMemberJoinRow {
 // concern area, selectedClubId persisted to localStorage and reconciled
 // against the RLS-scoped membership list on every fetch.
 const SELECTED_CLUB_STORAGE_KEY = 'gaffer-selected-club'
+
+// `functions.invoke`'s error on a non-2xx response is always the same
+// generic FunctionsHttpError("Edge Function returned a non-2xx status
+// code") — the edge function's own `{error: "..."}` body (a duplicate
+// email, a role check failing) is unread on `error.context`, the raw
+// Response, because `invoke` only calls `.json()` on the SUCCESS path.
+// Reading it here is what turns "non-2xx status code" into the actual
+// reason a coach can act on.
+async function resolveFunctionError(
+  error: unknown,
+  data: { error?: string } | null,
+  fallback: string
+): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body: unknown = await error.context.json()
+      if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
+        return (body as { error: string }).error
+      }
+    } catch {
+      // Body wasn't JSON (a gateway error page, say) — fall through.
+    }
+  }
+  return (error as { message?: string } | null)?.message ?? data?.error ?? fallback
+}
 
 function readStoredClubId(): string | null {
   if (typeof window === 'undefined') return null
@@ -522,6 +548,14 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
 
   // functions.invoke is not Postgrest — direct call, error handled here
   // rather than through runSupabaseAction (which expects a PostgrestError).
+  //
+  // On a non-2xx response, supabase-js throws the body away and hands back a
+  // FunctionsHttpError whose `.message` is always the same generic "Edge
+  // Function returned a non-2xx status code" — the edge function's own
+  // `{error: "..."}` (a duplicate email, an admin check failure) is still
+  // sitting unread on `.context`, the raw Response. That generic string was
+  // literally the only thing a coach ever saw here; read the real body
+  // instead so the message says what actually went wrong.
   createCoach: async ({ email, password, displayName }) => {
     const clubId = get().selectedClubId
     if (!clubId) return null
@@ -530,7 +564,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       body: { club_id: clubId, email, password, display_name: displayName },
     })
     if (error || data?.error) {
-      set({ clubActionError: error?.message ?? data?.error ?? "Couldn't create coach, try again." })
+      set({ clubActionError: await resolveFunctionError(error, data, "Couldn't create coach, try again.") })
       return null
     }
     await get().fetchClubData()
