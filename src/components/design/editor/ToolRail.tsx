@@ -242,7 +242,12 @@ export function ToolRail(props: ToolRailProps) {
 // Dropped below the row on desktop; inline under the tool grid inside the
 // mobile drawer, where there's no row to anchor to and the sheet is already
 // the popover.
-function Panel({ layout, children }: { layout: 'topbar' | 'drawer'; children: ReactNode }) {
+//
+// Exported (with RailButton below) on 2026-08-30 so the tactics editor's own
+// tool row is the same chrome rather than a lookalike — the two editors have
+// different TOOLS, which is why they don't share a row component, but a button
+// and a dropdown should not drift apart between them.
+export function Panel({ layout, children }: { layout: 'topbar' | 'drawer'; children: ReactNode }) {
   if (layout === 'drawer') {
     return <div className="mt-3 rounded-lg border border-line bg-panel-raised p-3">{children}</div>
   }
@@ -288,7 +293,7 @@ function OptionList<T extends string>({
   )
 }
 
-function RailButton({
+export function RailButton({
   label,
   icon,
   active = false,

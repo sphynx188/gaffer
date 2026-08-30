@@ -19,6 +19,7 @@ import type {
   PhasePoint,
   PitchConfig,
   PitchOrientation,
+  SceneEntity,
   Tactic,
   TacticPhase,
   TacticSide,
@@ -332,7 +333,14 @@ export interface TacticSlice {
     side: 'home' | 'away',
     formationKey: string,
     slots: FormationSlot[],
-    keyframeId: string
+    keyframeId: string,
+    /**
+     * Create players for any slot the side can't currently fill, so picking a
+     * formation on an empty board puts a team on it. Off by default: the squad
+     * panel re-shapes whoever the coach already has, and a coach with seven
+     * players choosing 4-3-3 does not want four strangers appearing.
+     */
+    fillEmptySlots?: boolean
   ) => void
   setTacticView: (tacticId: string, view: 'single' | 'dual') => void
   setTacticPitch: (tacticId: string, pitch: PitchConfig) => void
@@ -929,14 +937,46 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
       }))
     },
 
-    applyTacticFormation: (tacticId, side, formationKey, slots, keyframeId) => {
+    applyTacticFormation: (tacticId, side, formationKey, slots, keyframeId, fillEmptySlots) => {
       commit(tacticId, 'timeline', (t) => {
         const keyframe = t.keyframes.find((k) => k.id === keyframeId)
         if (!keyframe) return t
         const onPitch = t.scene.entities.filter(
           (e) => e.kind === 'player' && e.team === side && !keyframe.states[e.id]?.hidden
         )
-        const assignments = assignToFormation(onPitch, keyframe.states, slots)
+        // Top the side up to the formation's size before assigning, so the
+        // slots that have nobody to fill them get someone. Built and placed
+        // inside this one reducer rather than through addTacticEntity per
+        // player: that would be one commit — and one undo step — each, so
+        // undoing "apply 4-3-3" on an empty board would take eleven presses.
+        let states = keyframe.states
+        if (fillEmptySlots && onPitch.length < slots.length) {
+          const missing = slots.slice(onPitch.length)
+          const created: SceneEntity[] = []
+          const placed: Record<string, EntityState> = {}
+          for (const slot of missing) {
+            // Each new player is numbered against the ones already built in
+            // this pass as well as those on the board, or they would all come
+            // out with the same squad number.
+            const withCreated = { ...t, scene: { ...t.scene, entities: [...t.scene.entities, ...created] } }
+            const entity = scene.buildEntity(withCreated, scene.generateId('player'), 'player', {
+              team: side,
+              role: slot.role,
+            })
+            created.push(entity)
+            placed[entity.id] = { x: slot.x, y: slot.y }
+          }
+          // Stood in EVERY keyframe, which is what addEntity does — an entity
+          // belongs to the document, not to one moment in it.
+          t = {
+            ...t,
+            scene: { ...t.scene, entities: [...t.scene.entities, ...created] },
+            keyframes: t.keyframes.map((k) => ({ ...k, states: { ...k.states, ...placed } })),
+          }
+          onPitch.push(...created)
+          states = { ...states, ...placed }
+        }
+        const assignments = assignToFormation(onPitch, states, slots)
         if (assignments.length === 0) {
           // Nothing to re-shape, but the coach still picked a formation and
           // expects the panel to show it.

@@ -162,57 +162,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
     const { playback } = props
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-ink-muted">Keyframes</p>
-          {playback && (
-            <button
-              type="button"
-              onClick={() => appendKeyframe(host, playback)}
-              title="Add the next keyframe, starting from where the last one left off"
-              className="flex h-7 items-center gap-1 rounded-md border border-dashed border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </button>
-          )}
-        </div>
-        {host.keyframes.length === 0 && (
-          <p className="text-xs text-ink-faint">No keyframes yet — add one above.</p>
-        )}
-        <ul className="space-y-1">
-          {[...host.keyframes]
-            .sort((a, b) => a.t - b.t)
-            .map((keyframe, index) => {
-              const here = Math.abs(keyframe.t - currentTime) < 0.05
-              return (
-                <li key={keyframe.id} className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => onSeek(keyframe.t)}
-                    className={
-                      'flex min-h-11 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ' +
-                      (here ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
-                    }
-                  >
-                    <span className="font-mono text-xs tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-                    <span className="flex-1 truncate">{keyframe.name ?? 'Keyframe'}</span>
-                  </button>
-                  {props.playback && host.keyframes.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => host.deleteKeyframe(keyframe.id)}
-                      title="Delete this keyframe"
-                      aria-label={`Delete keyframe ${index + 1}`}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-bad/10 hover:text-bad"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </li>
-              )
-            })}
-        </ul>
-
+        <KeyframeList host={host} playback={playback} currentTime={currentTime} onSeek={onSeek} />
         {playback && (
           <TimelineControls
             host={host}
@@ -531,7 +481,7 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
 // being split between this panel and a bar under the pitch. Presentational,
 // same as TimelineBar was — every action is a playback call or a callback
 // the caller passed in.
-function TimelineControls({
+export function TimelineControls({
   host,
   playback,
   onionSkin,
@@ -818,5 +768,82 @@ function Shell({
       </div>
       {children}
     </div>
+  )
+}
+
+/**
+ * The keyframe strip: one row per keyframe, plus the one-click Add.
+ *
+ * Extracted from the block above on 2026-08-30 so the tactics editor can show
+ * the identical list — its timeline moved off the bottom bar and into its
+ * right-hand panel, the same move the drill editor made. Nothing here knows
+ * which editor it is in: it reads the `TimelineHost` both already supply.
+ * `playback` is what gates Add and Delete, since neither means anything
+ * without a playhead to seed from.
+ */
+export function KeyframeList({
+  host,
+  playback,
+  currentTime,
+  onSeek,
+}: {
+  host: TimelineHost
+  playback?: TimelinePlayback
+  currentTime: number
+  onSeek: (seconds: number) => void
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-ink-muted">Keyframes</p>
+        {playback && (
+          <button
+            type="button"
+            onClick={() => appendKeyframe(host, playback)}
+            title="Add the next keyframe, starting from where the last one left off"
+            className="flex h-7 items-center gap-1 rounded-md border border-dashed border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </button>
+        )}
+      </div>
+      {host.keyframes.length === 0 && (
+        <p className="text-xs text-ink-faint">No keyframes yet — add one above.</p>
+      )}
+      <ul className="space-y-1">
+        {[...host.keyframes]
+          .sort((a, b) => a.t - b.t)
+          .map((keyframe, index) => {
+            const here = Math.abs(keyframe.t - currentTime) < 0.05
+            return (
+              <li key={keyframe.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onSeek(keyframe.t)}
+                  className={
+                    'flex min-h-11 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors ' +
+                    (here ? 'bg-accent/15 text-accent' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+                  }
+                >
+                  <span className="font-mono text-xs tabular-nums">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="flex-1 truncate">{keyframe.name ?? 'Keyframe'}</span>
+                </button>
+                {playback && host.keyframes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => host.deleteKeyframe(keyframe.id)}
+                    title="Delete this keyframe"
+                    aria-label={`Delete keyframe ${index + 1}`}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-bad/10 hover:text-bad"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
+            )
+          })}
+      </ul>
+    </>
   )
 }

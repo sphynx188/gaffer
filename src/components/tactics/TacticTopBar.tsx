@@ -1,7 +1,6 @@
 import {
   Box,
   ChevronLeft,
-  Circle,
   Columns2,
   Download,
   HelpCircle,
@@ -28,7 +27,8 @@ import {
 
 // The tactics top bar (TACTICS_BOARD_REWORK_PLAN.md Stage 7.2): back, inline
 // name, squad and inspector toggles, Single/Dual, Portrait/Landscape, 2D/3D,
-// Add Ball, Timeline, and the save indicator.
+// and the save indicator. Add Ball moved to the tool row and the Timeline
+// toggle went with the timeline itself, into the right-hand panel (2026-08-30).
 //
 // Its own component rather than a shared `EditorTopBar` with the drill's — the
 // plan is explicit that a shell forced over two different toolbars is worse
@@ -56,9 +56,6 @@ export function TacticTopBar({
   onToggleSquad,
   inspectorOpen,
   onToggleInspector,
-  timelineOpen,
-  onToggleTimeline,
-  onAddBall,
   onEnterBoardOnly,
   onExport,
   onPresent,
@@ -69,9 +66,6 @@ export function TacticTopBar({
   onToggleSquad: () => void
   inspectorOpen: boolean
   onToggleInspector: () => void
-  timelineOpen: boolean
-  onToggleTimeline: () => void
-  onAddBall: () => void
   onEnterBoardOnly: () => void
   onExport: () => void
   onPresent: () => void
@@ -169,27 +163,6 @@ export function TacticTopBar({
           <RectangleVertical className="h-3.5 w-3.5" />
         )}
         {landscape ? 'Landscape' : 'Portrait'}
-      </button>
-
-      <button
-        type="button"
-        data-onboarding-anchor="tactic-ball"
-        onClick={onAddBall}
-        className={EDITOR_TOGGLE_OFF + ' shrink-0'}
-        title="Add a ball to the board"
-      >
-        <Circle className="h-3.5 w-3.5" />
-        Ball
-      </button>
-
-      <button
-        type="button"
-        onClick={onToggleTimeline}
-        aria-pressed={timelineOpen}
-        className={(timelineOpen ? EDITOR_TOGGLE_ON : EDITOR_TOGGLE_OFF) + ' shrink-0'}
-        title="Open the timeline"
-      >
-        Timeline
       </button>
 
       <button

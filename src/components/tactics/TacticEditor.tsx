@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Pause, PanelRight, Play, Users } from 'lucide-react'
 import type Konva from 'konva'
 import { useStore } from '../../store'
@@ -14,13 +14,11 @@ import { markingToolSpec, type MarkingTool } from '../design/editor/markingTools
 import { useMarkingKeys } from '../design/editor/useMarkingKeys'
 import { motionPathsFor, trailFramesFor } from '../design/timeline/motion'
 import { onionFramesFor } from '../design/timeline/onionSkin'
-import { TimelineBar } from '../design/timeline/TimelineBar'
-import { TimelineEditor } from '../design/timeline/TimelineEditor'
 import { keyframeAt } from '../design/timeline/cursor'
-import { useKeyframeToggle } from '../design/timeline/useKeyframeToggle'
 import { useTimelinePlayback } from '../design/timeline/useTimelinePlayback'
-import { SquadPanel } from './SquadPanel'
 import { TacticInspector, type InspectorTab } from './TacticInspector'
+import { TacticToolRow, type TacticPanel } from './TacticToolRow'
+import { KeyframeList, TimelineControls } from '../design/editor/PropertiesPanel'
 import { TacticPresentation } from './TacticPresentation'
 import { TACTIC_TOUR_STEPS } from './tacticTourSteps'
 import { OnboardingTour } from '../design/editor/onboarding/OnboardingTour'
@@ -71,8 +69,8 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('tools')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [squadOpen, setSquadOpen] = useState(false)
+  const [rowPanel, setRowPanel] = useState<TacticPanel>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
-  const [timelineOpen, setTimelineOpen] = useState(false)
   const [boardOnly, setBoardOnly] = useState(false)
   const [presenting, setPresenting] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
@@ -83,8 +81,8 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const [pendingNote, setPendingNote] = useState<PhasePoint | null>(null)
   const [noteText, setNoteText] = useState('')
 
-  // Same reserve the drill editor keeps, so the docked timeline stays reachable
-  // without scrolling past a full-height canvas.
+  // Keeps the board inside the viewport without scrolling past a full-height
+  // canvas.
   const [viewportHeight, setViewportHeight] = useState(() =>
     typeof window === 'undefined' ? 800 : window.innerHeight
   )
@@ -99,6 +97,23 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   // differ, which is exactly what Stage 10.1's "reuse editor/onboarding/*"
   // asks for. Auto-opens once per browser, and the top bar's help icon
   // replays it after that.
+  // How much chrome sits above the canvas, measured rather than assumed —
+  // the same fix the drill editor got. The old hardcoded 260 budgeted for a
+  // docked timeline bar this editor no longer has: its controls moved into the
+  // right-hand panel on 2026-08-30, so that reserve was holding back height
+  // for a component that is no longer rendered.
+  const [canvasTop, setCanvasTop] = useState(260)
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = document.querySelector('[data-pitch-canvas]')
+      if (el) setCanvasTop(el.getBoundingClientRect().top + window.scrollY)
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+  const CANVAS_FOOTER = 24
+
   const tour = useOnboardingTour(TACTIC_TOUR_STEPS, TACTIC_TOUR_SEEN_KEY)
 
   // Below `lg` the squad and inspector are sheets, so a step whose anchor
@@ -138,7 +153,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     () => frameAt(tactic.scene, tactic.keyframes, playback.currentTime),
     [tactic.scene, tactic.keyframes, playback.currentTime]
   )
-  const keyframeToggle = useKeyframeToggle(host, frame, playback)
   const parkedKeyframe = keyframeAt(tactic.keyframes, playback.currentTime)
 
   // Single/Dual (7.4) is a FILTER OVER ENTITIES BY TEAM, not two scenes — the
@@ -310,11 +324,49 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     setSelectedIds([])
   }
 
-  const squad = keyframeId ? (
-    <SquadPanel tactic={tactic} keyframeId={keyframeId} side={side} onSideChange={setSide} />
-  ) : null
+  const toolRowProps = {
+    tactic,
+    keyframeId,
+    side,
+    onSideChange: setSide,
+    tool,
+    onToolChange: setTool,
+    marking,
+    onMarkingChange: (next: MarkingTool) => {
+      setMarking(next)
+      setTool(next === 'select' ? 'select' : 'marking')
+    },
+    panel: rowPanel,
+    onPanelChange: setRowPanel,
+    onAddBall: () => {
+      if (keyframeId) addTacticEntity(tactic.id, 'ball', { x: 0.5, y: 0.5 })
+    },
+  }
+  // The drawer copy is what the mobile sheet shows; the topbar copy sits above
+  // the canvas on desktop. Same split the drill editor uses.
+  const toolRowDrawer = <TacticToolRow layout="drawer" {...toolRowProps} />
+  const toolRowTopbar = <TacticToolRow layout="topbar" {...toolRowProps} />
 
   const inspector = (
+    <div className="space-y-3">
+      {/* The timeline moved off the bottom bar and into this panel on
+          2026-08-30, the same move the drill editor made — same KeyframeList
+          and TimelineControls, so the two editors' timelines are one
+          implementation rather than two that look alike. */}
+      <div data-onboarding-anchor="tactic-timeline" className="space-y-3">
+      <KeyframeList host={host} playback={playback} currentTime={playback.currentTime} onSeek={playback.seek} />
+      <TimelineControls
+        host={host}
+        playback={playback}
+        onionSkin={onionSkin}
+        onToggleOnionSkin={() => setOnionSkin((v) => !v)}
+        playerPaths={playerPaths}
+        onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
+        ghostTrails={ghostTrails}
+        onToggleGhostTrails={() => setGhostTrails((v) => !v)}
+      />
+      </div>
+      <div className="border-t border-line pt-3">
     <TacticInspector
       tactic={tactic}
       host={host}
@@ -334,6 +386,8 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
       onSeek={playback.seek}
       onRemoveSelection={() => removeSelection(selectedIds)}
     />
+      </div>
+    </div>
   )
 
   const canvas = (
@@ -346,8 +400,12 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
         onionFrames={onion}
         motionPaths={paths}
         trailFrames={trails}
-        maxWidth={720}
-        maxHeight={Math.max(260, viewportHeight - (boardOnly ? 120 : 260))}
+        maxWidth={1600}
+        maxHeight={Math.max(260, viewportHeight - (boardOnly ? 120 : canvasTop + CANVAS_FOOTER))}
+        // Matches the drill editor: the board fills its canvas rather than
+        // holding the pitch's real proportions, now that the squad column no
+        // longer takes a third of the width and there is width to fill.
+        fillCanvas
         editable
         onEntitiesMove={handleEntitiesMove}
         annotationMode={tool !== 'select'}
@@ -405,28 +463,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     </>
   )
 
-  const timeline = (
-    <>
-      <TimelineBar
-        playback={playback}
-        duration={tactic.duration_seconds}
-        keyframes={tactic.keyframes}
-        onionSkin={onionSkin}
-        onToggleOnionSkin={() => setOnionSkin((v) => !v)}
-        playerPaths={playerPaths}
-        onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
-        ghostTrails={ghostTrails}
-        onToggleGhostTrails={() => setGhostTrails((v) => !v)}
-        expanded={timelineOpen}
-        onToggleExpanded={() => setTimelineOpen((v) => !v)}
-        onToggleKeyframe={keyframeToggle.toggle}
-        onCopyKeyframe={parkedKeyframe ? () => host.copyKeyframe?.(parkedKeyframe.id) : undefined}
-        onPasteKeyframe={host.canPaste ? () => host.pasteKeyframe?.(playback.currentTime) : undefined}
-      />
-      {timelineOpen && <TimelineEditor host={host} playback={playback} frame={frame} />}
-    </>
-  )
-
   // Presentation (8.3) replaces the editor rather than covering it: one Konva
   // stage on screen, and `fixed inset-0` there escapes AppShell's nav rail,
   // which board-only can't do from inside the layout. Placed after every hook
@@ -438,34 +474,33 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
     <EditorLayout
       boardOnly={boardOnly}
       topBar={
+        <div className="flex flex-col gap-3 border-b border-line pb-3">
         <TacticTopBar
           tactic={tactic}
           squadOpen={squadOpen}
           onToggleSquad={() => setSquadOpen((v) => !v)}
           inspectorOpen={inspectorOpen}
           onToggleInspector={() => setInspectorOpen((v) => !v)}
-          timelineOpen={timelineOpen}
-          onToggleTimeline={() => setTimelineOpen((v) => !v)}
-          onAddBall={() => {
-            if (keyframeId) addTacticEntity(tactic.id, 'ball', { x: 0.5, y: 0.5 })
-          }}
           onEnterBoardOnly={() => setBoardOnly(true)}
           onExport={() => setExportOpen(true)}
           onPresent={() => setPresenting(true)}
           onReplayTour={tour.restart}
         />
+        <div className="hidden lg:block">{toolRowTopbar}</div>
+        </div>
       }
-      rail={squad}
+      rail={toolRowDrawer}
+      hideDesktopRail
       canvas={canvas}
       inspector={inspector}
-      timeline={timeline}
+      timeline={null}
       railOpen={squadOpen}
       onRailClose={() => setSquadOpen(false)}
-      railTitle="Squad"
+      railTitle="Tools"
       inspectorOpen={inspectorOpen}
       onInspectorClose={() => setInspectorOpen(false)}
       inspectorTitle="Inspector"
-      maxPanelHeight={Math.max(260, viewportHeight - 260)}
+      maxPanelHeight={Math.max(260, viewportHeight - canvasTop - CANVAS_FOOTER)}
       dock={
         <>
           <DockButton label="Squad" icon={<Users className="h-4 w-4" />} onClick={() => setSquadOpen(true)} />
