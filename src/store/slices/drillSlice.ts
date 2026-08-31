@@ -277,9 +277,16 @@ export interface DrillSlice {
   // clearing the timing of a drill isn't the same as emptying the pitch.
   clearKeyframes: (drillId: string) => void
 
-  // Spreads the existing keyframes evenly across `duration_seconds`, keeping
-  // their order.
-  balanceTiming: (drillId: string) => void
+  // Spreads the existing keyframes evenly, keeping their order — across the
+  // current duration with no argument, or at an exact `stepSeconds` gap
+  // (recomputing the duration to match) when one is given. See
+  // scene.balanceTiming's own comment.
+  balanceTiming: (drillId: string, stepSeconds?: number) => void
+
+  // Uniformly compresses (factor < 1) or stretches (factor > 1) every
+  // keyframe's own time — see scaleTiming's own comment for why this is a
+  // different thing from setDuration/balanceTiming.
+  scaleTiming: (drillId: string, factor: number) => void
 
   addMarking: (drillId: string, marking: Omit<Marking, 'id'>) => string | null
   updateMarking: (drillId: string, markingId: string, patch: Partial<Omit<Marking, 'id'>>) => void
@@ -845,8 +852,12 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       commit(drillId, (d) => scene.clearKeyframes(d))
     },
 
-    balanceTiming: (drillId) => {
-      commit(drillId, (d) => scene.balanceTiming(d))
+    balanceTiming: (drillId, stepSeconds) => {
+      commit(drillId, (d) => scene.balanceTiming(d, stepSeconds))
+    },
+
+    scaleTiming: (drillId, factor) => {
+      commit(drillId, (d) => scene.scaleTiming(d, factor))
     },
 
     addMarking: (drillId, marking) => {

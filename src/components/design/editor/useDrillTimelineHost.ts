@@ -20,6 +20,7 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
   const deleteKeyframe = useStore((s) => s.deleteKeyframe)
   const clearKeyframes = useStore((s) => s.clearKeyframes)
   const balanceTiming = useStore((s) => s.balanceTiming)
+  const scaleTiming = useStore((s) => s.scaleTiming)
   const setDuration = useStore((s) => s.setDuration)
 
   // Memoised on the drill's identity and the store actions, all of which are
@@ -38,7 +39,8 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
       moveKeyframe: (keyframeId, t) => moveKeyframe(drill.id, keyframeId, t),
       deleteKeyframe: (keyframeId) => deleteKeyframe(drill.id, keyframeId),
       clearKeyframes: () => clearKeyframes(drill.id),
-      balanceTiming: () => balanceTiming(drill.id),
+      balanceTiming: (stepSeconds) => balanceTiming(drill.id, stepSeconds),
+      scaleTiming: (factor) => scaleTiming(drill.id, factor),
       setDuration: (seconds) => setDuration(drill.id, seconds),
     }),
     [
@@ -55,6 +57,7 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
       deleteKeyframe,
       clearKeyframes,
       balanceTiming,
+      scaleTiming,
       setDuration,
     ]
   )

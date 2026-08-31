@@ -3,7 +3,6 @@ import {
   Highlighter,
   Minus,
   MousePointer2,
-  MoveUpRight,
   PenLine,
   Pentagon,
   Radius,
@@ -16,6 +15,7 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { DrawTool } from '../PitchCanvas'
+import { ArrowToolIcon } from './toolIcons'
 
 // The drawing tools. Stage 6.1 of TACTICS_BOARD_REWORK_PLAN.md takes the rail
 // to parity with Teloframe's, adding Arc, Shape, Multi, Spotlight and
@@ -64,8 +64,8 @@ interface ToolSpec {
 
 export const MARKING_TOOLS: ToolSpec[] = [
   { id: 'select', label: 'Select', icon: <MousePointer2 className="h-4 w-4" />, draw: null, hint: '', key: 'm' },
-  { id: 'arrow', label: 'Player run', icon: <MoveUpRight className="h-4 w-4" />, draw: 'arrow', hint: 'Drag across the pitch to draw a run', key: 'a' },
-  { id: 'pass', label: 'Pass', icon: <MoveUpRight className="h-4 w-4" />, draw: 'arrow', hint: 'Drag across the pitch to draw a pass' },
+  { id: 'arrow', label: 'Player run', icon: <ArrowToolIcon className="h-4 w-4" />, draw: 'arrow', hint: 'Drag across the pitch to draw a run', key: 'a' },
+  { id: 'pass', label: 'Pass', icon: <ArrowToolIcon dashed className="h-4 w-4" />, draw: 'arrow', hint: 'Drag across the pitch to draw a dashed pass' },
   { id: 'line', label: 'Line', icon: <Minus className="h-4 w-4" />, draw: 'line', hint: 'Drag across the pitch to draw a line', key: 'l' },
   { id: 'curve', label: 'Curved arrow', icon: <Spline className="h-4 w-4" />, draw: 'curve', hint: 'Tap each point of the curve, then tap the last one again to finish', key: 'v' },
   { id: 'arc', label: 'Arc', icon: <Radius className="h-4 w-4" />, draw: 'arc', hint: 'Drag between two points to bow an arc between them', key: 'n' },

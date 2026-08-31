@@ -262,18 +262,47 @@ export function clearKeyframes<T extends SceneDocument>(doc: T): T {
   }
 }
 
-// Spreads the existing keyframes evenly across `duration_seconds`, keeping
-// their order.
-export function balanceTiming<T extends SceneDocument>(doc: T): T {
+// Spreads the existing keyframes evenly, keeping their order. With no
+// `stepSeconds`, spacing is derived from the CURRENT `duration_seconds` (the
+// original behaviour — the tactics timeline bar's plain "Balance timing").
+// Given an explicit `stepSeconds` instead, every gap becomes exactly that —
+// duration_seconds is recomputed to match rather than left stale, since the
+// point of setting an explicit gap is the drill actually taking that long
+// per step, not just the keyframes moving inside an unrelated total. This is
+// what retimes an older drill onto a new default gap after the fact — see
+// APPEND_GAP_SECONDS (useKeyframeToggle.ts) and the Timeline tab's "Match
+// current spacing" button, 2026-08-31.
+export function balanceTiming<T extends SceneDocument>(doc: T, stepSeconds?: number): T {
   const count = doc.keyframes.length
   if (count === 0) return doc
-  const spacing = count === 1 ? 0 : doc.duration_seconds / (count - 1)
+  const spacing = stepSeconds ?? (count === 1 ? 0 : doc.duration_seconds / (count - 1))
+  const keyframes = sortKeyframes(doc.keyframes).map((keyframe, index) => ({
+    ...keyframe,
+    t: roundTime(index * spacing),
+  }))
   return {
     ...doc,
-    keyframes: sortKeyframes(doc.keyframes).map((keyframe, index) => ({
-      ...keyframe,
-      t: roundTime(index * spacing),
-    })),
+    keyframes,
+    duration_seconds: stepSeconds === undefined ? doc.duration_seconds : Math.max(1, Math.round(spacing * (count - 1))),
+  }
+}
+
+// Uniformly compresses or stretches every keyframe's own time by `factor`,
+// carrying `duration_seconds` along with them so the ratio between "when a
+// keyframe lands" and "how long the whole drill runs" never drifts — the
+// Timeline tab's Speed up/Slow down pair (2026-08-31) is this applied at a
+// fixed step each press. Unlike `setDuration`, which deliberately leaves
+// existing keyframes where they are when the clip shrinks (see its own
+// comment), moving every keyframe's time is the entire point here — that's
+// what makes the drill actually play faster or slower, not just changes how
+// much room sits around timing that stayed put.
+export function scaleTiming<T extends SceneDocument>(doc: T, factor: number): T {
+  if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return doc
+  if (doc.keyframes.length <= 1) return doc
+  return {
+    ...doc,
+    duration_seconds: Math.max(1, Math.round(doc.duration_seconds * factor)),
+    keyframes: doc.keyframes.map((keyframe) => ({ ...keyframe, t: roundTime(keyframe.t * factor) })),
   }
 }
 

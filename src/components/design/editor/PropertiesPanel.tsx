@@ -1,5 +1,8 @@
 import {
+  AlignHorizontalDistributeCenter,
   ChevronUp,
+  Clock,
+  FastForward,
   Footprints,
   Hash,
   Layers,
@@ -7,11 +10,13 @@ import {
   Play,
   Plus,
   Repeat,
+  Rewind,
   Route,
   SkipBack,
   SkipForward,
   Spline,
   Trash2,
+  Wrench,
 } from 'lucide-react'
 import type {
   BodyShape,
@@ -29,8 +34,9 @@ import { EquipmentIcon } from '../canvas/EquipmentShapes'
 import { EQUIPMENT } from '../pitchTheme'
 import { stepKeyframe } from '../timeline/cursor'
 import type { TimelineHost } from '../timeline/TimelineHost'
-import { appendKeyframe } from '../timeline/useKeyframeToggle'
+import { appendKeyframe, APPEND_GAP_SECONDS, MAX_KEYFRAMES } from '../timeline/useKeyframeToggle'
 import type { TimelinePlayback } from '../timeline/useTimelinePlayback'
+import { ToolsPanel, type ToolsPanelProps } from './ToolsPanel'
 
 // The right-hand panel (rework plan Stages 5.2 and 6.5): the drill's keyframes
 // when nothing is selected, and the selected thing's properties when something
@@ -40,6 +46,15 @@ import type { TimelinePlayback } from '../timeline/useTimelinePlayback'
 // and is the same all drill long, while their facing, body shape and drawn
 // route belong to the keyframe the playhead is parked on. The panel only
 // offers the second group when there is a keyframe to write it to.
+//
+// "Nothing selected" is now two tabs, not one view (2026-08-31): Tools (the
+// drag-and-drop placement palette, moved here from the top bar's tool rail —
+// see ToolsPanel.tsx) and Timeline (the keyframe list + playback controls
+// this panel has always shown). `panelTab` is controlled from the editor
+// rather than owned here, the same way `selectedIds`/`tool` already are —
+// the onboarding tour needs to force it to whichever tab a step's anchor
+// lives in before measuring, exactly as it already forces the mobile
+// sheets open via `openTools`/`openProperties`.
 
 interface PropertiesPanelProps {
   // Whichever document is being edited — see TimelineHost, which Stage 7.3
@@ -80,6 +95,17 @@ interface PropertiesPanelProps {
   onTogglePlayerPaths?: () => void
   ghostTrails?: boolean
   onToggleGhostTrails?: () => void
+
+  // The Tools/Timeline tab pair (2026-08-31), gated together with `playback`
+  // above and for the same reason: drill-only. TacticInspector's own call
+  // site leaves this undefined and keeps the plain read-only keyframe list
+  // it has always had — a tactics board has no equivalent of dragging a
+  // player/ball/equipment/marking onto the pitch from this panel, since
+  // SquadPanel already owns tactic player placement.
+  toolsTab?: ToolsPanelProps & {
+    panelTab: 'tools' | 'timeline'
+    onPanelTabChange: (tab: 'tools' | 'timeline') => void
+  }
 }
 
 const FIELD =
@@ -87,6 +113,12 @@ const FIELD =
 const ROW = 'flex min-h-11 flex-1 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors lg:min-h-9'
 const ON = 'border-accent bg-accent text-white'
 const OFF = 'border-line text-ink-muted hover:border-line-strong'
+
+// How much closer/further apart every keyframe moves per Speed up/Slow down
+// press (2026-08-31) — a moderate, repeatable nudge rather than a single
+// drastic jump, so a coach can feel their way to the right pace rather than
+// overshooting it. Exactly inverse so the two buttons undo each other.
+const TIMING_STEP = 0.9
 
 const KIND_LABEL: Record<SceneEntity['kind'], string> = { player: 'Player', ball: 'Ball', equipment: 'Equipment' }
 
@@ -159,21 +191,56 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
   }
 
   if (selectedIds.length === 0) {
-    const { playback } = props
+    const { playback, toolsTab } = props
+
+    // Tactics' call site (TacticInspector) passes neither — the plain
+    // read-only keyframe list this panel has always shown it.
+    if (!toolsTab) {
+      return (
+        <div className="space-y-3">
+          <KeyframeList host={host} playback={playback} currentTime={currentTime} onSeek={onSeek} />
+        </div>
+      )
+    }
+
+    const { panelTab, onPanelTabChange, ...toolsPanelProps } = toolsTab
     return (
       <div className="space-y-3">
-        <KeyframeList host={host} playback={playback} currentTime={currentTime} onSeek={onSeek} />
-        {playback && (
-          <TimelineControls
-            host={host}
-            playback={playback}
-            onionSkin={props.onionSkin}
-            onToggleOnionSkin={props.onToggleOnionSkin}
-            playerPaths={props.playerPaths}
-            onTogglePlayerPaths={props.onTogglePlayerPaths}
-            ghostTrails={props.ghostTrails}
-            onToggleGhostTrails={props.onToggleGhostTrails}
-          />
+        <div className="grid grid-cols-2 gap-1.5 border-b border-line pb-3" role="tablist">
+          <PanelTabButton
+            active={panelTab === 'tools'}
+            onClick={() => onPanelTabChange('tools')}
+            icon={<Wrench className="h-4 w-4" />}
+          >
+            Tools
+          </PanelTabButton>
+          <PanelTabButton
+            active={panelTab === 'timeline'}
+            onClick={() => onPanelTabChange('timeline')}
+            icon={<Clock className="h-4 w-4" />}
+          >
+            Timeline
+          </PanelTabButton>
+        </div>
+
+        {panelTab === 'tools' ? (
+          <ToolsPanel {...toolsPanelProps} />
+        ) : (
+          <div data-onboarding-anchor="timeline-bar">
+            <KeyframeList host={host} playback={playback} currentTime={currentTime} onSeek={onSeek} />
+            {playback && (
+              <TimelineControls
+                host={host}
+                playback={playback}
+                onionSkin={props.onionSkin}
+                onToggleOnionSkin={props.onToggleOnionSkin}
+                playerPaths={props.playerPaths}
+                onTogglePlayerPaths={props.onTogglePlayerPaths}
+                ghostTrails={props.ghostTrails}
+                onToggleGhostTrails={props.onToggleGhostTrails}
+              />
+            )}
+          </div>
         )}
       </div>
     )
@@ -561,6 +628,50 @@ export function TimelineControls({
         </button>
       </div>
 
+      {/* Retimes every keyframe together, not the preview-only speed cycle
+          above — see scaleTiming's own comment. Absent for tactics, which
+          don't get this capability (host.scaleTiming is optional). */}
+      {host.scaleTiming && (
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => host.scaleTiming?.(1 / TIMING_STEP)}
+            className={ROW + ' gap-1.5 ' + OFF}
+            title="Space every keyframe further apart"
+          >
+            <Rewind className="h-3.5 w-3.5" />
+            Slow down
+          </button>
+          <button
+            type="button"
+            onClick={() => host.scaleTiming?.(TIMING_STEP)}
+            className={ROW + ' gap-1.5 ' + OFF}
+            title="Pull every keyframe closer together"
+          >
+            <FastForward className="h-3.5 w-3.5" />
+            Speed up
+          </button>
+        </div>
+      )}
+
+      {/* A drill built before APPEND_GAP_SECONDS last changed keeps whatever
+          gap it was authored under — Speed up/Slow down nudge that gap by a
+          percentage, which never lands exactly on a specific target the way
+          this does. Re-spaces every keyframe at exactly today's default,
+          recomputing the total duration to match (scene.balanceTiming's own
+          comment). */}
+      {host.scaleTiming && host.keyframes.length > 1 && (
+        <button
+          type="button"
+          onClick={() => host.balanceTiming(APPEND_GAP_SECONDS)}
+          className={'w-full ' + ROW + ' gap-1.5 ' + OFF}
+          title={`Re-space every keyframe exactly ${APPEND_GAP_SECONDS}s apart`}
+        >
+          <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" />
+          Match current spacing ({APPEND_GAP_SECONDS}s)
+        </button>
+      )}
+
       <button
         type="button"
         onClick={() => onToggleOnionSkin?.()}
@@ -652,6 +763,36 @@ function PerKeyframe({ parked, children }: { parked: boolean; children: React.Re
     )
   }
   return <div className="space-y-3 border-t border-line pt-3">{children}</div>
+}
+
+// Same pill shape as the Library's Drills/Tactics tabs (LibraryLayout.tsx) —
+// one tab convention across the app rather than a lookalike invented here.
+function PanelTabButton({
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  icon: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={
+        'flex min-h-11 items-center justify-center gap-1.5 rounded-md text-sm font-semibold transition-colors lg:min-h-10 ' +
+        (active ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
+      }
+    >
+      {icon}
+      {children}
+    </button>
+  )
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -800,8 +941,13 @@ export function KeyframeList({
           <button
             type="button"
             onClick={() => appendKeyframe(host, playback)}
-            title="Add the next keyframe, starting from where the last one left off"
-            className="flex h-7 items-center gap-1 rounded-md border border-dashed border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+            disabled={host.keyframes.length >= MAX_KEYFRAMES}
+            title={
+              host.keyframes.length >= MAX_KEYFRAMES
+                ? `${MAX_KEYFRAMES} is the most a drill holds — delete one to add another`
+                : 'Add the next keyframe, starting from where the last one left off'
+            }
+            className="flex h-7 items-center gap-1 rounded-md border border-dashed border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink-muted"
           >
             <Plus className="h-3.5 w-3.5" />
             Add

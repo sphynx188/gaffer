@@ -44,7 +44,11 @@ export interface TimelineHost {
   moveKeyframe: (keyframeId: string, t: number) => void
   deleteKeyframe: (keyframeId: string) => void
   clearKeyframes: () => void
-  balanceTiming: () => void
+  // With no argument, spreads keyframes evenly across the CURRENT duration
+  // (the tactics timeline bar's plain "Balance timing"). With an explicit
+  // `stepSeconds`, every gap becomes exactly that instead, and the duration
+  // is recomputed to match — see scene.balanceTiming's own comment.
+  balanceTiming: (stepSeconds?: number) => void
   setDuration: (seconds: number) => void
 
   // ── Optional capabilities ───────────────────────────────────────────────
@@ -64,4 +68,13 @@ export interface TimelineHost {
   pasteKeyframe?: (t: number) => string | null
   /** Whether there is anything on the clipboard to paste. */
   canPaste?: boolean
+
+  // Absent on the tactic host the same way phases are absent on the drill
+  // one, just flipped (2026-08-31) — the Timeline tab's Speed up/Slow down
+  // pair is a drill-editor request, and `scene.scaleTiming` underneath it is
+  // domain-agnostic, but wiring a tactic call site nothing asks for yet
+  // would be speculative. Compresses (factor < 1) or stretches (factor > 1)
+  // every keyframe's own time — see scaleTiming's own comment for why
+  // that's a different thing from balanceTiming/setDuration.
+  scaleTiming?: (factor: number) => void
 }

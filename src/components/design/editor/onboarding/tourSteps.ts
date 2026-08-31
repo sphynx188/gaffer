@@ -33,6 +33,14 @@ export interface TourStep {
   placement: 'top' | 'bottom' | 'left' | 'right'
   openTools?: boolean
   openProperties?: boolean
+  // Which of the properties panel's Tools/Timeline tabs (2026-08-31) must be
+  // active for this step's anchor to exist at all — unlike openTools/
+  // openProperties, which only matter below `lg` (both sheets are always
+  // visible on desktop), the two tabs are mutually exclusive renders on
+  // EVERY viewport, so this is set regardless of breakpoint. Tactics-only
+  // and pitch/canvas/name steps leave it unset. Tactics has no such tabs at
+  // all — this field is drill-only.
+  panelTab?: 'tools' | 'timeline'
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -55,25 +63,28 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'player',
     anchor: 'tool-player',
     title: 'Add players',
-    body: 'Tap the pitch to place a player, or drag this straight onto it. Switch the team colour from the swatch below.',
-    placement: 'right',
-    openTools: true,
+    body: 'Tap a team colour to arm it, then tap the pitch to place — or skip the tap and drag the swatch straight onto it.',
+    placement: 'left',
+    openProperties: true,
+    panelTab: 'tools',
   },
   {
     id: 'equipment',
     anchor: 'tool-equipment',
     title: 'Cones, poles & goals',
-    body: 'Eleven pieces of kit live here, from a single cone to a full goal — tap to open the library and pick one.',
-    placement: 'right',
-    openTools: true,
+    body: 'Eleven pieces of kit live here, from a single cone to a full goal — tap one to arm it, or drag it straight onto the pitch.',
+    placement: 'left',
+    openProperties: true,
+    panelTab: 'tools',
   },
   {
     id: 'marking',
     anchor: 'tool-marking',
     title: 'Arrows & markings',
     body: 'Draw runs, passes, zones and notes on the pitch — everything from a straight arrow to a freehand note.',
-    placement: 'right',
-    openTools: true,
+    placement: 'left',
+    openProperties: true,
+    panelTab: 'tools',
   },
   {
     id: 'pitch-canvas',
@@ -91,11 +102,19 @@ export const TOUR_STEPS: TourStep[] = [
     openTools: true,
   },
   {
+    // This anchor was orphaned between the 2026-08-29 migration that moved
+    // the standalone timeline bar's controls into this panel and the
+    // 2026-08-31 tabs — nothing rendered `data-onboarding-anchor=
+    // "timeline-bar"` in between, so this step silently had nothing to
+    // measure. Fixed here rather than left for later: the Timeline tab this
+    // step is about is exactly the container that anchor now lives on.
     id: 'timeline',
     anchor: 'timeline-bar',
     title: 'Keyframes & playback',
     body: 'A drill is a timeline, not a single snapshot. Add a keyframe wherever the picture should change, then play it back to see it move.',
-    placement: 'top',
+    placement: 'left',
+    openProperties: true,
+    panelTab: 'timeline',
   },
   {
     id: 'properties',

@@ -84,6 +84,10 @@ export function useKeyframeToggle(
       host.updateKeyframeState(parked.id, captureKeyframeStates(host.scene, frame, parked.states))
       return
     }
+    // A new keyframe past the cap — see MAX_KEYFRAMES's own comment. The `K`
+    // shortcut has no button to disable, so this is the one place that has
+    // to actually refuse rather than just look unavailable.
+    if (host.keyframes.length >= MAX_KEYFRAMES) return
     // Hands the interpolated frame in rather than letting the store guess:
     // without it a keyframe added mid-segment would capture the previous
     // keyframe's positions and the document would visibly snap there.
@@ -93,9 +97,22 @@ export function useKeyframeToggle(
   return { parked, dirty, label: parked ? 'Update keyframe' : 'Add keyframe', toggle }
 }
 
-// The default spacing a one-click "next keyframe" lands at. Arbitrary but
-// reasonable — a coach retimes it same as any other keyframe afterward.
-const APPEND_GAP_SECONDS = 2
+// The default spacing a one-click "next keyframe" lands at — 1.5s per
+// keyframe (2026-08-31, was 2s). A coach retimes it same as any other
+// keyframe afterward if a specific segment needs to be longer or shorter.
+// Exported so the Timeline tab's "Match current spacing" button (retiming an
+// older drill built under the previous 2s default) always tracks whatever
+// this is currently set to, rather than a second copy of the same number.
+export const APPEND_GAP_SECONDS = 1.5
+
+// The keyframe cap (2026-08-31), paired with APPEND_GAP_SECONDS as one rule:
+// 1.5s per keyframe, at most 10 of them — so a drill tops out at 13.5s of
+// choreography, matching the short-animation-loop shape every drill in the
+// library was actually built as (see the 2026-08-31 retiming that brought
+// existing drills onto the same rule). Both entry points that can add a
+// keyframe — this button and the `K` shortcut in useKeyframeToggle above —
+// refuse past it rather than growing the list without bound.
+export const MAX_KEYFRAMES = 10
 
 /**
  * Always-available "add the next keyframe" — the first-phase-studio
@@ -111,6 +128,7 @@ const APPEND_GAP_SECONDS = 2
  * dragging works immediately.
  */
 export function appendKeyframe(host: TimelineHost, playback: TimelinePlayback): void {
+  if (host.keyframes.length >= MAX_KEYFRAMES) return
   const last = host.keyframes.reduce<Keyframe | null>(
     (latest, k) => (latest === null || k.t > latest.t ? k : latest),
     null

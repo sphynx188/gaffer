@@ -19,7 +19,8 @@ import { DrillDetailsDrawer } from './DrillDetailsDrawer'
 import { ExportPanel } from './ExportPanel'
 import { downloadBlob, downloadDataUrl } from '../export/exportFile'
 import { recordGif } from '../export/recordGif'
-import { ToolRail, type CanvasTool, type DragPlacement, type RailPanel } from './ToolRail'
+import { ToolRail, type CanvasTool, type RailPanel } from './ToolRail'
+import type { DragPlacement } from './ToolsPanel'
 import { markingToolSpec, type MarkingTool } from './markingTools'
 import { DockButton, EditorLayout, ExportDrawer } from './EditorShell'
 import { useMarkingKeys } from './useMarkingKeys'
@@ -78,6 +79,11 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   const [tool, setTool] = useState<CanvasTool>('select')
   const [panel, setPanel] = useState<RailPanel>(null)
+  // Which tab the properties panel shows when nothing is selected (2026-08-31)
+  // — Tools (the drag-and-drop palette) or Timeline (keyframes + playback).
+  // Defaults to Tools: a fresh or empty drill needs something placed before
+  // a keyframe means anything.
+  const [panelTab, setPanelTab] = useState<'tools' | 'timeline'>('tools')
   const [team, setTeam] = useState('A')
   const [equipment, setEquipment] = useState<EquipmentType>('cone')
   const [marking, setMarking] = useState<MarkingTool>('arrow')
@@ -113,8 +119,14 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // actually HIDE the desktop rail — the `!toolsOpen && rail` guard below
   // exists to swap it out for the drawer, not to layer both.
   useEffect(() => {
-    if (!tour.open || typeof window === 'undefined') return
-    if (window.innerWidth >= 1024) return
+    if (!tour.open) return
+    // Unlike the sheets below, which only matter on mobile, `panelTab` gates
+    // whether the anchor even exists in the DOM on EVERY viewport — the
+    // Tools and Timeline tabs are mutually exclusive renders, so a step
+    // anchored inside one has nothing to measure if the other happens to be
+    // active when the tour reaches it.
+    if (tour.step.panelTab) setPanelTab(tour.step.panelTab)
+    if (typeof window === 'undefined' || window.innerWidth >= 1024) return
     setToolsOpen(Boolean(tour.step.openTools))
     setPropsOpen(Boolean(tour.step.openProperties))
   }, [tour.open, tour.step])
@@ -512,24 +524,18 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   // Shared between the two ToolRail instances below — same tool/panel state,
   // just two different presentations of it (2026-08-29: topbar replaced the
   // old desktop rail; drawer still serves the mobile sheet unchanged).
+  // Player/Ball/Equipment/Markings/Team moved to the properties panel's
+  // Tools tab (2026-08-31, see toolsTabProps below) — this rail is left with
+  // mode and board-wide settings only.
   const railProps = {
     tool,
     onToolChange: setTool,
     panel,
     onPanelChange: setPanel,
-    team,
-    onTeamChange: setTeam,
-    equipment,
-    onEquipmentChange: setEquipment,
-    marking,
-    onMarkingChange: setMarking,
-    markingCount: drill.scene.markings.length,
-    onClearMarkings: clearMarkings,
     grid,
     onGridChange: setGrid,
     pitch: drill.pitch,
     onPitchChange: (next: PitchConfig) => setDrillPitch(drill.id, next),
-    onStartDrag: startDrag,
     onOpenDetails: () => {
       setToolsOpen(false)
       setDetailsOpen(true)
@@ -538,6 +544,22 @@ export function DrillEditor({ drill }: { drill: Drill }) {
 
   const rail = <ToolRail layout="drawer" {...railProps} />
   const railTopbar = <ToolRail layout="topbar" {...railProps} />
+
+  const toolsTabProps = {
+    panelTab,
+    onPanelTabChange: setPanelTab,
+    tool,
+    team,
+    onTeamChange: setTeam,
+    onToolChange: setTool,
+    equipment,
+    onEquipmentChange: setEquipment,
+    marking,
+    onMarkingChange: setMarking,
+    markingCount: drill.scene.markings.length,
+    onClearMarkings: clearMarkings,
+    onStartDrag: startDrag,
+  }
 
   const properties = (
     <PropertiesPanel
@@ -563,6 +585,7 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
       ghostTrails={ghostTrails}
       onToggleGhostTrails={() => setGhostTrails((v) => !v)}
+      toolsTab={toolsTabProps}
     />
   )
 
