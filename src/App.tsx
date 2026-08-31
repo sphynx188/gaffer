@@ -12,7 +12,6 @@ import { CreatePage } from './pages/CreatePage'
 import { LibraryLayout } from './pages/LibraryLayout'
 import { DrillLibraryPage } from './pages/DrillLibraryPage'
 import { TacticCreatePage } from './pages/TacticCreatePage'
-import { AdminLayout } from './pages/admin/AdminLayout'
 import { NotFoundPage } from './pages/NotFoundPage'
 
 // Split out of the main bundle (2026-08-30). These are the only screens that
@@ -30,8 +29,7 @@ const TacticViewPage = lazy(() => import('./pages/TacticViewPage').then((m) => (
 const SharedTacticPage = lazy(() => import('./pages/SharedTacticPage').then((m) => ({ default: m.SharedTacticPage })))
 const TacticsPage = lazy(() => import('./pages/TacticsPage').then((m) => ({ default: m.TacticsPage })))
 import { CoachesPage } from './pages/CoachesPage'
-import { TransferPage } from './pages/admin/TransferPage'
-import { LicensesPage } from './pages/admin/LicensesPage'
+import { SettingsPage } from './pages/admin/SettingsPage'
 
 // Redesign: routed with a persistent shell (src/layout/AppShell.tsx) that
 // swaps between a coach-level tab set (Dashboard/Teams/Calendar — cross-
@@ -187,21 +185,22 @@ function AuthedApp() {
         <Route path="tactics/new" element={<TacticCreatePage />} />
         <Route path="tactics/:tacticId/view" element={<TacticViewPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
-        {/* AdminLayout does its own role gate (redirects non-admins to /) —
+        {/* SettingsPage does its own role gate (redirects non-admins to /) —
             the route itself is open, same shape as every other page here.
             Relabeled /admin → /settings (2026-08-28) for the nav; the
             component/file names underneath stay "Admin*", internal only. */}
         {/* Coaches (2026-08-30): promoted out of Settings to its own
             admin-only rail entry — adding coaches and choosing what they can
             see is the admin's main job, not a setting. The page carries its
-            own role guard, same as AdminLayout; the old URL redirects. */}
+            own role guard, same as SettingsPage; the old URL redirects. */}
         <Route path="coaches" element={<CoachesPage />} />
         <Route path="settings/coaches" element={<Navigate to="/coaches" replace />} />
-        <Route path="settings" element={<AdminLayout />}>
-          <Route index element={<Navigate to="/settings/transfer" replace />} />
-          <Route path="transfer" element={<TransferPage />} />
-          <Route path="licenses" element={<LicensesPage />} />
-        </Route>
+        {/* Settings redesign (2026-08-30): one continuous page instead of a
+            route per tab (see SettingsPage's own comment) — the old
+            per-section routes redirect to the matching anchor. */}
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/transfer" element={<Navigate to="/settings#transfer" replace />} />
+        <Route path="settings/licenses" element={<Navigate to="/settings#licenses" replace />} />
         {/* Old /settings/collections and /library/collections (both
             short-lived) kept as redirects for any bookmark — collections
             management now lives inline on the Drills/Tactics tabs. */}

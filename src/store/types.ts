@@ -518,6 +518,7 @@ export interface Club {
   id: string
   name: string
   created_at: string
+  crest_url: string | null
 }
 
 // A club_member row joined with its club — what fetchMemberships returns.

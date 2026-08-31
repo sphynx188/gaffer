@@ -30,6 +30,7 @@ export function Dropdown({
   id,
   triggerClassName = '',
   emptyMessage = 'No results',
+  menuAlign = 'left',
 }: {
   value: string
   onChange: (value: string) => void
@@ -41,6 +42,13 @@ export function Dropdown({
   id?: string
   triggerClassName?: string
   emptyMessage?: string
+  // Popovers default to hanging off the trigger's left edge, which is
+  // correct for pickers with room to their right (team/status/pitch
+  // pickers, mid-content). A trigger sitting at the right edge of the
+  // viewport (the club switcher) needs the popover to grow leftward
+  // instead, or its min-w-56 pushes past the viewport and the whole page
+  // gains a horizontal scrollbar.
+  menuAlign?: 'left' | 'right'
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -97,7 +105,7 @@ export function Dropdown({
         <div
           role="listbox"
           aria-label={ariaLabel}
-          className="absolute left-0 top-full z-40 mt-1.5 w-full min-w-56 overflow-hidden rounded-md border border-line bg-panel shadow-xl"
+          className={`absolute top-full z-40 mt-1.5 w-full min-w-56 overflow-hidden rounded-md border border-line bg-panel shadow-xl ${menuAlign === 'right' ? 'right-0' : 'left-0'}`}
         >
           {showSearch && (
             <div className="relative border-b border-line">

@@ -276,6 +276,254 @@ in.
 
 ---
 
+## Session log — Home audit fixes (2026-08-30)
+
+Continuation of the session below. `/impeccable audit home tab` on the
+just-redesigned Home grid scored 18/20. Fixed both findings:
+- **`/impeccable harden`**: `BoardGrid.tsx`'s empty-content fallback
+  (`{frame ? <PitchCanvas/> : <Icon/>}`) could never actually trigger —
+  `useBoardPlayback` → `frameAt()` returns a non-null `{entities: [], ...}`
+  for a board with no keyframes, unlike `openingFrame()` (which
+  `LibraryItems.tsx` uses and which returns `null` for exactly this case,
+  specifically to avoid "a blank green rectangle" per its own comment).
+  Fixed by checking `frame.entities.length > 0` instead of frame
+  truthiness. Not currently visible with live data (queried the DB — no
+  zero-keyframe board exists in the test club right now) but a real,
+  latent defect that `homeBoards.ts`'s own `workedUp` ranking function
+  already anticipates as a real case.
+- **`/impeccable polish`**: the header's club-name `<h1>` had no
+  `truncate`/`min-w-0` next to the fixed-size crest — an unusually long
+  name would wrap instead of clipping. Added both; verified live by
+  renaming the test club to a 78-character name, confirming the ellipsis,
+  then renaming back to "My Club."
+
+---
+
+## Session log — Settings audit fixes, Home redesign, club crest (2026-08-30)
+
+Continuation of the session below (PRODUCT.md / critique / Settings redesign)
+— same day, same user, kept as its own entry since the work is a distinct
+phase, not more of the same task.
+
+**`/impeccable audit settings tab`** on the just-shipped Settings redesign
+scored 15/20. Fixed all four recommended items:
+- **`/impeccable optimize`**: `TransferPage`/`LicensesPage` each independently
+  called `fetchClubData()` on mount — harmless when they were separate
+  routed pages (only one ever mounted at a time), a real doubled 8-request
+  waterfall once the Settings redesign put both on one page. Hoisted the
+  call to `SettingsScreen`, confirmed via a live network trace (4→2 requests
+  in dev with React StrictMode's doubling, so 2→1 in production).
+- **`/impeccable clarify`**: `TransferPage`'s "Copy a collection" and
+  `LicensesPage`'s "Outgoing licenses"/"Incoming licenses" were `<h2>`s —
+  correct back when they were separate pages, wrong now that they're nested
+  under Settings' own `<h2>` sections. Demoted to `<h3>`.
+- **`/impeccable harden`**: "Your profile" showed "Unnamed coach" for a
+  moment before `clubMembers` loaded, since it has no data-fetch of its own
+  and depends on the same hoisted `fetchClubData()` — added a proper
+  skeleton loading state instead of a placeholder that could read as a real
+  (wrong) answer.
+- **`/impeccable adapt`**: the jump-nav moved the viewport on click but never
+  actual keyboard/screen-reader focus, since a `<section>` isn't natively
+  focusable. Added `tabIndex={-1}` + a `focusSection()` helper wired to both
+  nav clicks and the hash present on mount (covers the old
+  `/settings/transfer`/`/settings/licenses` redirects too) — verified via
+  `document.activeElement`, not just the visual scroll.
+
+**`/impeccable redesign the home tab`** — Mobbin-referenced again (Artlist's
+cinematic hero, Fabric's greeting+launchpad, Confluence/Arcade/Mural/Coda's
+various grid and shelf patterns). Rolled the surface-scope dice
+(`concept-seed.mjs`, key `70573527`) same as the Settings round; dealt
+greeting-launchpad as lead plus cinematic-hero and dense-grid. The user's
+actual answer named two specific dealt-hand references directly ("I like
+the designs of coda and mural") rather than picking a card — a user-pinned
+direction, which the process explicitly says beats the roll. Two follow-up
+clarifications resolved the tension between that reference (which uses
+several bright colors) and DESIGN.md's one-scarce-accent rule: **stay
+within one accent** (boldness from bigger/live-canvas tiles and motion, not
+new colors), and **drop the "continue" hero entirely** (flat, equal-weight
+grid, matching Mural's own recently-opened row exactly).
+
+Shipped: `BoardGrid.tsx` (new) replaces `HeroBoard.tsx` + `RecentRow.tsx`
+(both deleted) — a responsive grid where every tile plays its actual
+keyframe animation on hover/focus (`useBoardPlayback`, reused from the old
+hero) instead of sitting on a static opening frame, so only the hovered
+tile ever animates rather than a dozen looping canvases at once. Tiles
+stagger-fade in on mount (`@keyframes home-tile-in` in index.css, gated by
+Tailwind's `motion-safe:` variant rather than an explicit reduced-motion
+override). Also fixed in passing: the old header's date label sat as an
+uppercase kicker above the `<h1>` — a pattern the skill's craft-floor bans
+outright ("no brief earns it back") — merged into the subtitle line
+instead.
+
+**Verification note**: could not visually confirm the hover-preview's
+actual frame-by-frame motion in this session's browser automation tool —
+it reports `document.hidden = true` for the active tab regardless, which is
+exactly the condition `useBoardPlayback` uses to pause animation (battery
+reasoning, see the hook's own comment). Confirmed via a temporary debug
+marker that the hover state itself flips correctly and the code path is
+identical to the previously-working hero; the motion itself is untestable
+in this environment, not unconfirmed as broken. Worth a real click-through
+from the user at some point.
+
+**Club crest** (user request, not an `/impeccable` command): admin-uploaded,
+club-wide, shown in the app header (`AppShell`'s `ClubSwitcher`) and on
+Home. Migration `034_club_crest.sql` — `club.crest_url` (reuses 033's
+`club_admin_update` policy, which already covers the whole row) plus a new
+public `club-crests` storage bucket (2MB limit, png/jpeg/webp only,
+`<club id>.<ext>` upsert path, same shape as `drill-thumbnails` from
+017/019/028 — writes join back to `club_member` comparing the id as text
+rather than casting the object name to uuid, so a malformed name fails
+closed instead of erroring). `clubSlice.ts` gained `uploadClubCrest`/
+`removeClubCrest`; `Club.crest_url` threaded through `fetchMemberships`'
+existing embedded-club select, so both the header and Home read it from
+data already being fetched — no new fetch anywhere. Verified live end to
+end: uploaded a real PNG, confirmed it rendered in Settings/header/Home,
+removed it, confirmed the DB round-tripped to `null` and every surface fell
+back to the placeholder Shield glyph. One retry needed on the Remove
+button — the first click was a `find`-tool ref-click quirk (a bare `find`
++ ref click has now silently no-op'd twice this session, on the theme
+toggle earlier and here; a coordinate-based `left_click` worked both
+times), not a code defect — confirmed by checking `crest_url` in the
+database directly before and after.
+
+---
+
+## Session log — PRODUCT.md, whole-app critique + fixes, Settings redesign (2026-08-30)
+
+Same session as the `impeccable` install above, continued after a fresh
+session picked the skill back up.
+
+**`/impeccable init`** wrote `PRODUCT.md` (new file) — and it's a real
+pivot, not paperwork: the user confirmed Gaffer's target customer is now
+clubs/academies (B2B), with Technical Director/lead-coach admin roles
+sharing a drill/tactics library across a club's coaches, not a single solo
+coach. That directly conflicts with this file's own long-standing "single
+external user" framing above — recorded in `PRODUCT.md` as a known,
+currently-unresolved gap between product direction and what's actually
+built (still single-tenant per the club-tenancy work, which itself only
+partially closes that gap — see below).
+
+**`/impeccable critique`** ran a dual-subagent review (design review +
+detector/browser evidence) against the live app (test account). Scored
+28/40. Both agents independently discovered — one from `App.tsx`'s own
+comments, one from live 404 testing — that the team module (roster/
+sessions/attendance/calendar) is shelved and unrouted, with nothing in the
+UI telling a coach that happened; recorded as the report's P0 and
+deliberately NOT touched this session (confirmed with the user: the
+shelving is intentional, part of the club-tenancy pivot). Fixed everything
+else the report flagged, in the user's chosen order:
+- **`/impeccable typeset`**: `EditorShell.tsx`'s `DockButton` labels
+  10px→11px (below the legibility floor); `MarkingsPanel.tsx`'s kbd
+  shortcut badge `text-ink-faint`→`text-ink-muted` (4.27:1→5.08:1 contrast,
+  was failing AA — the exact risk this file's own "contrast traps" note
+  already named for `--color-ink-faint`).
+- **`/impeccable harden`**: `TacticDetails.tsx` now draws a live opening-
+  keyframe preview (same `openingFrame()` helper the Library tiles use)
+  instead of falling back to a bare Shield icon when `thumbnail_url` is
+  null — which is *every* seeded tactic, since the auto-capture-on-save
+  effect only fires after an edit in the editor, never on direct DB
+  inserts. Also added an `onError` fallback on every thumbnail `<img>`
+  (`LibraryItems.tsx`, `TacticDetails.tsx`) so a stale/404 stored thumbnail
+  falls through to the file glyph instead of the browser's broken-image icon.
+- **`/impeccable polish`**: `PitchCanvas.tsx`'s text-marking `Tag` grew
+  rightward from its anchor with no bound, so a note near the pitch's
+  right edge (e.g. "Right-back overlaps the winger in the build-up") ran
+  off the Stage and was cut mid-word by the canvas boundary itself — not
+  CSS overflow, a real edge case for a right-side annotation. Clamped the
+  render x the same way the player-label chip already estimates width;
+  confirmed the constant offset cancels out in `handleTransformEnd`'s
+  delta-transform math, so drag/move stays correct.
+- **`/impeccable layout`**: tactics-board player markers had no identity —
+  every one an unlabeled navy circle — because `PitchCanvas.tsx` only ever
+  read `player.number`, never the `roleTag`/`role` fields the type already
+  carries for exactly this ("short text drawn on the marker, e.g. 'RB'" per
+  `types.ts`'s own comment, never wired up). Added the fallback. Root cause
+  for why numbers were missing at all on real seeded tactics: entities were
+  bound to real roster `player_id`s (confirmed via direct SQL — not a
+  leftover from the shelved team module, `player_id` is the *current*
+  binding `SquadPanel.tsx` writes today) but never got `number` written,
+  since that only happens on the editor's bind flow, not on a raw DB
+  insert. Backfilled `number` from each bound player's `squad_number` on
+  the 2 affected tactics only (dry-run previewed first; correctly left the
+  untouched "(copy)" tactic and other clubs' tactics alone).
+
+**`/impeccable craft settings tab`** → a full Settings redesign, after
+clarifying scope twice (what "settings tab" meant; then that the mockup's
+"Club profile" example wasn't real yet). Ran the surface-scope concept-seed
+roll (`concept-seed.mjs --scope surface --mode operate`, key `e2790b5f`) —
+grounded in Mobbin references for Figma/Google Workspace/GitHub/Firecrawl/
+Kit settings patterns — dealt disclosure-rows, single-scroll, and sidebar-
+nav as the three options plus tabs (this project's own top pick, offered
+since the dice didn't deal it); user picked **single-scroll with anchors**
+(the Google Workspace pattern).
+
+Shipped:
+- Migration `033_club_settings.sql` — `club` had a SELECT policy only
+  (028); added an admin-only UPDATE policy for rename, and a `delete_club`
+  RPC. The RPC exists because `drill.club_id`/`tactic.club_id` are the
+  *only* two club-scoped FKs in the whole 027 migration without `on delete
+  cascade` (every other one — `club_member`, `collection`,
+  `club_license.target_club_id` — has it) — a bare `delete from club` would
+  FK-violate on any club with real content. `delete_club` explicitly
+  deletes tactic/drill rows first, admin-checked via the existing
+  `is_club_admin` helper, same shape as `create_club`'s bootstrap
+  privilege. `get_advisors` confirmed only the same already-accepted
+  anon-reachable-SECURITY-DEFINER warning shape every other RPC here
+  carries (safe: `is_club_admin` reads `auth.uid()`, which is null for
+  anon).
+- `clubSlice.ts`: `updateClubName` and `deleteClub` actions.
+- `src/pages/admin/SettingsPage.tsx` (new) replaces `AdminLayout.tsx`
+  (deleted) and its nested `/settings/transfer` + `/settings/licenses`
+  routes with one continuous page and a jump-nav — five sections: Your
+  profile (reuses the existing `updateCoach` action against your own user
+  id — no new backend needed), Club (rename), Transfer, Licenses (both
+  unchanged, just inlined as sections), Danger zone (delete club). Old
+  sub-routes now redirect to `/settings#transfer` / `/settings#licenses`.
+  Danger zone follows this app's established inline red-bordered
+  destructive-action styling, but — given the blast radius is an entire
+  club's data, not one player or one coach — added a type-the-club-name-to-
+  confirm gate inside a `Modal` (the Library's own dialog primitive), not
+  a new modal system.
+
+**Verified live** (test account, `zaougjiavbqdlgweidpc`): renamed self and
+the club, both persisted; tactics-board markers show jersey numbers;
+marking labels no longer clip in the Library grid, the Home "recently
+opened" row, or the Tactics editor; delete-club confirm button stays
+disabled until the typed name matches exactly (did **not** actually delete
+the club — that would destroy the real seeded test data). Build + lint +
+detector clean throughout (only the pre-existing `preserve-manual-
+memoization` warnings on `SessionPlanner.tsx`/`AttendancePage.tsx`, same
+as always).
+
+---
+
+## Session log — Installed the `impeccable` design-review skill (2026-08-30)
+
+`npx impeccable install` (v3.6.0, https://impeccable.style) added
+project-local Claude Code tooling — nothing app-related changed. Wrote
+`.claude/skills/impeccable/` (its reference playbooks and detector/live-edit
+scripts) and `.claude/settings.local.json` (two hooks: a fast anti-pattern
+check after every `Edit`/`Write` on a UI file, a deeper pass on session
+`Stop`). Neither is committed — both are untracked, same as this repo's
+other `.claude/` state.
+
+**Gotcha worth remembering**: a running session's list of callable skills is
+built once at session start from a scan of `.claude/skills/` /
+`~/.claude/skills/`. Installing a skill mid-session doesn't make it callable
+in *that* session — `node .claude/skills/impeccable/scripts/doctor.mjs` confirmed
+the install itself was structurally sound, but invoking the skill by name
+kept failing with "Unknown skill: impeccable" until a fresh session was
+opened. `/reload-skills` refreshes an interactive terminal's own registry,
+but doesn't reach into a separate already-running session (this was
+diagnosed from a background job, which is why the reload didn't apply here).
+If `impeccable` ever reports "Unknown skill" again, this is the first thing
+to check, before assuming the install broke.
+
+Next step for whoever opens the fresh session: run `/impeccable init` to
+generate its design context files.
+
+---
+
 ## Session log — Fixed the generic "Edge Function returned a non-2xx status code" on Add coach (2026-08-30)
 
 Reported from the new Coaches tab: adding a coach failed with that exact

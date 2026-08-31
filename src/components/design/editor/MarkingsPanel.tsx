@@ -43,7 +43,7 @@ export function MarkingsPanel({
           {tool.icon}
           <span className="flex-1">{tool.label}</span>
           {tool.key && (
-            <kbd className="rounded border border-line px-1 font-mono text-[10px] uppercase text-ink-faint">
+            <kbd className="rounded border border-line px-1 font-mono text-[10px] uppercase text-ink-muted">
               {tool.key}
             </kbd>
           )}

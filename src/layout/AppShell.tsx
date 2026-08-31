@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Sun, Users, X } from 'lucide-react'
+import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Shield, Sun, Users, X } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
 
 // Settings (Task 8, relabeled from "Admin" 2026-08-28): role-gated,
 // appended only for a club admin — /settings/* itself also redirects a
-// non-admin (AdminLayout's own guard), so this is belt-and-braces UI
+// non-admin (SettingsPage's own guard), so this is belt-and-braces UI
 // polish, not the actual access control.
 const SETTINGS_NAV_ITEM: NavItem = { to: '/settings', label: 'Settings', icon: Settings }
 // Coaches (2026-08-30): admin-only like Settings, but its own entry — who is
@@ -148,24 +148,61 @@ function ThemeToggleButton() {
 // Single-membership case renders static text rather than a disabled/no-op
 // picker — a coach with exactly one club has nothing to switch between,
 // and design.md's Dropdown convention is for real choices.
+// The crest badge (2026-08-30) — a small square, crest if the club has
+// uploaded one, a bare Shield glyph otherwise so the switcher never has an
+// empty gap where the mark should be. Kept as its own component and placed
+// beside Dropdown rather than inside it: Dropdown is a generic, several-
+// places-reuse component (team/status/pitch pickers elsewhere) that has no
+// business knowing what a crest is.
+// Bolder pass (2026-08-31): a Linear-style workspace switcher carries no
+// border or pill at all — boldness comes from a larger crest and full-
+// strength type weight sitting directly in the bar, with only a hover
+// highlight signalling it's interactive. Dropdown's trigger hardcodes its
+// own border/bg for its other callers (team/status/pitch pickers), so
+// those are stripped per-instance with `!` rather than touched at the
+// source — triggerClassName can't reliably out-order a hardcoded class of
+// the same property.
+function ClubCrestIcon({ crestUrl }: { crestUrl: string | null }) {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-panel-raised">
+      {crestUrl ? (
+        <img src={crestUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <Shield className="h-4 w-4 text-ink-faint" />
+      )}
+    </span>
+  )
+}
+
 function ClubSwitcher() {
   const memberships = useStore((s) => s.memberships)
   const selectedClubId = useStore((s) => s.selectedClubId)
   const selectClub = useStore((s) => s.selectClub)
 
   if (memberships.length === 0) return null
+  const selected = memberships.find((m) => m.club_id === selectedClubId) ?? memberships[0]
+
   if (memberships.length === 1) {
-    return <span className="truncate text-sm text-ink-muted">{memberships[0].club.name}</span>
+    return (
+      <span className="flex min-w-0 items-center gap-2">
+        <ClubCrestIcon crestUrl={selected.club.crest_url} />
+        <span className="truncate text-[15px] font-semibold text-ink">{selected.club.name}</span>
+      </span>
+    )
   }
   return (
-    <Dropdown
-      value={selectedClubId ?? ''}
-      onChange={selectClub}
-      options={memberships.map((m) => ({ value: m.club_id, label: m.club.name }))}
-      ariaLabel="Select club"
-      placeholder="Select club"
-      triggerClassName="max-w-40"
-    />
+    <span className="flex min-w-0 items-center gap-1.5">
+      <ClubCrestIcon crestUrl={selected.club.crest_url} />
+      <Dropdown
+        value={selectedClubId ?? ''}
+        onChange={selectClub}
+        options={memberships.map((m) => ({ value: m.club_id, label: m.club.name }))}
+        ariaLabel="Select club"
+        placeholder="Select club"
+        triggerClassName="min-h-8 gap-1 !border-0 !bg-transparent px-1.5 py-1 text-[15px] font-semibold max-w-36 hover:!bg-panel-raised"
+        menuAlign="right"
+      />
+    </span>
   )
 }
 

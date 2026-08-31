@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../../store'
 import { Card } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
@@ -8,6 +8,9 @@ import { Dropdown } from '../../components/ui/Dropdown'
 // administer, revoke; incoming: collections licensed to this club, with
 // the same per-coach dispersal toggles CollectionsPage uses for home
 // grants (collection_access serves both — one grant mechanism).
+//
+// Doesn't fetch its own data — see TransferPage's comment; SettingsPage
+// owns the one fetchClubData() call this and its sibling sections share.
 export function LicensesPage() {
   const selectedClubId = useStore((s) => s.selectedClubId)
   const memberships = useStore((s) => s.memberships)
@@ -19,15 +22,10 @@ export function LicensesPage() {
   const clubMembers = useStore((s) => s.clubMembers)
   const clubDataError = useStore((s) => s.clubDataError)
 
-  const fetchClubData = useStore((s) => s.fetchClubData)
   const grantLicense = useStore((s) => s.grantLicense)
   const revokeLicense = useStore((s) => s.revokeLicense)
   const grantCollectionAccess = useStore((s) => s.grantCollectionAccess)
   const revokeCollectionAccess = useStore((s) => s.revokeCollectionAccess)
-
-  useEffect(() => {
-    void fetchClubData()
-  }, [fetchClubData, selectedClubId])
 
   const [collectionId, setCollectionId] = useState('')
   const [targetClubId, setTargetClubId] = useState('')
@@ -69,7 +67,7 @@ export function LicensesPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <h2 className="mb-4 text-sm font-semibold text-ink">Outgoing licenses</h2>
+        <h3 className="mb-4 text-sm font-semibold text-ink">Outgoing licenses</h3>
         {otherAdminClubs.length === 0 ? (
           <p className="text-sm text-ink-muted">
             Licensing needs a second club you administer. Join or create one to grant licenses.
@@ -148,7 +146,7 @@ export function LicensesPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-4 text-sm font-semibold text-ink">Incoming licenses</h2>
+        <h3 className="mb-4 text-sm font-semibold text-ink">Incoming licenses</h3>
         {activeIncoming.length === 0 ? (
           <p className="text-sm text-ink-muted">No collections have been licensed to this club.</p>
         ) : (

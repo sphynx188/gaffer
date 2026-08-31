@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../../store'
 import { Card } from '../../components/ui/Card'
 import { Dropdown } from '../../components/ui/Dropdown'
@@ -6,19 +6,20 @@ import { Dropdown } from '../../components/ui/Dropdown'
 // Cross-club copy (spec §8) — pick a collection this club owns, pick
 // another club I administer, copy. copyCollectionToClub (clubSlice, Task 4)
 // calls copy_collection_to_club (migration 030) via runSupabaseAction.
+//
+// Doesn't fetch its own data (unlike its old routed-page self): SettingsPage
+// owns one fetchClubData() call for every section that reads club-wide data
+// (this, Licenses, and Your profile's clubMembers), now that all three mount
+// together instead of one at a time behind separate routes — see
+// SettingsPage's own comment for why that used to be two-per-load.
 export function TransferPage() {
   const selectedClubId = useStore((s) => s.selectedClubId)
   const memberships = useStore((s) => s.memberships)
   const collections = useStore((s) => s.collections)
   const clubDataLoading = useStore((s) => s.clubDataLoading)
   const clubDataError = useStore((s) => s.clubDataError)
-  const fetchClubData = useStore((s) => s.fetchClubData)
   const copyCollectionToClub = useStore((s) => s.copyCollectionToClub)
   const selectClub = useStore((s) => s.selectClub)
-
-  useEffect(() => {
-    void fetchClubData()
-  }, [fetchClubData, selectedClubId])
 
   const [collectionId, setCollectionId] = useState('')
   const [targetClubId, setTargetClubId] = useState('')
@@ -59,7 +60,7 @@ export function TransferPage() {
   return (
     <div className="space-y-4">
       <Card>
-        <h2 className="mb-4 text-sm font-semibold text-ink">Copy a collection</h2>
+        <h3 className="mb-4 text-sm font-semibold text-ink">Copy a collection</h3>
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-56">
             <label className="block text-xs font-medium text-ink-muted">Collection</label>

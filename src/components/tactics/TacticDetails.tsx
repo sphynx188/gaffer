@@ -1,17 +1,30 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Copy, Eye, FolderPlus, PenSquare, Shield, Trash2 } from 'lucide-react'
 import type { Tactic } from '../../store'
 import { DRILL_PHASE_OF_PLAY_LABELS } from '../../store'
 import { formationLabel } from './formationLabel'
 import { formatClock } from '../design/timeline/cursor'
+import { frameAt } from '../design/canvas/interpolate'
+import { PitchCanvas } from '../design/PitchCanvas'
+import { openingFrame } from '../library/openingFrame'
 import { DetailRow, DetailSection, DetailsPane } from '../library/DetailsPane'
 import { Badge } from '../ui/Badge'
 
 // The tactic half of the Library's details rail (2026-08-28). No animated
 // playback here, unlike DrillDetails: a tactic's phases are organisational
 // bands over the keyframe track rather than a drill's continuous movement,
-// and the board reads as a still. The thumbnail is the preview.
+// and the board reads as a still.
+//
+// The preview itself draws the opening keyframe live (matching the Library
+// tile fix, 2026-08-30) rather than depending on `thumbnail_url` alone: a
+// stored PNG is only captured after a first edit-and-save cycle in the
+// editor, so a tactic that was created and never reopened — exactly the
+// seeded-data case — had no thumbnail and fell back to a bare Shield glyph
+// with nothing board-like to look at. `thumbnail_url` stays as the fallback
+// for the rare case a document truly has no keyframes to draw.
+const CANVAS_WIDTH = 336
+
 export function TacticDetails({
   tactic,
   canEdit,
@@ -32,7 +45,9 @@ export function TacticDetails({
   onAddToCollection: () => void
 }) {
   const [duplicating, setDuplicating] = useState(false)
+  const [thumbnailFailed, setThumbnailFailed] = useState(false)
   const players = tactic.scene.entities.filter((e) => e.kind === 'player').length
+  const preview = useMemo(() => openingFrame(tactic, frameAt), [tactic])
 
   return (
     <DetailsPane
@@ -40,13 +55,24 @@ export function TacticDetails({
       subtitle={`${formationLabel(tactic.sides.home.formation)} v ${formationLabel(tactic.sides.away.formation)}`}
       onClose={onClose}
     >
-      <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-panel-raised">
-        {tactic.thumbnail_url ? (
-          <img src={tactic.thumbnail_url} alt={`${tactic.name} board`} className="h-full w-full object-cover" />
-        ) : (
+      {preview ? (
+        <div className="flex justify-center rounded-lg bg-panel-raised p-2">
+          <PitchCanvas pitch={preview.pitch} frame={preview.frame} maxWidth={CANVAS_WIDTH} />
+        </div>
+      ) : tactic.thumbnail_url && !thumbnailFailed ? (
+        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-panel-raised">
+          <img
+            src={tactic.thumbnail_url}
+            alt={`${tactic.name} board`}
+            className="h-full w-full object-cover"
+            onError={() => setThumbnailFailed(true)}
+          />
+        </div>
+      ) : (
+        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg bg-panel-raised">
           <Shield className="h-6 w-6 text-ink-faint" />
-        )}
-      </div>
+        </div>
+      )}
 
       {tactic.description && (
         <DetailSection label="Description">

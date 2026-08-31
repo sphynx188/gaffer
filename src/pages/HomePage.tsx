@@ -6,27 +6,32 @@ import { selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import { useRecentBoards } from '../hooks/useRecentBoards'
 import { PitchCanvas } from '../components/design/PitchCanvas'
+import type { RenderFrame } from '../components/design/canvas/interpolate'
 import { configFromPreset, PITCH_PRESETS } from '../components/design/canvas/pitchPresets'
 import { Skeleton } from '../components/ui/Skeleton'
-import { HeroBoard } from '../components/home/HeroBoard'
-import { RecentRow } from '../components/home/RecentRow'
+import { BoardGrid } from '../components/home/BoardGrid'
 import { CollectionShelves, type Shelf } from '../components/home/CollectionShelves'
 import { boardOpenPath, orderBoards, type HomeBoard } from '../components/home/homeBoards'
 
-// Club home (2026-08-28), rebuilt 2026-08-30 from a placeholder card into the
-// app's real front door. One job: put the coach back on the board they were
-// working on in a single tap. The rest of the page is the shape of the club's
-// library at a glance — the boards after that one, and the collections they
-// live in — with the two create actions in the header where a hand reaches
-// for them. No stat tiles: the numbers a coach might want are one sentence
-// under the club's name.
+// Club home, rebuilt 2026-08-28 → 2026-08-30 from a placeholder card into the
+// app's real front door, then redesigned again same day into a flat board
+// grid (Mural/Coda referenced, at the user's explicit request) in place of
+// the boxed hero + horizontal row that first redesign shipped. Dropping the
+// single "pick up where you left off" hero was a deliberate simplification,
+// not a downgrade the hero earned — a coach managing a whole club's boards
+// across several coaches is better served scanning several at once than
+// having exactly one enlarged. What every tile keeps from the hero it
+// replaces: it's still a live board, not a static thumbnail — see
+// BoardGrid's own comment for the hover-to-preview interaction that carries
+// that forward. No stat tiles: the numbers a coach might want are one
+// sentence under the club's name, same restraint as before.
 //
 // Data comes from the same three fetches the Library tabs make, keyed on
 // selectedClubId so switching clubs re-triggers them, exactly as those pages
 // do. Drafts (a /design auto-created drill nobody has edited) are filtered
 // the same way the Library filters them.
 
-const RECENT_ROW_LENGTH = 6
+const GRID_LENGTH = 8
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
@@ -93,14 +98,11 @@ export function HomePage() {
     ]
   }, [drills, tactics, isDrillDraft, selectedClubId, licensedDocIds])
   const { boards: ordered, recentCount } = useMemo(() => orderBoards(boards, recent), [boards, recent])
-  const hero = ordered[0] ?? null
-  const heroIsRecent = recentCount > 0
-  const rest = ordered.slice(1, 1 + RECENT_ROW_LENGTH)
-  // Only a row that is mostly real history gets called that.
-  const rowIsRecent = recentCount > 1
+  const grid = ordered.slice(0, GRID_LENGTH)
+  // Only a grid that is mostly real history gets called that.
+  const gridIsRecent = recentCount > 1
 
-  // Which collections a board is filed in, by name — for the hero's line and
-  // the tiles' captions.
+  // Which collections a board is filed in, by name — for the tiles' captions.
   const collectionNamesFor = (board: HomeBoard): string[] => {
     const map = board.kind === 'drill' ? collectionDrillIds : collectionTacticIds
     return collections
@@ -140,55 +142,54 @@ export function HomePage() {
   return (
     <div className="space-y-10">
       <header>
-        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-faint">{todayLabel()}</p>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-semibold tracking-[-0.02em] text-ink sm:text-4xl">{club?.name ?? 'Home'}</h1>
-            <p className="mt-2 text-sm tabular-nums text-ink-muted">{loading ? ' ' : facts}</p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <CreateLink to="/design" label="New drill" />
-            <CreateLink to="/tactics/new" label="New tactic" />
-          </div>
+        <div className="flex min-w-0 items-center gap-3">
+          {club?.crest_url && (
+            <img
+              src={club.crest_url}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-lg border border-line object-cover sm:h-14 sm:w-14"
+            />
+          )}
+          <h1 className="min-w-0 truncate text-3xl font-semibold tracking-[-0.02em] text-ink sm:text-4xl">
+            {club?.name ?? 'Home'}
+          </h1>
+        </div>
+        <p className="mt-2 text-sm tabular-nums text-ink-muted">{loading ? ' ' : `${todayLabel()} · ${facts}`}</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          <Link
+            to="/design"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+          >
+            <Plus className="h-4 w-4" />
+            New drill
+          </Link>
+          <CreateLink to="/tactics/new" label="New tactic" />
         </div>
       </header>
 
       {loading ? (
         <div aria-busy="true" className="space-y-4">
           <span className="sr-only">Loading…</span>
-          <Skeleton className="h-[440px] rounded-xl" />
-          <div className="flex gap-4">
-            <Skeleton className="h-40 w-[300px] rounded-xl" />
-            <Skeleton className="h-40 w-[300px] rounded-xl" />
-            <Skeleton className="h-40 w-[300px] rounded-xl" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: GRID_LENGTH }).map((_, i) => (
+              <Skeleton key={i} className="h-48 rounded-xl" />
+            ))}
           </div>
         </div>
-      ) : hero ? (
-        <>
-          <HeroBoard
-            board={hero}
-            openPath={openPath(hero)}
-            collectionNames={collectionNamesFor(hero)}
-            eyebrow={heroIsRecent ? 'Pick up where you left off' : 'From the library'}
-            playing
+      ) : grid.length > 0 ? (
+        <section aria-labelledby="home-boards-title">
+          <SectionHeading
+            id="home-boards-title"
+            title={gridIsRecent ? 'Recently opened' : 'From the library'}
+            to="/library/drills"
+            linkLabel="Library"
           />
-
-          {rest.length > 0 && (
-            <section aria-labelledby="home-recent-title">
-              <SectionHeading
-                id="home-recent-title"
-                title={rowIsRecent ? 'Recently opened' : 'More from the library'}
-                to="/library/drills"
-                linkLabel="Library"
-              />
-              <RecentRow
-                boards={rest}
-                openPath={openPath}
-                collectionNameFor={(board) => collectionNamesFor(board)[0] ?? null}
-              />
-            </section>
-          )}
-        </>
+          <BoardGrid
+            boards={grid}
+            openPath={openPath}
+            collectionNameFor={(board) => collectionNamesFor(board)[0] ?? null}
+          />
+        </section>
       ) : (
         <EmptyPitch />
       )}
@@ -232,36 +233,62 @@ function SectionHeading({ id, title, to, linkLabel }: { id: string; title: strin
   )
 }
 
-// A club with nothing in it yet: the empty pitch is the invitation. The
-// canvas's own "Nothing on the pitch yet." caption would say the same thing
-// twice under the heading, so it's hidden here and the heading says it.
+// A club with nothing in it yet. The previous version filled the whole
+// section width with one blank, edge-to-edge pitch (maxWidth 1400) — full
+// bleed and with nothing drawn on it, it read as a layout mistake rather
+// than an invitation. This keeps the same instinct (a real board, not a
+// stock illustration — PitchCanvas is the product's own primitive) but at a
+// size that's an accent next to the copy, not the whole page, and drawn
+// with a small rondo diagram rather than left blank — a working example of
+// what a drill actually looks like once built, per "show, don't tell."
+// `square_area` (a plain 20x20 box, no pitch lines) is picked deliberately
+// over a real pitch preset: a rondo is coached in a grid like this one, and
+// an unmarked square reads as a diagram rather than an odd, half-drawn
+// stadium pitch at this size.
+const RONDO_PITCH = configFromPreset(PITCH_PRESETS.find((p) => p.id === 'square_area') ?? PITCH_PRESETS[0])
+
+const RONDO_FRAME: RenderFrame = {
+  entities: [
+    { id: 'r-top', kind: 'player', team: 'A', x: 0.5, y: 0.12, facing: 90 },
+    { id: 'r-right', kind: 'player', team: 'A', x: 0.88, y: 0.5, facing: 180 },
+    { id: 'r-bottom', kind: 'player', team: 'A', x: 0.5, y: 0.88, facing: 270 },
+    { id: 'r-left', kind: 'player', team: 'A', x: 0.12, y: 0.5, facing: 0 },
+    { id: 'r-presser', kind: 'player', team: 'B', x: 0.5, y: 0.5, facing: 0 },
+  ],
+  markings: [
+    { id: 'r-pass', kind: 'arrow', points: [{ x: 0.5, y: 0.12 }, { x: 0.88, y: 0.5 }], style: { dash: true } },
+  ],
+}
+
 function EmptyPitch() {
-  const pitch = configFromPreset(PITCH_PRESETS[0])
   return (
     <section className="panel-edge overflow-hidden rounded-xl border border-line bg-panel">
-      <div className="[&_p]:hidden">
-        <PitchCanvas pitch={pitch} frame={{ entities: [], markings: [] }} maxWidth={1400} maxHeight={320} fillCanvas />
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line px-5 py-4">
-        <div>
-          <h2 className="text-base font-semibold text-ink">Nothing on the pitch yet</h2>
-          <p className="mt-0.5 text-sm text-ink-muted">Your first drill or tactic will show up here, ready to open.</p>
+      <div className="flex flex-col items-center gap-6 p-6 sm:flex-row sm:items-center sm:gap-8 sm:p-8">
+        <div className="w-40 shrink-0 overflow-hidden rounded-lg border border-line sm:w-48">
+          <PitchCanvas pitch={RONDO_PITCH} frame={RONDO_FRAME} maxWidth={192} />
         </div>
-        <div className="flex gap-2">
-          <Link
-            to="/design"
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-          >
-            <LibraryBig className="h-4 w-4" />
-            Design a drill
-          </Link>
-          <Link
-            to="/tactics/new"
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-line px-3.5 text-sm font-medium text-ink transition-colors hover:bg-panel-raised"
-          >
-            <Shield className="h-4 w-4" />
-            Build a tactic
-          </Link>
+        <div className="min-w-0 flex-1 text-center sm:text-left">
+          <h2 className="text-lg font-semibold text-ink">Your library starts here</h2>
+          <p className="mt-1.5 max-w-md text-sm text-ink-muted">
+            Design a drill or tactic and it'll show up on this page — ready to reuse, share with your coaching
+            staff, and build on next season.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+            <Link
+              to="/design"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            >
+              <LibraryBig className="h-4 w-4" />
+              Design a drill
+            </Link>
+            <Link
+              to="/tactics/new"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-line px-3.5 text-sm font-medium text-ink transition-colors hover:bg-panel-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            >
+              <Shield className="h-4 w-4" />
+              Build a tactic
+            </Link>
+          </div>
         </div>
       </div>
     </section>

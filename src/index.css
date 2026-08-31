@@ -267,3 +267,19 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Home's board grid (2026-08-30) — each tile fades and lifts in on mount,
+   staggered per tile via an inline animation-delay (see BoardGrid.tsx).
+   Referenced through Tailwind's `motion-safe:animate-[home-tile-in_...]`
+   utility rather than applied unconditionally, so a reduced-motion visitor
+   never has the class applied at all instead of running it at zero duration. */
+@keyframes home-tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

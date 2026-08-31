@@ -1,9 +1,16 @@
 import type { StateCreator } from 'zustand'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
-import { runSupabaseAction } from '../supabaseAction'
+import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
 import type { Club, ClubLicense, ClubMemberRow, ClubMembership, ClubRole, Collection, CollectionKind } from '../types'
 import type { StoreState } from '../useStore'
+
+const CREST_BUCKET = 'club-crests'
+const CREST_MIME_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+}
 
 export interface NewCoachInput {
   email: string
@@ -157,6 +164,11 @@ export interface ClubSlice {
   grantLicense: (collectionId: string, targetClubId: string) => Promise<boolean>
   revokeLicense: (licenseId: string) => Promise<boolean>
   copyCollectionToClub: (collectionId: string, targetClubId: string) => Promise<boolean>
+  // Settings redesign (2026-08-30) — both act on selectedClubId.
+  updateClubName: (name: string) => Promise<boolean>
+  deleteClub: () => Promise<boolean>
+  uploadClubCrest: (file: File) => Promise<boolean>
+  removeClubCrest: () => Promise<boolean>
 }
 
 // Derived helpers, not store fields — kept beside the slice they read
@@ -204,7 +216,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       () =>
         supabase
           .from('club_member')
-          .select('club_id, user_id, role, display_name, created_at, club:club_id (id, name, created_at)')
+          .select('club_id, user_id, role, display_name, created_at, club:club_id (id, name, created_at, crest_url)')
           .eq('user_id', userData.user.id)
           .order('created_at'),
       "Couldn't load your clubs, try again."
@@ -666,5 +678,118 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     )
     set({ clubDataLoading: false, clubDataError: error })
     return !error
+  },
+
+  // Settings redesign (2026-08-30, migration 033). Both act on
+  // selectedClubId — same "my club" scoping every other Settings action uses.
+  updateClubName: async (name) => {
+    const clubId = get().selectedClubId
+    if (!clubId) return false
+    set({ clubActionError: null })
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.from('club').update({ name }).eq('id', clubId),
+      "Couldn't rename club, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
+      return false
+    }
+    set((state) => ({
+      memberships: state.memberships.map((m) => (m.club_id === clubId ? { ...m, club: { ...m.club, name } } : m)),
+    }))
+    return true
+  },
+
+  // 033's delete_club RPC does the ordered delete (drill/tactic have no
+  // cascade on club_id, unlike everything else club-scoped); this just calls
+  // it and refreshes memberships, whose existing reconciliation in
+  // fetchMemberships already falls back to another club or null — the same
+  // path a stale selectedClubId takes today, not new logic for this case.
+  deleteClub: async () => {
+    const clubId = get().selectedClubId
+    if (!clubId) return false
+    set({ clubActionError: null })
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.rpc('delete_club', { cid: clubId }),
+      "Couldn't delete club, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
+      return false
+    }
+    await get().fetchMemberships()
+    return true
+  },
+
+  // Crest upload (2026-08-30). Object name is `<club id>.<ext>`, upserted on
+  // re-upload — same "one object per parent, overwrite in place" shape as
+  // drill/tactic thumbnails, and the same reason for the cache-busting query
+  // param on the stored URL: a stable path with upsert would otherwise keep
+  // showing the browser's cached copy of the old crest after a re-upload.
+  uploadClubCrest: async (file) => {
+    const clubId = get().selectedClubId
+    if (!clubId) return false
+    const ext = CREST_MIME_EXT[file.type]
+    if (!ext) {
+      set({ clubActionError: 'Crest must be a PNG, JPEG, or WebP image.' })
+      return false
+    }
+    set({ clubActionError: null })
+    const path = `${clubId}.${ext}`
+    const upload = async () => {
+      // Storage errors aren't PostgrestErrors, but they carry the same
+      // `message`, which is all runSupabaseAction reads — same cast
+      // uploadDrillThumbnail uses to funnel this through the one wrapper
+      // rather than opening a second path to Supabase (CLAUDE.md).
+      const result = await supabase.storage
+        .from(CREST_BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: true })
+      return result as unknown as SupabaseCallResult<{ path: string }>
+    }
+    const { error: uploadError } = await runSupabaseAction(upload, "Couldn't upload the crest, try again.")
+    if (uploadError) {
+      set({ clubActionError: uploadError })
+      return false
+    }
+    const { data: publicData } = supabase.storage.from(CREST_BUCKET).getPublicUrl(path)
+    const url = `${publicData.publicUrl}?v=${Date.now()}`
+    const { error: updateError } = await runSupabaseAction<null>(
+      () => supabase.from('club').update({ crest_url: url }).eq('id', clubId),
+      "Couldn't save the crest, try again."
+    )
+    if (updateError) {
+      set({ clubActionError: updateError })
+      return false
+    }
+    set((state) => ({
+      memberships: state.memberships.map((m) =>
+        m.club_id === clubId ? { ...m, club: { ...m.club, crest_url: url } } : m
+      ),
+    }))
+    return true
+  },
+
+  removeClubCrest: async () => {
+    const clubId = get().selectedClubId
+    if (!clubId) return false
+    set({ clubActionError: null })
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.from('club').update({ crest_url: null }).eq('id', clubId),
+      "Couldn't remove the crest, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
+      return false
+    }
+    // The storage object itself is left in place, same as a drill/tactic
+    // deletion leaves its old thumbnail behind (drillSlice.deleteDrill) —
+    // an orphaned file under a upsert-only path, harmless and consistent
+    // with the rest of the app rather than a special case here.
+    set((state) => ({
+      memberships: state.memberships.map((m) =>
+        m.club_id === clubId ? { ...m, club: { ...m.club, crest_url: null } } : m
+      ),
+    }))
+    return true
   },
 })

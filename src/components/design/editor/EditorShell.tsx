@@ -210,7 +210,7 @@ export function DockButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex h-11 min-w-16 flex-col items-center justify-center gap-0.5 rounded-full px-3 text-[10px] font-medium text-ink-muted"
+      className="flex h-11 min-w-16 flex-col items-center justify-center gap-0.5 rounded-full px-3 text-[11px] font-medium text-ink-muted"
     >
       {icon}
       {label}

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ComponentType, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Checkbox } from './Checkbox'
@@ -129,7 +130,13 @@ function ItemThumb({
   // 192px-tall tile around a 203px-tall canvas). Dropping the ratio lets the
   // tile take the canvas's height instead, so every board is fully visible and
   // all tiles line up at the same height regardless of column width.
+  // A stored thumbnail can 404 (a stale URL, a deleted storage object) —
+  // without this, a broken `<img>` renders the browser's own broken-image
+  // icon instead of falling through to the file glyph like a missing
+  // thumbnail does.
+  const [thumbnailFailed, setThumbnailFailed] = useState(false)
   const showLive = !!item.preview
+  const showThumbnail = !showLive && !!item.thumbnailUrl && !thumbnailFailed
   const box = showLive ? className.replace('aspect-video', '') : className
   return (
     <span className={`flex shrink-0 items-center justify-center overflow-hidden rounded bg-panel-raised ${box}`}>
@@ -141,8 +148,13 @@ function ItemThumb({
           maxHeight={THUMB_HEIGHT}
           fillCanvas
         />
-      ) : item.thumbnailUrl ? (
-        <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+      ) : showThumbnail ? (
+        <img
+          src={item.thumbnailUrl!}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setThumbnailFailed(true)}
+        />
       ) : (
         <item.icon className={`text-ink-faint ${iconClassName}`} />
       )}

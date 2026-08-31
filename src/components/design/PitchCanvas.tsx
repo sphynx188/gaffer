@@ -1402,9 +1402,20 @@ export function PitchCanvas({
               // for a projector; compact keeps the number but drops the name
               // chip that standard shows underneath.
               const radius = display === 'dot' ? playerRadius * 0.55 : display === 'presentation' ? playerRadius * 1.3 : playerRadius
-              const showNumber = display !== 'dot' && player.number != null
+              // A tactic's slots usually outnumber a real roster (an 11-a-side
+              // board with a 3-player test squad, or any club that hasn't
+              // filled every position) — most markers have no bound player_id
+              // and so no `number`. Falling back to roleTag, then the
+              // formation `role` itself (already the short 'RB'/'CDM'/'ST'
+              // form `roleTag`'s own doc comment describes), means a marker
+              // still says WHO plays there even with nobody bound to it yet,
+              // instead of reading as an anonymous dot indistinguishable from
+              // every other one on the board.
+              const markerText = player.number != null ? String(player.number) : (player.roleTag ?? player.role ?? null)
+              const showNumber = display !== 'dot' && markerText != null
               const showLabel = display === 'standard' || display === 'presentation'
-              const fontSize = display === 'presentation' ? numberFontSize * 1.3 : numberFontSize
+              const numberIsText = player.number == null && markerText != null
+              const fontSize = (display === 'presentation' ? numberFontSize * 1.3 : numberFontSize) * (numberIsText && markerText.length > 2 ? 0.72 : 1)
               const chipFontSize = display === 'presentation' ? labelFontSize * 1.3 : labelFontSize
               // The dot, number and label chip drag together as one unit, so
               // the Group carries the absolute position and every child is
@@ -1437,7 +1448,7 @@ export function PitchCanvas({
                   />
                   {showNumber && (
                     <Text
-                      text={String(player.number)}
+                      text={markerText ?? ''}
                       x={-radius}
                       y={-fontSize / 2}
                       width={radius * 2}
@@ -1464,15 +1475,27 @@ export function PitchCanvas({
             {textMarkings.map((note) => {
               if (note.points.length === 0) return null
               const p = toPx(note.points[0])
+              const text = note.text ?? ''
+              // The Tag always grows rightward from its anchor and Konva can't
+              // measure real text width without a mounted canvas context (same
+              // constraint as the player-label chip above), so a note anchored
+              // near the pitch's right edge — a common spot for a wide-channel
+              // or overlap annotation — had its tag run straight off the Stage
+              // and get cut mid-word by the canvas boundary itself, not CSS
+              // overflow. Estimate the width the same way and pull the anchor
+              // left just enough to keep the whole tag on-canvas.
+              const estimatedWidth = text.length * annotationFontSize * 0.6 + 8
+              const margin = 4
+              const labelX = Math.max(margin, Math.min(p.x, width - margin - estimatedWidth))
               return (
-                <Label key={note.id} x={p.x} y={p.y} {...markingHandlers(note.id)}>
+                <Label key={note.id} x={labelX} y={p.y} {...markingHandlers(note.id)}>
                   <Tag
                     fill={ANNOTATION.background}
                     stroke={isSelected(note.id) ? SELECTION.halo : ANNOTATION.border}
                     strokeWidth={isSelected(note.id) ? haloWidth : 1}
                     cornerRadius={4}
                   />
-                  <Text text={note.text ?? ''} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
+                  <Text text={text} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
                 </Label>
               )
             })}
