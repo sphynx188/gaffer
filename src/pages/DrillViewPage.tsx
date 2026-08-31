@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Copy, LibraryBig } from 'lucide-react'
 import { useStore } from '../store'
+import { isLicensedDoc } from '../store/slices/clubSlice'
 import { SharedDrill } from './SharedDrillPage'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -16,6 +17,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 export function DrillViewPage() {
   const { drillId } = useParams<{ drillId: string }>()
   const navigate = useNavigate()
+  const selectedClubId = useStore((s) => s.selectedClubId)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const fetchDrills = useStore((s) => s.fetchDrills)
@@ -61,15 +63,19 @@ export function DrillViewPage() {
           ← Back to the drill library
         </Link>
         <SharedDrill drill={drill} />
-        <button
-          type="button"
-          onClick={handleDuplicate}
-          disabled={duplicating}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {duplicating ? 'Duplicating…' : 'Duplicate to my drills'}
-        </button>
+        {isLicensedDoc(drill, selectedClubId) ? (
+          <p className="text-center text-xs text-ink-faint">Licensed to your club — view only.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {duplicating ? 'Duplicating…' : 'Duplicate to my drills'}
+          </button>
+        )}
       </div>
     </div>
   )

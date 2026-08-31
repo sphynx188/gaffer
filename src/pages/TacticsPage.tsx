@@ -14,7 +14,7 @@ import {
   UserCog,
 } from 'lucide-react'
 import { useStore } from '../store'
-import { selectMyRole } from '../store/slices/clubSlice'
+import { isLicensedDoc, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import type { DrillPhaseOfPlay, Tactic } from '../store'
 import { DRILL_PHASES_OF_PLAY, DRILL_PHASE_OF_PLAY_LABELS } from '../store'
@@ -223,8 +223,11 @@ export function TacticsPage() {
 
   const activeTactic = activeId ? (tactics.find((t) => t.id === activeId) ?? null) : null
 
+  // club_id === selectedClubId is a hard precondition — see clubSlice's
+  // canEditDoc comment for why: without it, a tactic you created stays
+  // "yours to edit" even from a club it's merely licensed into.
   const canEdit = (tactic: Tactic) =>
-    (isAdmin && tactic.club_id === selectedClubId) || tactic.created_by === myUserId
+    tactic.club_id === selectedClubId && (isAdmin || tactic.created_by === myUserId)
 
   // Only this club's own tactic-kind collections — collection_tactic's RLS
   // checks collection.kind = 'tactic' since migration 032, and requires
@@ -301,8 +304,12 @@ export function TacticsPage() {
         onSelect: () => openTactic(tactic.id),
       },
       { key: 'details', label: 'Details', icon: Info, onSelect: () => handleActivate(tactic.id) },
-      { key: 'duplicate', label: 'Duplicate', icon: Copy, onSelect: () => void handleDuplicate(tactic.id) },
     ]
+    // Licensed-in is view-only — no duplicating another club's tactic into
+    // ours. A same-club tactic a plain coach doesn't own stays duplicable.
+    if (!isLicensedDoc(tactic, selectedClubId)) {
+      items.push({ key: 'duplicate', label: 'Duplicate', icon: Copy, onSelect: () => void handleDuplicate(tactic.id) })
+    }
     if (editable) {
       items.push({
         key: 'rename',
@@ -436,6 +443,7 @@ export function TacticsPage() {
               key={activeTactic.id}
               tactic={activeTactic}
               canEdit={canEdit(activeTactic)}
+              canDuplicate={!isLicensedDoc(activeTactic, selectedClubId)}
               canFile={isAdmin}
               collectionNames={collectionNamesFor(activeTactic.id)}
               onClose={() => setActiveId(null)}
@@ -683,7 +691,11 @@ function TacticFilters({
         {count > 0 && <span className="text-xs">({count})</span>}
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-line bg-panel p-3 shadow-xl">
+        // Right-aligned — same overflow this trigger shares with DrillLibrary's
+        // DrillFilters (both sit toward the right end of the toolbar): see
+        // that component's comment for why `left-0` pushed the popover past
+        // the viewport edge and forced a page-wide horizontal scrollbar.
+        <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-line bg-panel p-3 shadow-xl">
           <label className="block text-xs font-medium text-ink-muted">Phase of play</label>
           <div className="mt-1">
             <Dropdown

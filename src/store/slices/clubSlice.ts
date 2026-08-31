@@ -176,11 +176,34 @@ export interface ClubSlice {
 export const selectMyRole = (s: StoreState): ClubRole | null =>
   s.memberships.find((m) => m.club_id === s.selectedClubId)?.role ?? null
 
+// The `doc.created_by === userId` half used to apply with no club_id
+// check at all, which is fine for the common case (a coach only ever
+// belongs to the club they authored something in) but wrong for a coach
+// who administers more than one: creating a drill in Club A and later
+// licensing it into Club B they also belong to made it stay fully
+// editable — and exportable, see the editor/card route guards — from
+// Club B's side purely because they happened to be its author, which
+// defeats the whole point of licensing being a VIEW grant. Requiring
+// `doc.club_id === s.selectedClubId` up front closes that: editing a doc
+// is only ever possible from ITS OWN home club's context, never from a
+// club it's merely licensed into, whoever wrote it.
 export const canEditDoc = (
   s: StoreState,
   doc: { club_id: string; created_by: string },
   userId: string | null
-): boolean => (selectMyRole(s) === 'admin' && doc.club_id === s.selectedClubId) || doc.created_by === userId
+): boolean =>
+  doc.club_id === s.selectedClubId && (selectMyRole(s) === 'admin' || doc.created_by === userId)
+
+// A drill/tactic is only ever visible for one of two reasons (the same
+// `inScope` every library/home fetch applies): it's owned by the selected
+// club, or it's licensed IN from another club. So among visible docs,
+// "not owned by us" and "licensed to us" are the same thing, which is
+// exactly the precondition `canEditDoc` above now gates on first — this
+// is that same test, standalone and callable inline (no full-state
+// subscription) for callers that only need the licensing question, not
+// the fuller edit-rights one.
+export const isLicensedDoc = (doc: { club_id: string }, selectedClubId: string | null): boolean =>
+  doc.club_id !== selectedClubId
 
 export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set, get) => ({
   memberships: [],
@@ -583,12 +606,18 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     return data.user_id as string
   },
 
+  // A security-definer RPC (035/036), not a plain table update: RLS only
+  // lets an admin write `club_member` at all, so a coach renaming
+  // themselves — the Settings "Your profile" call site — has no row it
+  // could otherwise touch. The RPC authorizes either that (caller ===
+  // target) or an admin renaming someone else (the Coaches tab's call
+  // site), so this one action still covers both.
   updateCoach: async (userId, displayName) => {
     const clubId = get().selectedClubId
     if (!clubId) return false
     set({ clubActionError: null })
     const { error } = await runSupabaseAction<null>(
-      () => supabase.from('club_member').update({ display_name: displayName }).eq('club_id', clubId).eq('user_id', userId),
+      () => supabase.rpc('update_club_member_name', { cid: clubId, target_user_id: userId, new_name: displayName }),
       "Couldn't rename coach, try again."
     )
     if (error) {

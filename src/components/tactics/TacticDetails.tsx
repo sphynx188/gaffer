@@ -28,6 +28,7 @@ const CANVAS_WIDTH = 336
 export function TacticDetails({
   tactic,
   canEdit,
+  canDuplicate,
   canFile,
   collectionNames,
   onClose,
@@ -37,6 +38,8 @@ export function TacticDetails({
 }: {
   tactic: Tactic
   canEdit: boolean
+  /** False for a licensed-in tactic — view-only, no copying another club's IP. */
+  canDuplicate: boolean
   canFile: boolean
   collectionNames: string[]
   onClose: () => void
@@ -114,19 +117,21 @@ export function TacticDetails({
           {canEdit ? <PenSquare className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
           {canEdit ? 'Open' : 'View'}
         </Link>
-        <button
-          type="button"
-          onClick={async () => {
-            setDuplicating(true)
-            await onDuplicate()
-            setDuplicating(false)
-          }}
-          disabled={duplicating}
-          className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {duplicating ? 'Duplicating…' : 'Duplicate'}
-        </button>
+        {canDuplicate && (
+          <button
+            type="button"
+            onClick={async () => {
+              setDuplicating(true)
+              await onDuplicate()
+              setDuplicating(false)
+            }}
+            disabled={duplicating}
+            className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {duplicating ? 'Duplicating…' : 'Duplicate'}
+          </button>
+        )}
         {canFile && (
           <button
             type="button"

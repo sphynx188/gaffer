@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { Printer } from 'lucide-react'
 import { useStore } from '../store'
+import { selectMyRole } from '../store/slices/clubSlice'
+import { useSession } from '../hooks/useSession'
 import type { Drill } from '../store'
 import {
   DRILL_DIFFICULTY_LABELS,
@@ -70,6 +72,10 @@ const PRINT_STYLES = `
 
 export function DrillCardPage() {
   const { drillId } = useParams<{ drillId: string }>()
+  const { session } = useSession()
+  const myUserId = session?.user.id ?? null
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  const selectedClubId = useStore((s) => s.selectedClubId)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const fetchDrills = useStore((s) => s.fetchDrills)
@@ -84,6 +90,14 @@ export function DrillCardPage() {
   }, [fetchDrills])
 
   const drill = drills.find((d) => d.id === drillId) ?? null
+
+  // The Coach's Card is a "download" in every sense that matters here — a
+  // one-page PDF via the browser's own print dialog — so it gets the same
+  // guard as the editor route: a licensed-in (or any not-mine) drill sends
+  // the visitor to the read-only viewer instead of a printable sheet.
+  if (drill && !(drill.club_id === selectedClubId && (isAdmin || drill.created_by === myUserId))) {
+    return <Navigate to={`/drills/${drill.id}/view`} replace />
+  }
 
   if (!drill) {
     if (drillsLoading) {

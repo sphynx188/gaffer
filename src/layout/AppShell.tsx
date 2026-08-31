@@ -33,10 +33,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/library', label: 'Library', icon: LibraryBig },
 ]
 
-// Settings (Task 8, relabeled from "Admin" 2026-08-28): role-gated,
-// appended only for a club admin — /settings/* itself also redirects a
-// non-admin (SettingsPage's own guard), so this is belt-and-braces UI
-// polish, not the actual access control.
+// Settings (Task 8, relabeled from "Admin" 2026-08-28): every signed-in
+// coach gets this now (2026-08-31) — SettingsPage itself scopes what
+// renders inside by role (just "Your profile" for a non-admin), so it's
+// no longer conditional on isAdmin the way COACHES_NAV_ITEM below is.
 const SETTINGS_NAV_ITEM: NavItem = { to: '/settings', label: 'Settings', icon: Settings }
 // Coaches (2026-08-30): admin-only like Settings, but its own entry — who is
 // in the club and what each of them can see is the admin's day-to-day job.
@@ -223,14 +223,15 @@ function SignOutFooter({ email }: { email?: string }) {
 }
 
 // One flat nav since Task 7 (Home / Create / Drill library / Tactics, +
-// Settings for a club admin — see NAV_ITEMS/SETTINGS_NAV_ITEM above),
-// rendered as a slim sticky top bar plus an icon rail on desktop/tablet, or
-// a hamburger-triggered slide-in drawer below `lg`.
+// Settings for everyone and Coaches for a club admin — see NAV_ITEMS/
+// SETTINGS_NAV_ITEM/COACHES_NAV_ITEM above), rendered as a slim sticky top
+// bar plus an icon rail on desktop/tablet, or a hamburger-triggered
+// slide-in drawer below `lg`.
 export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
-  const navItems = isAdmin ? [...NAV_ITEMS, COACHES_NAV_ITEM, SETTINGS_NAV_ITEM] : NAV_ITEMS
+  const navItems = isAdmin ? [...NAV_ITEMS, COACHES_NAV_ITEM, SETTINGS_NAV_ITEM] : [...NAV_ITEMS, SETTINGS_NAV_ITEM]
   const [navOpen, setNavOpen] = useState(false)
   // The Library's three-pane file-manager layout (2026-08-28) genuinely
   // wants more than the 1152px every other page in the app is built for —

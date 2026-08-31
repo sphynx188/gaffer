@@ -22,6 +22,7 @@ import type {
   SessionBlock,
 } from '../types'
 import type { StoreState } from '../useStore'
+import { isLicensedDoc } from './clubSlice'
 
 // team_id dropped (club tenancy, 2026-08-28): createDrill now writes
 // club_id from the caller's selectedClubId and never writes team_id —
@@ -635,6 +636,16 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     duplicateDrill: async (drillId) => {
       const source = get().drills.find((d) => d.id === drillId)
       if (!source) return null
+      // A licensed-in drill is view-only, enforced here rather than only in
+      // the UI that hides the Duplicate button — the button hiding is the
+      // one a coach actually sees, but this is the one that still holds if
+      // it's ever bypassed (devtools, a stale client). A same-club drill a
+      // plain coach doesn't personally own is NOT blocked here — that's
+      // ordinary reuse, not the cross-club IP case this guards.
+      if (isLicensedDoc(source, get().selectedClubId)) {
+        set({ drillsError: "This drill is licensed to your club and can't be duplicated." })
+        return null
+      }
       const created = await get().createDrill({
         name: `${source.name} (copy)`,
         orientation: source.orientation,

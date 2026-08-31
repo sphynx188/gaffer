@@ -14,7 +14,7 @@ import {
   UserCog,
 } from 'lucide-react'
 import { useStore } from '../../store'
-import { selectMyRole } from '../../store/slices/clubSlice'
+import { isLicensedDoc, selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
 import type { LibraryOutletContext } from '../../pages/LibraryLayout'
 import type { Drill, DrillDifficulty, DrillIntensity, DrillPhaseOfPlay, SessionBlock } from '../../store'
@@ -341,8 +341,12 @@ export function DrillLibrary() {
 
   // Same condition clubSlice's canEditDoc expresses, inlined so it stays
   // reactive to isAdmin/selectedClubId without a second store subscription.
+  // club_id === selectedClubId is a hard precondition, not just one half of
+  // an OR — see canEditDoc's own comment for why: without it, a drill you
+  // created stays "yours to edit" even after your club licenses it out to
+  // one you also belong to, which defeats the license being view-only.
   const canEdit = (drill: Drill) =>
-    (isAdmin && drill.club_id === selectedClubId) || drill.created_by === myUserId
+    drill.club_id === selectedClubId && (isAdmin || drill.created_by === myUserId)
 
   // Only this club's own drill-kind collections — a licensed-in collection
   // belongs to the club that granted it, and collection_drill's RLS requires
@@ -418,8 +422,12 @@ export function DrillLibrary() {
     const items: RowMenuItem[] = [
       { key: 'open', label: editable ? 'Open' : 'View', icon: editable ? PenSquare : Eye, onSelect: () => openDrill(drill.id) },
       { key: 'details', label: 'Details', icon: Info, onSelect: () => handleActivate(drill.id) },
-      { key: 'duplicate', label: 'Duplicate', icon: Copy, onSelect: () => void handleDuplicate(drill.id) },
     ]
+    // Licensed-in is view-only — no duplicating another club's drill into
+    // ours. A same-club drill a plain coach doesn't own stays duplicable.
+    if (!isLicensedDoc(drill, selectedClubId)) {
+      items.push({ key: 'duplicate', label: 'Duplicate', icon: Copy, onSelect: () => void handleDuplicate(drill.id) })
+    }
     if (editable) {
       items.push({
         key: 'rename',
@@ -554,6 +562,7 @@ export function DrillLibrary() {
               key={activeDrill.id}
               drill={activeDrill}
               canEdit={canEdit(activeDrill)}
+              canDuplicate={!isLicensedDoc(activeDrill, selectedClubId)}
               canFile={isAdmin}
               collectionNames={collectionNamesFor(activeDrill.id)}
               onClose={() => setActiveId(null)}
@@ -815,7 +824,13 @@ function DrillFilters({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1.5 w-[19rem] rounded-lg border border-line bg-panel p-3 shadow-xl sm:w-[26rem]">
+        // Right-aligned, not left: this trigger sits toward the right end of
+        // the toolbar (Search absorbs the remaining flex space ahead of it),
+        // so growing the popover rightward from `left-0` pushed a fixed
+        // 19rem/26rem panel straight past the viewport's edge and put a
+        // horizontal scrollbar on the whole page — same fix as the club
+        // switcher's Dropdown `menuAlign="right"`.
+        <div className="absolute right-0 top-full z-30 mt-1.5 w-[19rem] rounded-lg border border-line bg-panel p-3 shadow-xl sm:w-[26rem]">
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-medium text-ink-muted">Age</label>

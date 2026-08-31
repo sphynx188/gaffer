@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
 import { Check, Pencil, Shield, Trash2 } from 'lucide-react'
 import { useStore } from '../../store'
 import { selectMyRole } from '../../store/slices/clubSlice'
@@ -19,6 +18,13 @@ import { LicensesPage } from './LicensesPage'
 // which a route-per-section forces them to click through one at a time to
 // even discover.
 //
+// Opened up to every coach, not just admins (2026-08-31) — a non-admin
+// used to be redirected straight back to "/", so the page simply didn't
+// exist for them, "Your profile" included. Everything below "Your
+// profile" is club-administration (rename/delete the club, cross-club
+// transfer and licensing) and stays admin-only; a coach just gets the one
+// section, same component, nothing duplicated.
+//
 // The old /settings/transfer and /settings/licenses routes redirect here
 // with a hash (see App.tsx) — the anchors below are what they land on.
 //
@@ -28,20 +34,19 @@ import { LicensesPage } from './LicensesPage'
 // data-dependent sections (this, Transfer, Licenses) mount together, two
 // independent calls fired the same ~8-request waterfall twice on every
 // load — caught live via a network trace during /impeccable audit.
-const SECTIONS = [
+const ADMIN_SECTIONS = [
   { id: 'profile', label: 'Your profile' },
   { id: 'club', label: 'Club' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'licenses', label: 'Licenses' },
   { id: 'danger', label: 'Danger zone' },
 ]
+const COACH_SECTIONS = [{ id: 'profile', label: 'Your profile' }]
 
 const FIELD =
   'w-full rounded-md border border-line bg-panel-raised px-2.5 py-1.5 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/30'
 
 export function SettingsPage() {
-  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
-  if (!isAdmin) return <Navigate to="/" replace />
   return <SettingsScreen />
 }
 
@@ -59,6 +64,7 @@ function focusSection(id: string) {
 function SettingsScreen() {
   const selectedClubId = useStore((s) => s.selectedClubId)
   const fetchClubData = useStore((s) => s.fetchClubData)
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
 
   useEffect(() => {
     void fetchClubData()
@@ -69,47 +75,62 @@ function SettingsScreen() {
     if (id) focusSection(id)
   }, [])
 
+  const sections = isAdmin ? ADMIN_SECTIONS : COACH_SECTIONS
+  const description = isAdmin
+    ? 'Your profile, this club, and how it shares with others.'
+    : 'Your profile.'
+
   return (
     <div>
-      <PageHeader title="Settings" description="Your profile, this club, and how it shares with others." />
+      <PageHeader title="Settings" description={description} />
 
-      <nav className="mb-8 flex flex-wrap gap-1 border-b border-line pb-3">
-        {SECTIONS.map((s) => (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            onClick={() => focusSection(s.id)}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink"
-          >
-            {s.label}
-          </a>
-        ))}
-      </nav>
+      {sections.length > 1 && (
+        <nav className="mb-8 flex flex-wrap gap-1 border-b border-line pb-3">
+          {sections.map((s) => (
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              onClick={() => focusSection(s.id)}
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink"
+            >
+              {s.label}
+            </a>
+          ))}
+        </nav>
+      )}
 
       <div className="space-y-10">
         <Section id="profile" title="Your profile">
           <YourProfileCard />
         </Section>
 
-        <Section id="club" title="Club">
-          <ClubProfileCard />
-        </Section>
+        {isAdmin && (
+          <>
+            <Section id="club" title="Club">
+              <ClubProfileCard />
+            </Section>
 
-        <Section id="transfer" title="Transfer" description="Copy a collection you own to another club you administer.">
-          <TransferPage />
-        </Section>
+            <Section
+              id="transfer"
+              title="Transfer"
+              description="Copy a collection you own to another club you administer."
+            >
+              <TransferPage />
+            </Section>
 
-        <Section
-          id="licenses"
-          title="Licenses"
-          description="Share a collection with another club without copying it, or see what's been shared with you."
-        >
-          <LicensesPage />
-        </Section>
+            <Section
+              id="licenses"
+              title="Licenses"
+              description="Share a collection with another club without copying it, or see what's been shared with you."
+            >
+              <LicensesPage />
+            </Section>
 
-        <Section id="danger" title="Danger zone">
-          <DangerZoneCard />
-        </Section>
+            <Section id="danger" title="Danger zone">
+              <DangerZoneCard />
+            </Section>
+          </>
+        )}
       </div>
     </div>
   )

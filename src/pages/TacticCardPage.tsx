@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { Printer, Shield } from 'lucide-react'
 import { useStore } from '../store'
+import { selectMyRole } from '../store/slices/clubSlice'
+import { useSession } from '../hooks/useSession'
 import type { Tactic, TacticSide } from '../store'
 import { DRILL_PHASE_OF_PLAY_LABELS } from '../store'
 import { PitchCanvas } from '../components/design/PitchCanvas'
@@ -56,6 +58,10 @@ const PRINT_STYLES = `
 
 export function TacticCardPage() {
   const { tacticId } = useParams<{ tacticId: string }>()
+  const { session } = useSession()
+  const myUserId = session?.user.id ?? null
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  const selectedClubId = useStore((s) => s.selectedClubId)
   const tactics = useStore((s) => s.tactics)
   const tacticsLoading = useStore((s) => s.tacticsLoading)
   const fetchTactics = useStore((s) => s.fetchTactics)
@@ -75,6 +81,11 @@ export function TacticCardPage() {
   }, [fetchTactics, fetchCustomFormations])
 
   const tactic = tactics.find((t) => t.id === tacticId) ?? null
+
+  // Same guard as DrillCardPage.tsx — see its comment.
+  if (tactic && !(tactic.club_id === selectedClubId && (isAdmin || tactic.created_by === myUserId))) {
+    return <Navigate to={`/tactics/${tactic.id}/view`} replace />
+  }
 
   if (!tactic) {
     if (tacticsLoading) {

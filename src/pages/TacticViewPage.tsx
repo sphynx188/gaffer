@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Copy, Shield } from 'lucide-react'
 import { useStore } from '../store'
+import { isLicensedDoc } from '../store/slices/clubSlice'
 import { SharedTactic } from './SharedTacticPage'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -14,6 +15,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 export function TacticViewPage() {
   const { tacticId } = useParams<{ tacticId: string }>()
   const navigate = useNavigate()
+  const selectedClubId = useStore((s) => s.selectedClubId)
   const tactics = useStore((s) => s.tactics)
   const tacticsLoading = useStore((s) => s.tacticsLoading)
   const fetchTactics = useStore((s) => s.fetchTactics)
@@ -59,15 +61,19 @@ export function TacticViewPage() {
           ← Back to the tactic library
         </Link>
         <SharedTactic tactic={tactic} />
-        <button
-          type="button"
-          onClick={handleDuplicate}
-          disabled={duplicating}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {duplicating ? 'Duplicating…' : 'Duplicate to my tactics'}
-        </button>
+        {isLicensedDoc(tactic, selectedClubId) ? (
+          <p className="text-center text-xs text-ink-faint">Licensed to your club — view only.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={handleDuplicate}
+            disabled={duplicating}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-line px-3 py-2 text-sm font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {duplicating ? 'Duplicating…' : 'Duplicate to my tactics'}
+          </button>
+        )}
       </div>
     </div>
   )

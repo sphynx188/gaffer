@@ -110,8 +110,11 @@ export function HomePage() {
       .map((collection) => collection.name)
   }
 
+  // club_id === selectedClubId is a hard precondition — see clubSlice's
+  // canEditDoc comment for why: without it, a board you created stays
+  // "yours to edit" even from a club it's merely licensed into.
   const canEdit = (board: HomeBoard) =>
-    (isAdmin && board.doc.club_id === selectedClubId) || board.doc.created_by === myUserId
+    board.doc.club_id === selectedClubId && (isAdmin || board.doc.created_by === myUserId)
   const openPath = (board: HomeBoard) => boardOpenPath(board, canEdit(board))
 
   const shelves = useMemo<Shelf[]>(

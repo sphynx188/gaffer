@@ -25,6 +25,7 @@ import type {
   TacticSide,
 } from '../types'
 import type { StoreState } from '../useStore'
+import { isLicensedDoc } from './clubSlice'
 
 // tacticSlice, rebuilt on entities and keyframes (TACTICS_BOARD_REWORK_PLAN.md
 // Stage 2), with `drillSlice.ts` as the reference implementation: the same
@@ -623,6 +624,13 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
       if (!source) return null
       const clubId = get().selectedClubId
       if (!clubId) return null
+      // Same guard as duplicateDrill — see its comment. A licensed-in
+      // tactic is view-only; a same-club tactic a plain coach doesn't own
+      // is unaffected.
+      if (isLicensedDoc(source, clubId)) {
+        set({ tacticsError: "This tactic is licensed to your club and can't be duplicated." })
+        return null
+      }
       set({ tacticsLoading: true, tacticsError: null })
       const strippedScene: DrillScene = {
         ...source.scene,

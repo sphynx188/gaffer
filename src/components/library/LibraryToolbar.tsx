@@ -110,6 +110,12 @@ export function LibraryToolbar({
           searchable={false}
           ariaLabel="Sort by"
           triggerClassName="h-9"
+          // This trigger sits toward the right end of the toolbar (Search
+          // absorbs the remaining flex space ahead of it) — left-aligning
+          // the popover, Dropdown's default, pushed it past the viewport's
+          // right edge and put a horizontal scrollbar on the whole page.
+          // Same fix as the club switcher: grow the popover leftward instead.
+          menuAlign="right"
         />
         <button
           type="button"

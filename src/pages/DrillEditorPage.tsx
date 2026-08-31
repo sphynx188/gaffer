@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { PenTool } from 'lucide-react'
 import { useStore } from '../store'
+import { selectMyRole } from '../store/slices/clubSlice'
+import { useSession } from '../hooks/useSession'
 import { DrillEditor } from '../components/design/editor/DrillEditor'
 import { ToastProvider } from '../components/ui/Toast'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -13,6 +15,10 @@ import { Skeleton } from '../components/ui/Skeleton'
 // selected".
 export function DrillEditorPage() {
   const { drillId } = useParams<{ drillId: string }>()
+  const { session } = useSession()
+  const myUserId = session?.user.id ?? null
+  const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  const selectedClubId = useStore((s) => s.selectedClubId)
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const drillsError = useStore((s) => s.drillsError)
@@ -31,6 +37,21 @@ export function DrillEditorPage() {
   }, [fetchDrills])
 
   const drill = drills.find((d) => d.id === drillId) ?? null
+
+  // The library only ever LINKS a non-editable drill to `/drills/:id/view`
+  // (canEditDoc) — this is what actually enforces it against typing
+  // `/design/:id` in directly. It matters beyond tidiness: the editor's
+  // export drawer renders PNG/GIF/the print Card entirely client-side off
+  // data already in the browser, which RLS's write policies do nothing to
+  // stop — a licensed-in (or any not-mine) drill reaching this far would
+  // still be fully "downloadable" even though the UI never offers it.
+  // `club_id === selectedClubId` is a hard precondition, not just one half
+  // of an OR — see clubSlice's canEditDoc comment: without it, a drill this
+  // coach created stays "theirs to edit" (and export) even after their own
+  // club licenses it out to one they also belong to.
+  if (drill && !(drill.club_id === selectedClubId && (isAdmin || drill.created_by === myUserId))) {
+    return <Navigate to={`/drills/${drill.id}/view`} replace />
+  }
 
   if (!drill) {
     if (drillsLoading) {

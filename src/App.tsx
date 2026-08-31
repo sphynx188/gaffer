@@ -185,14 +185,16 @@ function AuthedApp() {
         <Route path="tactics/new" element={<TacticCreatePage />} />
         <Route path="tactics/:tacticId/view" element={<TacticViewPage />} />
         <Route path="tactics/:tacticId" element={<TacticEditorPage />} />
-        {/* SettingsPage does its own role gate (redirects non-admins to /) —
-            the route itself is open, same shape as every other page here.
+        {/* SettingsPage is open to every signed-in coach (2026-08-31), not
+            just admins — it renders "Your profile" for everyone and gates
+            the rest (Club, Transfer, Licenses, Danger zone) on role itself,
+            rather than the route redirecting a non-admin away entirely.
             Relabeled /admin → /settings (2026-08-28) for the nav; the
             component/file names underneath stay "Admin*", internal only. */}
         {/* Coaches (2026-08-30): promoted out of Settings to its own
             admin-only rail entry — adding coaches and choosing what they can
             see is the admin's main job, not a setting. The page carries its
-            own role guard, same as SettingsPage; the old URL redirects. */}
+            own role guard; the old URL redirects. */}
         <Route path="coaches" element={<CoachesPage />} />
         <Route path="settings/coaches" element={<Navigate to="/coaches" replace />} />
         {/* Settings redesign (2026-08-30): one continuous page instead of a
