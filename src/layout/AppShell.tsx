@@ -280,7 +280,13 @@ export function AppShell() {
   // accounts that predate the feature, and the tour freezes on whatever it
   // opened with, so nothing swaps under anyone mid-run.
   const [searchParams, setSearchParams] = useSearchParams()
+  // Two ways to force the walkthrough open, and they mean different things.
+  // `joined=1` (JoinPage) also settles WHICH script runs — see below.
+  // `tour=1` (Settings' replay) only reopens it and lets the club's own state
+  // pick the script, since a founder replaying it should get the founder's.
   const justJoined = searchParams.get('joined') === '1'
+  const replayRequested = searchParams.get('tour') === '1'
+  const forceTour = justJoined || replayRequested
   const clubHasBoards = drillCount > 0 || tacticCount > 0
   const tourSteps = useMemo(() => {
     if (justJoined || clubHasBoards) return COACH_TOUR_STEPS
@@ -290,15 +296,15 @@ export function AppShell() {
   const restartTour = tour.restart
 
   // A coach who has just redeemed an invite gets the walkthrough whether or
-  // not they have dismissed it before — `?joined=1` (set by JoinPage) is the
-  // one case where "already seen" is the wrong answer, since they have just
-  // arrived somewhere new. The param is stripped immediately so a refresh
-  // doesn't replay it.
+  // not they have dismissed it before — having just arrived somewhere new is
+  // the one case where "already seen" is the wrong answer — and so does
+  // anyone who asked for it again from Settings. Either param is stripped
+  // immediately so a refresh doesn't replay it.
   useEffect(() => {
-    if (!justJoined) return
+    if (!forceTour) return
     restartTour()
     setSearchParams({}, { replace: true })
-  }, [justJoined, restartTour, setSearchParams])
+  }, [forceTour, restartTour, setSearchParams])
 
   // Below `lg` the nav is a drawer, so a step anchored to a nav entry has
   // nothing on screen to measure until it is open — the same problem the

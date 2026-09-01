@@ -119,7 +119,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'timeline',
     anchor: 'timeline-bar',
     title: 'Keyframes & playback',
-    body: 'A drill is a timeline, not a single snapshot. Add a keyframe wherever the picture should change, then play it back to see it move.',
+    body: 'A drill is a timeline, not a single snapshot. Add a keyframe for each moment you want to show and they play back in order — Speed up and Slow down change how fast you watch, never the drill itself.',
     placement: 'left',
     openProperties: true,
     panelTab: 'timeline',

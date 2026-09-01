@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
-import { Check, Pencil, Shield, Trash2 } from 'lucide-react'
+import { Check, Compass, Pencil, Shield, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useStore } from '../../store'
 import { selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
@@ -36,12 +37,18 @@ import { LicensesPage } from './LicensesPage'
 // load — caught live via a network trace during /impeccable audit.
 const ADMIN_SECTIONS = [
   { id: 'profile', label: 'Your profile' },
+  { id: 'walkthrough', label: 'Getting started' },
   { id: 'club', label: 'Club' },
   { id: 'transfer', label: 'Transfer' },
   { id: 'licenses', label: 'Licenses' },
   { id: 'danger', label: 'Danger zone' },
 ]
-const COACH_SECTIONS = [{ id: 'profile', label: 'Your profile' }]
+// A non-admin gets two sections now, which is also what makes the jump-nav
+// render for them at all (it is gated on more than one).
+const COACH_SECTIONS = [
+  { id: 'profile', label: 'Your profile' },
+  { id: 'walkthrough', label: 'Getting started' },
+]
 
 const FIELD =
   'w-full rounded-md border border-line bg-panel-raised px-2.5 py-1.5 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus:ring-2 focus:ring-accent/30'
@@ -102,6 +109,27 @@ function SettingsScreen() {
       <div className="space-y-10">
         <Section id="profile" title="Your profile">
           <YourProfileCard />
+        </Section>
+
+        {/* Both editors' tours have a replay button in their own top bar; the
+            app walkthrough had no way back once dismissed, which the tour
+            reference calls out specifically ("make replayable"). Reuses
+            AppShell's existing force-open param rather than new plumbing —
+            `?tour=1` reopens it and lets the club's own state pick which of
+            the two scripts runs. */}
+        <Section id="walkthrough" title="Getting started">
+          <Card>
+            <p className="text-sm text-ink-muted">
+              A short tour of where things live in Gaffer — the club library, making your own drills, and this page.
+            </p>
+            <Link
+              to="/?tour=1"
+              className="mt-4 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+            >
+              <Compass className="h-3.5 w-3.5" />
+              Replay the walkthrough
+            </Link>
+          </Card>
         </Section>
 
         {isAdmin && (
