@@ -5,6 +5,18 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // Pinned, and `strictPort` so a busy 5173 FAILS rather than silently
+  // drifting to 5174/5175. The drift matters now that OAuth is wired up:
+  // every dev origin has to be listed in the Supabase dashboard under
+  // Authentication -> URL Configuration -> Redirect URLs, and a server that
+  // quietly moves ports comes back from Google to an origin that isn't on
+  // that list — which fails as "returned to the site root and the invite was
+  // never redeemed" rather than as anything that names a port. Better to be
+  // told the port is taken and free it.
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
   plugins: [
     react(),
     tailwindcss(),
