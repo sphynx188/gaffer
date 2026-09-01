@@ -145,7 +145,7 @@ const FACINGS: { value: number; label: string }[] = [
   { value: 180, label: 'Left' },
 ]
 
-const COLOUR_CHOICES = ['', 'orange', 'yellow', 'red', 'blue', 'white']
+const COLOUR_CHOICES = ['', 'orange', 'yellow', 'red', 'blue', 'white', 'pink']
 
 // Marker Overrides (Stage 7.3) — Teloframe's "per-player captain, status and
 // style tweaks". All five write to the shared SceneEntity fields Stage 1.1
