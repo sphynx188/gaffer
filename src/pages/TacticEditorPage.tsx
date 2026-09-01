@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { Shield } from 'lucide-react'
 import { useStore } from '../store'
-import { selectMyRole } from '../store/slices/clubSlice'
+import { canEditDocWith, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import { TacticEditor } from '../components/tactics/TacticEditor'
 import { ToastProvider } from '../components/ui/Toast'
@@ -44,7 +44,7 @@ export function TacticEditorPage() {
   // be an actual redirect rather than just the library's own links steering
   // people the right way: the editor's export drawer generates PNG/GIF/the
   // print Card entirely client-side, which RLS can't touch.
-  if (tactic && !(tactic.club_id === selectedClubId && (isAdmin || tactic.created_by === myUserId))) {
+  if (tactic && !canEditDocWith(tactic, { selectedClubId, isAdmin, userId: myUserId })) {
     return <Navigate to={`/tactics/${tactic.id}/view`} replace />
   }
 

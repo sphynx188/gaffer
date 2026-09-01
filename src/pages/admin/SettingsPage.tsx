@@ -209,9 +209,13 @@ function YourProfileCard() {
             <label htmlFor="my-name" className="block text-xs font-medium text-ink-muted">
               Display name
             </label>
+            {/* maxLength matches update_club_member_name's own 80-char cap
+                (migration 038), so the field stops accepting at exactly the
+                point the RPC would refuse rather than failing on save. */}
             <input
               id="my-name"
               autoFocus
+              maxLength={80}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Sam Whitfield"

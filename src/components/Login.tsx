@@ -18,8 +18,19 @@ type Status = 'idle' | 'submitting' | 'error' | 'check-email'
 // rather than an immediate one, so this path already exists regardless of
 // that project setting. Once a reset link is clicked, App.tsx intercepts
 // via useSession's isPasswordRecovery — see components/ResetPassword.tsx.
-export function Login() {
-  const [mode, setMode] = useState<Mode>('sign-in')
+// `heading`/`subheading`/`initialMode` exist for the /join/:token screen
+// (migration 039), which needs the same three auth modes but has to say WHICH
+// CLUB the visitor is joining rather than the app's name, and should open on
+// sign-up because an invited coach almost never has an account yet. Every
+// prop is optional, so the plain login route renders exactly as before.
+interface LoginProps {
+  heading?: string
+  subheading?: string
+  initialMode?: Mode
+}
+
+export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
+  const [mode, setMode] = useState<Mode>(initialMode ?? 'sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -118,11 +129,12 @@ export function Login() {
   return (
     <div className="flex min-h-svh items-center justify-center bg-surface px-4">
       <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <h1 className="text-xl font-semibold text-ink">Gaffer</h1>
+        <h1 className="text-xl font-semibold text-ink">{heading ?? 'Gaffer'}</h1>
         <p className="mt-1 text-sm text-ink-muted">
-          {mode === 'sign-in' && 'Sign in to your coach account.'}
-          {mode === 'sign-up' && 'Create your coach account.'}
-          {mode === 'reset-request' && "Enter your email and we'll send you a reset link."}
+          {mode === 'reset-request'
+            ? "Enter your email and we'll send you a reset link."
+            : (subheading ??
+              (mode === 'sign-in' ? 'Sign in to your coach account.' : 'Create your coach account.'))}
         </p>
 
         <label htmlFor="email" className="mt-6 block text-sm font-medium text-ink-muted">

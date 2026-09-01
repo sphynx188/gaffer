@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { Printer } from 'lucide-react'
 import { useStore } from '../store'
-import { selectMyRole } from '../store/slices/clubSlice'
+import { canEditDocWith, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import type { Drill } from '../store'
 import {
@@ -95,7 +95,7 @@ export function DrillCardPage() {
   // one-page PDF via the browser's own print dialog — so it gets the same
   // guard as the editor route: a licensed-in (or any not-mine) drill sends
   // the visitor to the read-only viewer instead of a printable sheet.
-  if (drill && !(drill.club_id === selectedClubId && (isAdmin || drill.created_by === myUserId))) {
+  if (drill && !canEditDocWith(drill, { selectedClubId, isAdmin, userId: myUserId })) {
     return <Navigate to={`/drills/${drill.id}/view`} replace />
   }
 

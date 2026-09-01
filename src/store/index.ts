@@ -42,6 +42,8 @@ export type {
   Club,
   ClubMembership,
   ClubMemberRow,
+  ClubInvite,
+  ClubInvitePreview,
   Collection,
   CollectionKind,
   ClubLicense,

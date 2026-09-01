@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, LibraryBig, Plus, Shield } from 'lucide-react'
 import { useStore } from '../store'
-import { selectMyRole } from '../store/slices/clubSlice'
+import { canEditDocWith, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import { useRecentBoards } from '../hooks/useRecentBoards'
 import { PitchCanvas } from '../components/design/PitchCanvas'
@@ -111,10 +111,10 @@ export function HomePage() {
   }
 
   // club_id === selectedClubId is a hard precondition — see clubSlice's
-  // canEditDoc comment for why: without it, a board you created stays
+  // canEditDocWith comment for why: without it, a board you created stays
   // "yours to edit" even from a club it's merely licensed into.
   const canEdit = (board: HomeBoard) =>
-    board.doc.club_id === selectedClubId && (isAdmin || board.doc.created_by === myUserId)
+    canEditDocWith(board.doc, { selectedClubId, isAdmin, userId: myUserId })
   const openPath = (board: HomeBoard) => boardOpenPath(board, canEdit(board))
 
   const shelves = useMemo<Shelf[]>(

@@ -541,6 +541,31 @@ export interface ClubMemberRow {
   created_at: string
 }
 
+// A pending seat at a club (migration 039). The row exists BEFORE the account
+// does, which is the whole point: membership binds to `token`, never to an
+// email, so a coach can redeem it with a password, Google or Apple and it
+// makes no difference which. Replaced the old flow where an admin minted the
+// login and chose the coach's password for them.
+export interface ClubInvite {
+  token: string
+  club_id: string
+  role: ClubRole
+  display_name: string | null
+  invited_email: string | null
+  created_by: string
+  created_at: string
+  expires_at: string
+  redeemed_at: string | null
+  redeemed_by: string | null
+}
+
+// What `peek_club_invite` returns to the /join screen before sign-in —
+// deliberately only enough to say which club and in what role.
+export interface ClubInvitePreview {
+  club_name: string
+  role: ClubRole
+}
+
 // Enforced, not a convention (migration 032): a collection is always
 // exactly one kind, never both — collection_drill/collection_tactic's own
 // RLS refuses filing the wrong content type into it. Immutable after

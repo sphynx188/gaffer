@@ -12,7 +12,7 @@ import { Skeleton } from '../components/ui/Skeleton'
 // (spec §6.3). Reuses the exact same presentational component the public
 // `/d/:token` share page renders (SharedDrillPage.tsx), fed by id from the
 // store instead of a token fetch. DrillLibrary routes here for any card
-// `canEditDoc` says no to; a direct visit works too regardless of edit
+// `canEditDocWith` says no to; a direct visit works too regardless of edit
 // rights (viewing your own drill read-only isn't harmful, just redundant).
 export function DrillViewPage() {
   const { drillId } = useParams<{ drillId: string }>()

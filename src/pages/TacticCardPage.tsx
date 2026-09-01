@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { Printer, Shield } from 'lucide-react'
 import { useStore } from '../store'
-import { selectMyRole } from '../store/slices/clubSlice'
+import { canEditDocWith, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import type { Tactic, TacticSide } from '../store'
 import { DRILL_PHASE_OF_PLAY_LABELS } from '../store'
@@ -83,7 +83,7 @@ export function TacticCardPage() {
   const tactic = tactics.find((t) => t.id === tacticId) ?? null
 
   // Same guard as DrillCardPage.tsx — see its comment.
-  if (tactic && !(tactic.club_id === selectedClubId && (isAdmin || tactic.created_by === myUserId))) {
+  if (tactic && !canEditDocWith(tactic, { selectedClubId, isAdmin, userId: myUserId })) {
     return <Navigate to={`/tactics/${tactic.id}/view`} replace />
   }
 

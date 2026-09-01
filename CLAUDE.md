@@ -193,7 +193,36 @@ drill` as anon returns every shared row, so one share link would enumerate
 all the others. Any future share surface must copy this shape, and must also
 carry 018/023's other half: give the table's members policy `to
 authenticated`, so a `for all` policy is never left pointed at `anon`.
-023's header records the full set of probes used to verify it. A drill's content lives in
+023's header records the full set of probes used to verify it.
+
+**Coaches join by INVITE, not by an admin creating their login** (migration
+039, auth rework Phase 1). `club_invite` holds a pending seat keyed by a
+128-bit token from the same `mintShareToken()` the share links use — the row
+exists *before* the account does, which is the entire point: `club_member`'s
+PK is `(club_id, user_id)`, so a membership previously could not exist until
+the login did, which is why the old `create-coach` edge function had to mint
+the account with the service-role key **and pick the coach's password**. Every
+admin therefore knew every coach's password and nothing rotated.
+
+Two security-definer RPCs serve `/join/:token` (routed above the auth gate in
+`App.tsx`, beside `/d/` and `/t/`): `peek_club_invite` returns only a club
+name and role so the screen can render for a visitor with no account, and
+`redeem_club_invite` binds whatever identity is signed in *right now* to the
+club. `club_invite` therefore needs **no anon RLS policy at all** — tighter
+than the 018/023 share shape, because the client never reads the table.
+Redemption is idempotent (`on conflict (club_id, user_id) do nothing` plus a
+`where redeemed_at is null` update) so a double-tap or a reload mid-join
+can't fail a coach out of a club they already joined.
+
+Because the token carries the club binding, **the identity a coach arrives
+with is irrelevant** — password, Google, or an Apple Hide-My-Email relay
+address all redeem the same invite, and no email ever has to match. That is
+what makes third-party sign-in worth adding at all; before it, an invited
+coach signing in with a non-matching address became a brand-new user with
+zero memberships and got pushed into creating a stray club. `CreateClub` now
+offers "use your invite link" alongside creating one, for exactly that case.
+
+A drill's content lives in
 `drill.scene` (one cast of `entities` with ids stable for the whole drill,
 plus `markings`) and `drill.keyframes` (each a `t` in seconds and a
 `states` map of entityId → position), alongside `drill.duration_seconds`
@@ -317,7 +346,30 @@ that need them rather than rendering something inert.
 Seconds are the stored time unit and stay that way. `Keyframe.t` is float
 seconds and is load-bearing in `interpolate.ts`, `speeds.ts` and migration 013b.
 Frames (30 fps, `timeline/frames.ts`) are a DISPLAY unit that surfaces in the
-Add Phase dialog and nowhere else; keyframe drags snap to the 1/30s grid.
+Add Phase dialog and nowhere else.
+
+**Keyframe timing is a FIXED GRID and is not editable** (2026-09-01, both
+editors). Keyframe N sits at exactly N × `KEYFRAME_GAP_SECONDS` (1.5s), there
+are at most `MAX_KEYFRAMES` (10), and `duration_seconds` is DERIVED from the
+count — both constants and the `regrid` reducer that enforces them live in
+`store/sceneActions.ts`, and every structural change (add, delete, clear,
+paste, reorder) funnels through `regrid` so the times and the duration can
+never disagree. A coach never sees or sets seconds: the ruler is numbered by
+keyframe, the segment bars carry m/s only, and the timeline reports "n / 10
+keyframes" where a Duration input used to sit. The only ordering control is
+`reorderKeyframe` (move a keyframe one slot earlier/later).
+
+This replaced four controls that could each retime a document independently —
+a duration input, drag-to-retime, "Balance timing", and a Speed up/Slow down
+pair that scaled every keyframe's `t`. They could and did disagree: because
+`duration_seconds` was an `integer` and the scale step was ±10%, every
+duration ≤ 5s was a fixed point of `Math.round`, so the duration silently
+froze while the keyframes kept compressing — and enough presses collapsed two
+keyframes onto the same `t`, which `addKeyframe` had always refused to allow.
+Migration 037 widened the column to `numeric(4,1)` because half the grid's
+spans are half-seconds (4 keyframes = 4.5s). **Speed up / Slow down still
+exist but are PLAYBACK speed only** (`useTimelinePlayback.stepSpeed`); they
+never touch stored data.
 
 A tactic phase is a named, coloured band over the keyframe track and is purely
 organisational — it never affects interpolation, which is why `frameAt` has

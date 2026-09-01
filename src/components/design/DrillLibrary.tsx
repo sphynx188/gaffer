@@ -14,7 +14,7 @@ import {
   UserCog,
 } from 'lucide-react'
 import { useStore } from '../../store'
-import { isLicensedDoc, selectMyRole } from '../../store/slices/clubSlice'
+import { canEditDocWith, isLicensedDoc, selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
 import type { LibraryOutletContext } from '../../pages/LibraryLayout'
 import type { Drill, DrillDifficulty, DrillIntensity, DrillPhaseOfPlay, SessionBlock } from '../../store'
@@ -339,14 +339,10 @@ export function DrillLibrary() {
 
   const activeDrill = activeId ? (drills.find((d) => d.id === activeId) ?? null) : null
 
-  // Same condition clubSlice's canEditDoc expresses, inlined so it stays
-  // reactive to isAdmin/selectedClubId without a second store subscription.
-  // club_id === selectedClubId is a hard precondition, not just one half of
-  // an OR — see canEditDoc's own comment for why: without it, a drill you
-  // created stays "yours to edit" even after your club licenses it out to
-  // one you also belong to, which defeats the license being view-only.
-  const canEdit = (drill: Drill) =>
-    drill.club_id === selectedClubId && (isAdmin || drill.created_by === myUserId)
+  // canEditDocWith is canEditDoc's inline form — same rule, stated once in
+  // clubSlice, applied here from values this component already subscribes to
+  // rather than via a second whole-store subscription.
+  const canEdit = (drill: Drill) => canEditDocWith(drill, { selectedClubId, isAdmin, userId: myUserId })
 
   // Only this club's own drill-kind collections — a licensed-in collection
   // belongs to the club that granted it, and collection_drill's RLS requires
