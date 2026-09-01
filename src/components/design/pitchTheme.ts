@@ -76,6 +76,7 @@ export const EQUIPMENT = {
     red: '#ef4444',
     blue: '#3b82f6',
     white: '#fefdf8',
+    pink: '#f78497', // sampled from a coach's actual kit
   } as Record<string, string>,
 } as const
 

@@ -880,6 +880,13 @@ export function PitchCanvas({
     PLAYER.fallback
   )
 
+  // A player's per-entity colour override is picked from the same named
+  // swatches as equipment (PropertiesPanel's `COLOUR_CHOICES`), so it has to
+  // resolve through the same `EQUIPMENT.named` map equipment uses — otherwise
+  // a name like 'orange' or 'pink' falls through to the browser's own CSS
+  // colour keyword, which is a different, uncurated shade.
+  const playerFill = (color: string | undefined) => (color ? EQUIPMENT.named[color] ?? color : undefined)
+
   const interactive = editable || annotationMode || removeMode || selectable || drawTool !== null
   const cursor = panning ? 'grab' : annotationMode ? 'crosshair' : removeMode ? 'pointer' : undefined
 
@@ -1270,7 +1277,7 @@ export function PitchCanvas({
                       fill={
                         isBall
                           ? BALL.fill
-                          : entity.color ?? teamColors.get(entity.team ?? '') ?? PLAYER.fallback
+                          : playerFill(entity.color) ?? teamColors.get(entity.team ?? '') ?? PLAYER.fallback
                       }
                     />
                   )
@@ -1304,7 +1311,9 @@ export function PitchCanvas({
                         radius={isBall ? ballRadius : playerRadius}
                         opacity={TRAIL_MAX_OPACITY * (1 - index / (trailFrames.length + 1))}
                         fill={
-                          isBall ? BALL.fill : entity.color ?? teamColors.get(entity.team ?? '') ?? PLAYER.fallback
+                          isBall
+                            ? BALL.fill
+                            : playerFill(entity.color) ?? teamColors.get(entity.team ?? '') ?? PLAYER.fallback
                         }
                       />
                     )
@@ -1320,7 +1329,7 @@ export function PitchCanvas({
                   <Line
                     key={`path-${path.entityId}`}
                     points={points}
-                    stroke={entity?.color ?? teamColors.get(entity?.team ?? '') ?? PLAYER.fallback}
+                    stroke={playerFill(entity?.color) ?? teamColors.get(entity?.team ?? '') ?? PLAYER.fallback}
                     strokeWidth={Math.max(1.5, baseUnit * 0.5)}
                     opacity={PATH_OPACITY}
                     lineCap="round"
@@ -1394,7 +1403,7 @@ export function PitchCanvas({
 
             {players.map((player) => {
               const p = toPx(player)
-              const fill = player.color ?? teamColors.get(player.team ?? '') ?? PLAYER.fallback
+              const fill = playerFill(player.color) ?? teamColors.get(player.team ?? '') ?? PLAYER.fallback
               const display = player.display ?? 'standard'
               // Dot mode is a bare marker — no number, no label, no room to
               // read either at the size coaches use it (a full squad packed
