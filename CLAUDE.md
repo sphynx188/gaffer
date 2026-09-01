@@ -328,6 +328,41 @@ properties; tactic: squad / inspector). Any anchor must be `data-onboarding-
 anchor`, and the overlay scrolls it into view before measuring, which is what
 makes the tactics top bar's sideways scroll survivable on a phone.
 
+**There are now THREE tours on that one machinery, not two** (2026-09-01).
+The third is the app-shell walkthrough — `layout/appTourSteps.ts`, mounted in
+`AppShell.tsx` — and it exists because an invited coach did not choose this
+product and may never have heard of it. It ships two scripts, and they are
+not variations on a theme: `COACH_TOUR_STEPS` leads with the club library
+(the thing an invited coach was invited FOR), `FOUNDER_TOUR_STEPS` leads with
+designing a first drill, because a founder's brand-new club is empty and
+"start with the library" points at nothing. Which one runs is decided by
+whether the club has any boards, **not** by role.
+
+Two things about it that are load-bearing and easy to break:
+
+- **`justJoined` is tested BEFORE board counts.** Counts load async
+  (`drillsLoading` starts false and HomePage's own effect starts the fetch),
+  so at mount they read 0 whether the club is empty or holds fifty drills.
+  Deciding on counts alone hands every invited coach the founder's script.
+  `?joined=1` (set by `JoinPage`) settles that case synchronously.
+- **It renders on Home only.** Without that gate it auto-opens over whatever
+  route the coach landed on, including an editor, which runs its own tour —
+  two spotlight overlays fighting over one screen.
+
+`openNav` joins `openTools`/`openProperties` on `TourStep` for it, since
+below `lg` the nav is a drawer. The drawer's open-ness is DERIVED
+(`navOpen || tourWantsNav`) rather than synced through an effect, so it
+closes itself when the tour ends — including on *finish*, which an
+onSkip-only cleanup missed. Forced open by `?joined=1` (pins the coach
+script) or `?tour=1` (Settings' "Getting started" replay, script chosen
+naturally); both params strip themselves so a refresh can't replay.
+
+**Tour copy is a liability when the thing it describes changes.** All three
+step lists told coaches to add a keyframe "wherever the picture should
+change" until the fixed 1.5s grid removed that choice. If you change an
+editor control, grep the step lists. A step whose anchor is renamed or
+removed fails *silently* — a plain dimmed backdrop, no error.
+
 **3D is still not built, for either editor, and that is a decision rather than
 an omission** — made in the drill rework's Stage 11 and re-affirmed in
 TACTICS_BOARD_REWORK_PLAN.md Stage 10.2 once Stages 0–9 shipped. It stays cheap
