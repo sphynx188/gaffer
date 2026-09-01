@@ -1,5 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import type { DrillScene, EntityState, Keyframe } from '../../../store'
+// The grid's two numbers live in the store's reducer layer, where the rule is
+// actually enforced, rather than being re-declared here next to the button
+// that happens to respect them.
+import { KEYFRAME_GAP_SECONDS, MAX_KEYFRAMES } from '../../../store/sceneActions'
 import type { RenderFrame } from '../canvas/interpolate'
 import { keyframeAt } from './cursor'
 import type { TimelineHost } from './TimelineHost'
@@ -97,23 +101,6 @@ export function useKeyframeToggle(
   return { parked, dirty, label: parked ? 'Update keyframe' : 'Add keyframe', toggle }
 }
 
-// The default spacing a one-click "next keyframe" lands at — 1.5s per
-// keyframe (2026-08-31, was 2s). A coach retimes it same as any other
-// keyframe afterward if a specific segment needs to be longer or shorter.
-// Exported so the Timeline tab's "Match current spacing" button (retiming an
-// older drill built under the previous 2s default) always tracks whatever
-// this is currently set to, rather than a second copy of the same number.
-export const APPEND_GAP_SECONDS = 1.5
-
-// The keyframe cap (2026-08-31), paired with APPEND_GAP_SECONDS as one rule:
-// 1.5s per keyframe, at most 10 of them — so a drill tops out at 13.5s of
-// choreography, matching the short-animation-loop shape every drill in the
-// library was actually built as (see the 2026-08-31 retiming that brought
-// existing drills onto the same rule). Both entry points that can add a
-// keyframe — this button and the `K` shortcut in useKeyframeToggle above —
-// refuse past it rather than growing the list without bound.
-export const MAX_KEYFRAMES = 10
-
 /**
  * Always-available "add the next keyframe" — the first-phase-studio
  * comparison flow (2026-08-29): set up keyframe 1, click once, move things,
@@ -123,9 +110,10 @@ export const MAX_KEYFRAMES = 10
  * second, simpler entry point rather than a replacement — seeds the new
  * keyframe from the LAST keyframe's own stored states (not whatever the
  * playhead happens to be showing right now, which may be mid-scrub
- * somewhere else), extends the drill's duration first if the new keyframe
- * would otherwise land past the end, and parks the playhead on it so
- * dragging works immediately.
+ * somewhere else) and parks the playhead on it.
+ *
+ * The store appends onto the fixed grid and derives the duration itself, so
+ * there is no "extend the duration first" step any more — see scene.regrid.
  */
 export function appendKeyframe(host: TimelineHost, playback: TimelinePlayback): void {
   if (host.keyframes.length >= MAX_KEYFRAMES) return
@@ -133,8 +121,7 @@ export function appendKeyframe(host: TimelineHost, playback: TimelinePlayback): 
     (latest, k) => (latest === null || k.t > latest.t ? k : latest),
     null
   )
-  const target = (last?.t ?? 0) + APPEND_GAP_SECONDS
-  if (target > host.duration) host.setDuration(target)
-  const id = host.addKeyframe(target, last ? { ...last.states } : undefined)
-  if (id) playback.seek(target)
+  const id = host.addKeyframe(last?.t ?? 0, last ? { ...last.states } : undefined)
+  // The new keyframe lands one gap past the last one, by construction.
+  if (id) playback.seek((last?.t ?? 0) + KEYFRAME_GAP_SECONDS)
 }

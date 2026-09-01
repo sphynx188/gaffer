@@ -263,9 +263,10 @@ export interface DrillSlice {
   // (plan §4.1: it changes 60x/sec and would thrash every subscriber).
   updateKeyframeState: (drillId: string, keyframeId: string, states: Record<string, EntityState>) => void
 
-  // Retimes one keyframe and re-sorts. Clamped to [0, duration_seconds];
-  // refused if another keyframe already sits on that exact time.
-  moveKeyframe: (drillId: string, keyframeId: string, t: number) => void
+  // Moves a keyframe one slot earlier (-1) or later (+1) in the running
+  // order. Order is the only timing a coach controls; the 1.5s grid derives
+  // the times from it. See scene.regrid's own comment.
+  reorderKeyframe: (drillId: string, keyframeId: string, delta: number) => void
 
   // Deletes the keyframe and any marking bound to it. Keyframe-bound markings
   // go with it because the phases model this replaced kept arrows and notes
@@ -277,27 +278,11 @@ export interface DrillSlice {
   // clearing the timing of a drill isn't the same as emptying the pitch.
   clearKeyframes: (drillId: string) => void
 
-  // Spreads the existing keyframes evenly, keeping their order — across the
-  // current duration with no argument, or at an exact `stepSeconds` gap
-  // (recomputing the duration to match) when one is given. See
-  // scene.balanceTiming's own comment.
-  balanceTiming: (drillId: string, stepSeconds?: number) => void
-
-  // Uniformly compresses (factor < 1) or stretches (factor > 1) every
-  // keyframe's own time — see scaleTiming's own comment for why this is a
-  // different thing from setDuration/balanceTiming.
-  scaleTiming: (drillId: string, factor: number) => void
-
   addMarking: (drillId: string, marking: Omit<Marking, 'id'>) => string | null
   updateMarking: (drillId: string, markingId: string, patch: Partial<Omit<Marking, 'id'>>) => void
   removeMarking: (drillId: string, markingId: string) => void
 
   setDrillPitch: (drillId: string, pitch: PitchConfig) => void
-
-  // Existing keyframes are deliberately left where they are when the duration
-  // shrinks: silently dragging a coach's keyframes is worse than leaving one
-  // past the end, and `balanceTiming` is the tool for redistributing them.
-  setDuration: (drillId: string, seconds: number) => void
 
   // -------------------------------------------------------------------------
   // Undo / redo (plan §2.2). Bounded at UNDO_LIMIT committed edits per drill.
@@ -562,7 +547,11 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         team_id: null,
         keyframes: input.keyframes ?? [makeInitialKeyframe()],
         scene: input.scene ?? { entities: [], markings: [] },
-        duration_seconds: input.duration_seconds ?? 15,
+        // Derived from the keyframe count like every other duration in the
+        // app (scene.regrid) rather than a standalone default that the first
+        // keyframe edit would immediately overwrite anyway.
+        duration_seconds:
+          input.duration_seconds ?? scene.durationForCount((input.keyframes ?? [makeInitialKeyframe()]).length),
         ...input,
       } as unknown as Drill
       unsavedDrafts.add(draft.id)
@@ -840,8 +829,8 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       commit(drillId, (d) => scene.updateKeyframeState(d, keyframeId, states))
     },
 
-    moveKeyframe: (drillId, keyframeId, t) => {
-      commit(drillId, (d) => scene.moveKeyframe(d, keyframeId, t))
+    reorderKeyframe: (drillId, keyframeId, delta) => {
+      commit(drillId, (d) => scene.reorderKeyframe(d, keyframeId, delta))
     },
 
     deleteKeyframe: (drillId, keyframeId) => {
@@ -850,14 +839,6 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
 
     clearKeyframes: (drillId) => {
       commit(drillId, (d) => scene.clearKeyframes(d))
-    },
-
-    balanceTiming: (drillId, stepSeconds) => {
-      commit(drillId, (d) => scene.balanceTiming(d, stepSeconds))
-    },
-
-    scaleTiming: (drillId, factor) => {
-      commit(drillId, (d) => scene.scaleTiming(d, factor))
     },
 
     addMarking: (drillId, marking) => {
@@ -877,10 +858,6 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
 
     setDrillPitch: (drillId, pitch) => {
       commit(drillId, (d) => scene.setPitch(d, pitch))
-    },
-
-    setDuration: (drillId, seconds) => {
-      commit(drillId, (d) => scene.setDuration(d, seconds))
     },
 
     undo: (drillId) => {

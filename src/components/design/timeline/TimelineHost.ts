@@ -39,17 +39,18 @@ export interface TimelineHost {
   updateEntity: (entityId: string, patch: Partial<Omit<SceneEntity, 'id' | 'kind'>>) => void
   updateMarking: (markingId: string, patch: Partial<Omit<Marking, 'id'>>) => void
 
+  // Appends a keyframe to the end of the fixed 1.5s grid, seeded from the
+  // pose holding at `t`. Refused at MAX_KEYFRAMES. `duration` is derived from
+  // the count and is not settable — see scene.regrid's own comment for why
+  // the duration input, drag-to-retime, Balance timing and the keyframe-
+  // scaling pair are all gone.
   addKeyframe: (t: number, states?: Record<string, EntityState>) => string | null
   updateKeyframeState: (keyframeId: string, states: Record<string, EntityState>) => void
-  moveKeyframe: (keyframeId: string, t: number) => void
+  // Moves a keyframe one slot earlier (-1) or later (+1). The running ORDER
+  // is the only timing a coach controls.
+  reorderKeyframe: (keyframeId: string, delta: number) => void
   deleteKeyframe: (keyframeId: string) => void
   clearKeyframes: () => void
-  // With no argument, spreads keyframes evenly across the CURRENT duration
-  // (the tactics timeline bar's plain "Balance timing"). With an explicit
-  // `stepSeconds`, every gap becomes exactly that instead, and the duration
-  // is recomputed to match — see scene.balanceTiming's own comment.
-  balanceTiming: (stepSeconds?: number) => void
-  setDuration: (seconds: number) => void
 
   // ── Optional capabilities ───────────────────────────────────────────────
   // Absent on the drill host, and the timeline hides the controls that need
@@ -68,13 +69,4 @@ export interface TimelineHost {
   pasteKeyframe?: (t: number) => string | null
   /** Whether there is anything on the clipboard to paste. */
   canPaste?: boolean
-
-  // Absent on the tactic host the same way phases are absent on the drill
-  // one, just flipped (2026-08-31) — the Timeline tab's Speed up/Slow down
-  // pair is a drill-editor request, and `scene.scaleTiming` underneath it is
-  // domain-agnostic, but wiring a tactic call site nothing asks for yet
-  // would be speculative. Compresses (factor < 1) or stretches (factor > 1)
-  // every keyframe's own time — see scaleTiming's own comment for why
-  // that's a different thing from balanceTiming/setDuration.
-  scaleTiming?: (factor: number) => void
 }

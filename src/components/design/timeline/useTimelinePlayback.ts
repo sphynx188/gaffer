@@ -29,6 +29,8 @@ export interface TimelinePlayback {
   /** Relative to wherever the playhead is now. */
   step: (deltaSeconds: number) => void
   cycleSpeed: () => void
+  /** Step one notch along PLAYBACK_SPEEDS; clamps at both ends. */
+  stepSpeed: (delta: number) => void
   toggleLoop: () => void
 }
 
@@ -83,6 +85,19 @@ export function useTimelinePlayback(duration: number): TimelinePlayback {
     setSpeed((current) => PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(current) + 1) % PLAYBACK_SPEEDS.length])
   }, [])
 
+  // Steps one notch along PLAYBACK_SPEEDS and STOPS at either end rather than
+  // wrapping — this backs the Speed up / Slow down pair, where wrapping from
+  // 2× straight back to 0.25× on one more press would read as a glitch. Only
+  // ever changes how fast the coach watches; the stored keyframe times are a
+  // fixed grid and nothing in the editor can retime them (scene.regrid).
+  const stepSpeed = useCallback((delta: number) => {
+    setSpeed((current) => {
+      const next = PLAYBACK_SPEEDS.indexOf(current) + delta
+      if (next < 0 || next >= PLAYBACK_SPEEDS.length) return current
+      return PLAYBACK_SPEEDS[next]
+    })
+  }, [])
+
   const toggleLoop = useCallback(() => setLoop((on) => !on), [])
 
   useEffect(() => {
@@ -121,5 +136,5 @@ export function useTimelinePlayback(duration: number): TimelinePlayback {
     // or double-counted across the change.
   }, [playing, speed, loop, duration])
 
-  return { currentTime, playing, speed, loop, play, pause, togglePlay, seek, step, cycleSpeed, toggleLoop }
+  return { currentTime, playing, speed, loop, play, pause, togglePlay, seek, step, cycleSpeed, stepSpeed, toggleLoop }
 }

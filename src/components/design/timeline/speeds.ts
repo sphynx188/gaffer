@@ -117,7 +117,10 @@ export function segmentSpeeds(scene: DrillScene, keyframes: Keyframe[], pitch: P
 }
 
 // `7.5s · P 7.0 m/s · B 0.0 m/s` — the readout drawn on each segment bar.
+// Deliberately no seconds. Every gap is one fixed grid step (scene.regrid),
+// so the number would be the same on every bar and tells a coach nothing —
+// what varies, and what actually decides whether a segment is realistic, is
+// how fast the gap requires the player and the ball to move.
 export function formatSegment(segment: SegmentSpeeds): string {
-  const seconds = Number.isInteger(segment.seconds) ? String(segment.seconds) : segment.seconds.toFixed(1)
-  return `${seconds}s · P ${segment.playerMax.toFixed(1)} m/s · B ${segment.ballMax.toFixed(1)} m/s`
+  return `P ${segment.playerMax.toFixed(1)} m/s · B ${segment.ballMax.toFixed(1)} m/s`
 }
