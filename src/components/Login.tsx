@@ -18,6 +18,35 @@ type Status = 'idle' | 'submitting' | 'error' | 'check-email'
 // rather than an immediate one, so this path already exists regardless of
 // that project setting. Once a reset link is clicked, App.tsx intercepts
 // via useSession's isPasswordRecovery — see components/ResetPassword.tsx.
+// Google's own four-colour mark, inline rather than from lucide — lucide has
+// no brand icons, and Google's identity guidelines for "Sign in with Google"
+// require their mark in its actual colours rather than a monochrome stand-in.
+// Fixed hex on purpose: a brand mark is the one thing on screen that must NOT
+// follow the theme tokens, and it reads correctly on both our light and dark
+// panel backgrounds.
+function GoogleMark() {
+  return (
+    <svg viewBox="0 0 18 18" aria-hidden="true" className="h-4 w-4 shrink-0">
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
+      />
+    </svg>
+  )
+}
+
 // `heading`/`subheading`/`initialMode` exist for the /join/:token screen
 // (migration 039), which needs the same three auth modes but has to say WHICH
 // CLUB the visitor is joining rather than the app's name, and should open on
@@ -37,6 +66,38 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
   const [status, setStatus] = useState<Status>('idle')
   const [checkEmailMessage, setCheckEmailMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  // Third-party sign-in. Worth having only because coach membership binds to
+  // an INVITE TOKEN rather than an email (migration 039) — before that, a
+  // coach arriving with a personal Google address authenticated as a brand
+  // new user with no membership and got pushed into creating a stray club.
+  //
+  // `redirectTo` is the CURRENT page, which is the whole trick for
+  // /join/:token: Google bounces the visitor back to the same invite URL,
+  // supabase-js picks the session out of the URL on the way in
+  // (detectSessionInUrl defaults true, see hooks/useSession), and JoinPage
+  // redeems on its next render. No token stashing, nothing to survive the
+  // round trip, and the plain /login case falls out of the same line.
+  //
+  // Note the redirect target must be allow-listed in the Supabase dashboard
+  // under Authentication -> URL Configuration -> Redirect URLs, for localhost
+  // and for the deployed origin, or Google returns the visitor to the site
+  // root and the invite is silently not redeemed.
+  const signInWithGoogle = async () => {
+    setStatus('submitting')
+    setError(null)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + window.location.pathname },
+    })
+    // On success the browser is already navigating away, so only the failure
+    // path ever renders. The common one is the provider not being enabled on
+    // the project yet, whose message says exactly that.
+    if (error) {
+      setStatus('error')
+      setError(error.message)
+    }
+  }
 
   const switchMode = (next: Mode) => {
     setMode(next)
@@ -137,7 +198,29 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
               (mode === 'sign-in' ? 'Sign in to your coach account.' : 'Create your coach account.'))}
         </p>
 
-        <label htmlFor="email" className="mt-6 block text-sm font-medium text-ink-muted">
+        {/* Hidden on reset-request: that mode is about recovering a password,
+            and offering a way to sign in without one would just be confusing
+            at the moment someone is trying to fix theirs. */}
+        {mode !== 'reset-request' && (
+          <>
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={status === 'submitting'}
+              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 text-sm font-medium text-ink transition-colors hover:border-line-strong disabled:opacity-50"
+            >
+              <GoogleMark />
+              Continue with Google
+            </button>
+            <div className="my-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-xs text-ink-faint">or</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          </>
+        )}
+
+        <label htmlFor="email" className={(mode === 'reset-request' ? 'mt-6 ' : '') + 'block text-sm font-medium text-ink-muted'}>
           Email
         </label>
         <input
