@@ -563,6 +563,7 @@ export interface ClubInvite {
 // deliberately only enough to say which club and in what role.
 export interface ClubInvitePreview {
   club_name: string
+  club_crest_url: string | null
   role: ClubRole
 }
 

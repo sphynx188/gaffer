@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { MailCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { clearAuthRedirectError, readAuthRedirectError } from '../lib/authRedirectError'
+import { AuthLayout } from './auth/AuthLayout'
 
 type Mode = 'sign-in' | 'sign-up' | 'reset-request'
 type Status = 'idle' | 'submitting' | 'error' | 'check-email'
@@ -57,9 +59,13 @@ interface LoginProps {
   heading?: string
   subheading?: string
   initialMode?: Mode
+  // The join screen passes the club's crest, so the visitor sees the mark of
+  // the club they are joining rather than a generic app screen. Plain login
+  // passes nothing and the card simply opens on its heading.
+  mark?: ReactNode
 }
 
-export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
+export function Login({ heading, subheading, initialMode, mark }: LoginProps = {}) {
   const [mode, setMode] = useState<Mode>(initialMode ?? 'sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -191,33 +197,64 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
 
   if (status === 'check-email') {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-surface px-4">
-        <div className="w-full max-w-sm text-center">
-          <h1 className="text-xl font-semibold text-ink">Check your email</h1>
-          <p className="mt-2 text-sm text-ink-muted">{checkEmailMessage}</p>
-          <button
-            type="button"
-            onClick={() => switchMode('sign-in')}
-            className="mt-6 text-sm text-ink-muted underline underline-offset-2"
-          >
+      <AuthLayout
+        title="Check your email"
+        subtitle={checkEmailMessage}
+        mark={
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-line bg-panel-raised">
+            <MailCheck className="h-5 w-5 text-ink-faint" />
+          </span>
+        }
+        footer={
+          <button type="button" onClick={() => switchMode('sign-in')} className="underline underline-offset-2 hover:text-ink">
             Back to sign in
           </button>
-        </div>
-      </div>
+        }
+      >
+        {/* The card's own body would be empty here — the message IS the
+            content — so this carries the one thing left to say: what to do if
+            it doesn't arrive, which is the actual failure mode of every
+            "check your email" screen ever built. */}
+        <p className="text-sm text-ink-faint">
+          It can take a minute to arrive. Check your spam folder before requesting another.
+        </p>
+      </AuthLayout>
     )
   }
 
-  return (
-    <div className="flex min-h-svh items-center justify-center bg-surface px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm">
-        <h1 className="text-xl font-semibold text-ink">{heading ?? 'Gaffer'}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          {mode === 'reset-request'
-            ? "Enter your email and we'll send you a reset link."
-            : (subheading ??
-              (mode === 'sign-in' ? 'Sign in to your coach account.' : 'Create your coach account.'))}
-        </p>
+  const defaultSubtitle =
+    mode === 'reset-request'
+      ? "Enter your email and we'll send you a link to choose a new one."
+      : mode === 'sign-in'
+        ? 'Sign in to pick up where your club left off.'
+        : 'Create your account to get started.'
 
+  return (
+    <AuthLayout
+      title={heading ?? 'Gaffer'}
+      subtitle={mode === 'reset-request' ? defaultSubtitle : (subheading ?? defaultSubtitle)}
+      mark={mark}
+      wordmark={Boolean(heading)}
+      footer={
+        mode === 'reset-request' ? (
+          <button type="button" onClick={() => switchMode('sign-in')} className="underline underline-offset-2 hover:text-ink">
+            Back to sign in
+          </button>
+        ) : (
+          <>
+            {mode === 'sign-in' ? "Don't have an account? " : 'Already have an account? '}
+            <button
+              type="button"
+              onClick={() => switchMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
+              className="text-accent-ink underline underline-offset-2"
+            >
+              {mode === 'sign-in' ? 'Create one' : 'Sign in'}
+            </button>
+          </>
+        )
+      }
+    >
+      <form onSubmit={handleSubmit}>
         {/* Hidden on reset-request: that mode is about recovering a password,
             and offering a way to sign in without one would just be confusing
             at the moment someone is trying to fix theirs. */}
@@ -227,7 +264,7 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
               type="button"
               onClick={signInWithGoogle}
               disabled={status === 'submitting'}
-              className="mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel px-3 text-sm font-medium text-ink transition-colors hover:border-line-strong disabled:opacity-50"
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-panel-raised px-3 text-sm font-medium text-ink transition-colors hover:border-line-strong disabled:opacity-50"
             >
               <GoogleMark />
               Continue with Google
@@ -241,7 +278,7 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
           </>
         )}
 
-        <label htmlFor="email" className={(mode === 'reset-request' ? 'mt-6 ' : '') + 'block text-sm font-medium text-ink-muted'}>
+        <label htmlFor="email" className="block text-sm font-medium text-ink-muted">
           Email
         </label>
         <input
@@ -322,24 +359,7 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
                 : 'Send reset link'}
         </button>
 
-        {mode === 'reset-request' ? (
-          <button
-            type="button"
-            onClick={() => switchMode('sign-in')}
-            className="mt-4 w-full text-center text-sm text-ink-muted underline underline-offset-2"
-          >
-            Back to sign in
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => switchMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
-            className="mt-4 w-full text-center text-sm text-ink-muted underline underline-offset-2"
-          >
-            {mode === 'sign-in' ? "Don't have an account? Create one" : 'Already have an account? Sign in'}
-          </button>
-        )}
       </form>
-    </div>
+    </AuthLayout>
   )
 }
