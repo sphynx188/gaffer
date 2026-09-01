@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import { clearAuthRedirectError, readAuthRedirectError } from '../lib/authRedirectError'
 
 type Mode = 'sign-in' | 'sign-up' | 'reset-request'
 type Status = 'idle' | 'submitting' | 'error' | 'check-email'
@@ -66,6 +67,21 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
   const [status, setStatus] = useState<Status>('idle')
   const [checkEmailMessage, setCheckEmailMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // Kept separate from `error` so each message renders beside the control it
+  // is about: this one belongs under the Google button, not at the bottom of
+  // a password form the visitor never touched. Seeded from the URL rather
+  // than set in an effect — an OAuth failure is already known at first
+  // render, so assigning it here avoids an extra render pass (and the
+  // react(set-state-in-effect) warning). The reader is pure, so StrictMode's
+  // double invocation is harmless.
+  const [oauthError, setOauthError] = useState<string | null>(() => readAuthRedirectError())
+
+  // Clearing MUTATES history, so unlike reading it belongs in an effect. Runs
+  // once: the message is already in state, and this only stops a reload from
+  // resurrecting it.
+  useEffect(() => {
+    clearAuthRedirectError()
+  }, [])
 
   // Third-party sign-in. Worth having only because coach membership binds to
   // an INVITE TOKEN rather than an email (migration 039) — before that, a
@@ -85,7 +101,7 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
   // root and the invite is silently not redeemed.
   const signInWithGoogle = async () => {
     setStatus('submitting')
-    setError(null)
+    setOauthError(null)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: window.location.origin + window.location.pathname },
@@ -95,7 +111,7 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
     // the project yet, whose message says exactly that.
     if (error) {
       setStatus('error')
-      setError(error.message)
+      setOauthError(error.message)
     }
   }
 
@@ -103,6 +119,10 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
     setMode(next)
     setStatus('idle')
     setError(null)
+    // `oauthError` deliberately survives a mode switch: "sign-in was
+    // cancelled" is just as true on the sign-up tab, and the most likely
+    // reason someone switches tabs right after a failed Google attempt is
+    // that they are acting on it.
     setPassword('')
     setConfirmPassword('')
   }
@@ -212,6 +232,7 @@ export function Login({ heading, subheading, initialMode }: LoginProps = {}) {
               <GoogleMark />
               Continue with Google
             </button>
+            {oauthError && <p className="mt-2 text-sm text-bad">{oauthError}</p>}
             <div className="my-4 flex items-center gap-3">
               <span className="h-px flex-1 bg-line" />
               <span className="text-xs text-ink-faint">or</span>
