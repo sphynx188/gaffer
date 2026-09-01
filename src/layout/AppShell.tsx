@@ -1,8 +1,8 @@
-import { useEffect, useState, type ComponentType } from 'react'
+import { useEffect, useMemo, useState, type ComponentType } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { OnboardingTour } from '../components/design/editor/onboarding/OnboardingTour'
 import { useOnboardingTour } from '../components/design/editor/onboarding/useOnboardingTour'
-import { APP_TOUR_SEEN_KEY, APP_TOUR_STEPS } from './appTourSteps'
+import { APP_TOUR_SEEN_KEY, COACH_TOUR_STEPS, FOUNDER_TOUR_STEPS } from './appTourSteps'
 import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Shield, Sun, Users, X } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
@@ -246,15 +246,47 @@ export function AppShell() {
   const { session } = useSession()
   const fetchTeams = useStore((s) => s.fetchTeams)
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
+  // Only the counts, not the arrays — this decides which walkthrough runs and
+  // must not re-render the whole shell every time a drill is edited.
+  const drillCount = useStore((s) => s.drills.length)
+  const tacticCount = useStore((s) => s.tactics.length)
   const navItems = isAdmin ? [...NAV_ITEMS, COACHES_NAV_ITEM, SETTINGS_NAV_ITEM] : [...NAV_ITEMS, SETTINGS_NAV_ITEM]
   const [navOpen, setNavOpen] = useState(false)
 
   // The app-shell walkthrough (2026-09-01). Same machinery as both editors'
   // tours — see appTourSteps.ts for why this is content rather than a second
-  // implementation.
-  const tour = useOnboardingTour(APP_TOUR_STEPS, APP_TOUR_SEEN_KEY)
+  // implementation, and for why there are two scripts.
+  //
+  // Chosen on whether the club has any boards, not on role: pointing someone
+  // at "the library your club has built" when it is empty is wrong whoever is
+  // looking, and a founder's brand-new club is empty by definition. The
+  // Coaches step is admin-only because the nav entry it anchors to is — an
+  // invited coach in a still-empty club would otherwise hit a step with
+  // nothing on screen to measure.
+  // `justJoined` is checked FIRST and is the reason this is reliable. Board
+  // counts load asynchronously — `drillsLoading` starts false and HomePage's
+  // own effect kicks off the fetch — so at the moment this mounts the counts
+  // read 0 whether the club is empty or holds fifty drills. Deciding on them
+  // alone would hand every invited coach the founder's "make your first
+  // drill" script, which is the exact bug this split exists to fix, mirrored.
+  // `?joined=1` is set synchronously by JoinPage and settles that case before
+  // any fetch resolves; a founder's club really is empty, so 0 is correct for
+  // them immediately.
+  //
+  // The one arrival this still reads wrong is an existing coach in a full
+  // club who has never seen the walkthrough and did not arrive by invite —
+  // they briefly qualify as a "founder". Left as-is rather than threaded
+  // through a new store flag: it is a one-time, dismissible screen for
+  // accounts that predate the feature, and the tour freezes on whatever it
+  // opened with, so nothing swaps under anyone mid-run.
   const [searchParams, setSearchParams] = useSearchParams()
   const justJoined = searchParams.get('joined') === '1'
+  const clubHasBoards = drillCount > 0 || tacticCount > 0
+  const tourSteps = useMemo(() => {
+    if (justJoined || clubHasBoards) return COACH_TOUR_STEPS
+    return isAdmin ? FOUNDER_TOUR_STEPS : FOUNDER_TOUR_STEPS.filter((step) => step.anchor !== 'nav-coaches')
+  }, [justJoined, clubHasBoards, isAdmin])
+  const tour = useOnboardingTour(tourSteps, APP_TOUR_SEEN_KEY)
   const restartTour = tour.restart
 
   // A coach who has just redeemed an invite gets the walkthrough whether or

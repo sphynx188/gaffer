@@ -161,6 +161,7 @@ export function HomePage() {
         <div className="mt-5 flex flex-wrap gap-2">
           <Link
             to="/design"
+            data-onboarding-anchor="home-new-drill"
             className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-accent px-3.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           >
             <Plus className="h-4 w-4" />
