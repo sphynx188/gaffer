@@ -1,5 +1,8 @@
 import { useEffect, useState, type ComponentType } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { OnboardingTour } from '../components/design/editor/onboarding/OnboardingTour'
+import { useOnboardingTour } from '../components/design/editor/onboarding/useOnboardingTour'
+import { APP_TOUR_SEEN_KEY, APP_TOUR_STEPS } from './appTourSteps'
 import { ChevronLeft, Home, LibraryBig, LogOut, Menu, Moon, Plus, Settings, Shield, Sun, Users, X } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
@@ -70,7 +73,19 @@ function NavList({
   return (
     <nav className="flex-1 space-y-1 px-3 py-4">
       {items.map(({ to, label, icon: Icon, end }) => (
-        <NavLink key={to} to={to} end={end} className={navLinkClass} onClick={onNavigate} title={label}>
+        <NavLink
+          key={to}
+          to={to}
+          end={end}
+          className={navLinkClass}
+          onClick={onNavigate}
+          title={label}
+          // Derived from the route, not a second hand-kept list — an
+          // app-tour step can't then point at an id no link renders.
+          // Both the rail and the drawer render these, and the tour's
+          // `findVisibleAnchor` picks whichever is actually on screen.
+          data-onboarding-anchor={`nav-${to === '/' ? 'home' : to.slice(1)}`}
+        >
           <Icon className="h-4 w-4 shrink-0" />
           {fadeLabel ? (
             <span className="whitespace-nowrap opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
@@ -233,6 +248,41 @@ export function AppShell() {
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
   const navItems = isAdmin ? [...NAV_ITEMS, COACHES_NAV_ITEM, SETTINGS_NAV_ITEM] : [...NAV_ITEMS, SETTINGS_NAV_ITEM]
   const [navOpen, setNavOpen] = useState(false)
+
+  // The app-shell walkthrough (2026-09-01). Same machinery as both editors'
+  // tours — see appTourSteps.ts for why this is content rather than a second
+  // implementation.
+  const tour = useOnboardingTour(APP_TOUR_STEPS, APP_TOUR_SEEN_KEY)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const justJoined = searchParams.get('joined') === '1'
+  const restartTour = tour.restart
+
+  // A coach who has just redeemed an invite gets the walkthrough whether or
+  // not they have dismissed it before — `?joined=1` (set by JoinPage) is the
+  // one case where "already seen" is the wrong answer, since they have just
+  // arrived somewhere new. The param is stripped immediately so a refresh
+  // doesn't replay it.
+  useEffect(() => {
+    if (!justJoined) return
+    restartTour()
+    setSearchParams({}, { replace: true })
+  }, [justJoined, restartTour, setSearchParams])
+
+  // Below `lg` the nav is a drawer, so a step anchored to a nav entry has
+  // nothing on screen to measure until it is open — the same problem the
+  // editors' openTools/openProperties solve for their mobile sheets, handled
+  // the same way. `settleMs` below covers the drawer's own 200ms slide.
+  // Below `lg` the nav is a drawer, so a step anchored to a nav entry has
+  // nothing on screen to measure until it is open — the same problem the
+  // editors' openTools/openProperties solve for their mobile sheets.
+  //
+  // DERIVED rather than synced into `navOpen` via an effect: the drawer is
+  // open when the coach opened it or the current step needs it, so it closes
+  // by itself the moment neither holds — including when the tour FINISHES,
+  // which an onSkip-only cleanup missed and which a state-sync version had to
+  // track with a ref to avoid slamming shut a menu the coach opened himself.
+  const tourWantsNav = tour.open && Boolean(tour.step?.openNav)
+  const navVisible = navOpen || tourWantsNav
   // The Library's three-pane file-manager layout (2026-08-28) genuinely
   // wants more than the 1152px every other page in the app is built for —
   // a single-column form or report doesn't need the room, but a places
@@ -242,6 +292,12 @@ export function AppShell() {
   // this one route rather than raising the app-wide cap, since nothing else
   // was designed or asked to change.
   const isLibrary = useLocation().pathname.startsWith('/library')
+  // The app walkthrough points at the nav and the club switcher, and Home is
+  // where a coach lands after joining — so it waits for Home rather than
+  // firing over whatever route they opened first. Critically that includes
+  // the editors, which run their own tours: two spotlight overlays on one
+  // screen is not a race worth having.
+  const isHome = useLocation().pathname === '/'
 
   // Same reasoning as isLibrary above, for the two editors' canvas/inspector
   // layouts: the reading-width cap left the canvas artificially small with wide
@@ -292,7 +348,11 @@ export function AppShell() {
             selector that used to live here is gone with Task 7 — the club
             switcher is the one "where am I" control now. */}
         <div className="ml-auto flex items-center gap-3">
-          <ClubSwitcher />
+          <span data-onboarding-anchor="club-switcher">
+            <span data-onboarding-anchor="club-switcher">
+              <ClubSwitcher />
+            </span>
+          </span>
           <ThemeToggleButton />
           <button
             type="button"
@@ -316,15 +376,15 @@ export function AppShell() {
 
       {/* Mobile drawer — always mounted (not conditionally rendered) so the
           transform/opacity transitions below can animate open and closed. */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${navOpen ? '' : 'pointer-events-none'}`} aria-hidden={!navOpen}>
+      <div className={`fixed inset-0 z-50 lg:hidden ${navVisible ? '' : 'pointer-events-none'}`} aria-hidden={!navVisible}>
         <button
           type="button"
           aria-label="Close menu"
           onClick={() => setNavOpen(false)}
-          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${navOpen ? 'opacity-100' : 'opacity-0'}`}
+          className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${navVisible ? 'opacity-100' : 'opacity-0'}`}
         />
         <div
-          className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-xl transition-transform duration-200 ${navOpen ? 'translate-x-0' : '-translate-x-full'}`}
+          className={`absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-xl transition-transform duration-200 ${navVisible ? 'translate-x-0' : '-translate-x-full'}`}
         >
           <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
             <BrandBlock />
@@ -390,6 +450,21 @@ export function AppShell() {
         </aside>
         <div className="pointer-events-none fixed bottom-0 left-14 right-0 top-14 z-10 bg-black/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100" />
       </div>
+
+      {tour.open && isHome && (
+        <OnboardingTour
+          label="Getting started"
+          step={tour.step}
+          stepIndex={tour.stepIndex}
+          stepCount={tour.stepCount}
+          onNext={tour.next}
+          onBack={tour.back}
+          onSkip={tour.skip}
+          // Matches the drawer's own `duration-200` slide, so the spotlight
+          // measures where the nav ENDS UP rather than where it started.
+          settleMs={tourWantsNav ? 220 : 0}
+        />
+      )}
 
       <main className="lg:pl-16">
         <div
