@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH, PASSWORD_PLACEHOLDER, validatePassword } from '../lib/passwordPolicy'
 
 interface ResetPasswordProps {
   onDone: () => void
@@ -21,6 +22,13 @@ export function ResetPassword({ onDone }: ResetPasswordProps) {
     if (!password || submitting) return
     if (password !== confirmPassword) {
       setError("Passwords don't match.")
+      return
+    }
+    // Always checked here: this sets a NEW password, so unlike sign-in there
+    // is no existing credential to grandfather in.
+    const problem = validatePassword(password)
+    if (problem) {
+      setError(problem)
       return
     }
 
@@ -49,13 +57,17 @@ export function ResetPassword({ onDone }: ResetPasswordProps) {
           id="new-password"
           type="password"
           required
-          minLength={6}
+          minLength={PASSWORD_MIN_LENGTH}
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="At least 6 characters"
+          placeholder={PASSWORD_PLACEHOLDER}
+          aria-describedby="new-password-hint"
           className="mt-1 w-full rounded-md border border-line bg-panel px-3 py-2 text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
         />
+        <p id="new-password-hint" className="mt-1.5 text-xs text-ink-faint">
+          {PASSWORD_HINT}
+        </p>
 
         <label htmlFor="confirm-new-password" className="mt-4 block text-sm font-medium text-ink-muted">
           Confirm new password
@@ -64,7 +76,7 @@ export function ResetPassword({ onDone }: ResetPasswordProps) {
           id="confirm-new-password"
           type="password"
           required
-          minLength={6}
+          minLength={PASSWORD_MIN_LENGTH}
           autoComplete="new-password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
