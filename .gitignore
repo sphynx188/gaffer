@@ -31,6 +31,9 @@ dist-ssr
 # Serena semantic-code cache (local tooling, not project state)
 .serena/
 
+# Supabase CLI scratch (a version-check cache it writes on any invocation).
+supabase/.temp/
+
 # Claude Code local state — settings, skills, and git worktrees. The
 # worktrees are full checkouts of this repo, so leaving them untracked but
 # un-ignored meant `oxlint` walked them and reported every warning twice,
