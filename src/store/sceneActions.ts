@@ -61,11 +61,62 @@ export function generateId(prefix: string): string {
 }
 
 // Keyframe times are rounded to the millisecond. Two keyframes are never
-// allowed to share a `t` (addKeyframe and moveKeyframe both refuse), and that
-// guard is only reliable if float noise from balanceTiming's division can't
-// produce a near-but-not-equal duplicate.
+// allowed to share a `t`, and since `regrid` below is now the ONLY thing that
+// assigns a time, that guard reduces to "the grid never lands twice on the
+// same multiple" — which it can't. Kept because `t` is still float seconds on
+// the wire and in `interpolate.ts`.
 export function roundTime(seconds: number): number {
   return Math.round(seconds * 1000) / 1000
+}
+
+// ── The fixed keyframe grid ───────────────────────────────────────────────
+//
+// Timing is not something a coach edits. Keyframe N sits at exactly
+// N × KEYFRAME_GAP_SECONDS, there are at most MAX_KEYFRAMES of them, and
+// `duration_seconds` is DERIVED from the count rather than typed in. A coach
+// only ever adds, deletes or reorders keyframes; the seconds behind them are
+// an implementation detail they never see or set.
+//
+// This replaced four separate controls that could each retime a document
+// independently — a duration input, drag-to-retime on the track, "Balance
+// timing", and a Speed up/Slow down pair that scaled every keyframe. They
+// could disagree, and did: because `duration_seconds` was an integer and the
+// scale step was ±10%, every duration ≤ 5s was a fixed point of `Math.round`,
+// so the duration silently froze while the keyframes kept compressing. There
+// is now exactly one rule and nothing to hold a second opinion.
+//
+// "Speed up / slow down" survives as a PLAYBACK speed (useTimelinePlayback's
+// `speed`) — it changes how fast the coach watches the drill, never what is
+// stored.
+export const KEYFRAME_GAP_SECONDS = 1.5
+export const MAX_KEYFRAMES = 10
+
+// The derived duration for a given keyframe count. A single-keyframe document
+// still gets one gap's worth of room rather than 0, so the playhead, the track
+// and `percentOf` all have a non-zero span to divide by.
+export function durationForCount(count: number): number {
+  return roundTime(Math.max(1, count - 1) * KEYFRAME_GAP_SECONDS)
+}
+
+// Re-lays every keyframe onto the grid in its current order and derives the
+// duration to match. Called after any structural change (add, delete, clear,
+// paste) so the two can never drift apart. Order is taken from the array as
+// given — callers that need a specific position splice it in first.
+//
+// Returns the SAME REFERENCE when everything is already on the grid, per this
+// file's decline convention: a re-grid that changes nothing must not cost an
+// undo slot or a Supabase write.
+export function regrid<T extends SceneDocument>(doc: T): T {
+  const duration = durationForCount(doc.keyframes.length)
+  const alreadyGridded =
+    doc.duration_seconds === duration &&
+    doc.keyframes.every((k, i) => k.t === roundTime(i * KEYFRAME_GAP_SECONDS))
+  if (alreadyGridded) return doc
+  return {
+    ...doc,
+    duration_seconds: duration,
+    keyframes: doc.keyframes.map((k, i) => ({ ...k, t: roundTime(i * KEYFRAME_GAP_SECONDS) })),
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -189,20 +240,24 @@ export function setEntityPosition<T extends SceneDocument>(
 
 // ── Keyframes ─────────────────────────────────────────────────────────────
 
-// Inserts a keyframe at `t` seconds, keeping `keyframes` sorted by time. A
-// second keyframe at a time one already occupies is refused (returns the
-// document unchanged) — interpolation across a zero-length segment isn't
-// defined. `states` defaults to a copy of whichever keyframe holds at `t`.
+// Appends a keyframe to the end of the grid. `t` is no longer a position a
+// caller chooses — it names the moment whose pose the new keyframe should
+// START from (the playhead, typically), and the keyframe itself always lands
+// in the next free slot. Refused once the document is at MAX_KEYFRAMES.
+//
+// `states` defaults to a copy of whatever holds at `t`, so "add a keyframe"
+// means "carry on from what I'm looking at" rather than snapping the cast
+// back to some other moment.
 export function addKeyframe<T extends SceneDocument>(
   doc: T,
   id: string,
   t: number,
   states?: Record<string, EntityState>
 ): T {
-  const time = roundTime(clamp(t, 0, doc.duration_seconds))
-  if (doc.keyframes.some((k) => k.t === time)) return doc
-  const seeded = states ? { ...states } : statesHoldingAt(doc.keyframes, time)
-  return { ...doc, keyframes: sortKeyframes([...doc.keyframes, { id, t: time, states: seeded }]) }
+  if (doc.keyframes.length >= MAX_KEYFRAMES) return doc
+  const from = roundTime(clamp(t, 0, doc.duration_seconds))
+  const seeded = states ? { ...states } : statesHoldingAt(doc.keyframes, from)
+  return regrid({ ...doc, keyframes: [...doc.keyframes, { id, t: 0, states: seeded }] })
 }
 
 export function updateKeyframeState<T extends SceneDocument>(
@@ -217,17 +272,19 @@ export function updateKeyframeState<T extends SceneDocument>(
   }
 }
 
-// Retimes one keyframe and re-sorts. Clamped to [0, duration_seconds];
-// refused if another keyframe already sits on that exact time.
-export function moveKeyframe<T extends SceneDocument>(doc: T, keyframeId: string, t: number): T {
-  const time = roundTime(clamp(t, 0, doc.duration_seconds))
-  if (doc.keyframes.some((k) => k.t === time && k.id !== keyframeId)) return doc
-  const target = doc.keyframes.find((k) => k.id === keyframeId)
-  if (!target || target.t === time) return doc
-  return {
-    ...doc,
-    keyframes: sortKeyframes(doc.keyframes.map((k) => (k.id === keyframeId ? { ...k, t: time } : k))),
-  }
+// Moves a keyframe one slot earlier or later in the running order. This is
+// what replaced drag-to-retime: the ORDER is the only thing a coach can
+// change, and the grid re-derives the times from it. `delta` is -1 or +1;
+// anything that would fall off either end is refused.
+export function reorderKeyframe<T extends SceneDocument>(doc: T, keyframeId: string, delta: number): T {
+  const from = doc.keyframes.findIndex((k) => k.id === keyframeId)
+  if (from === -1) return doc
+  const to = from + delta
+  if (to < 0 || to >= doc.keyframes.length) return doc
+  const keyframes = [...doc.keyframes]
+  const [moved] = keyframes.splice(from, 1)
+  keyframes.splice(to, 0, moved)
+  return regrid({ ...doc, keyframes })
 }
 
 // Deletes the keyframe and any marking bound to it. Keyframe-bound markings go
@@ -240,11 +297,13 @@ export function moveKeyframe<T extends SceneDocument>(doc: T, keyframeId: string
 export function deleteKeyframe<T extends SceneDocument>(doc: T, keyframeId: string): T {
   if (doc.keyframes.length <= 1) return doc
   if (!doc.keyframes.some((k) => k.id === keyframeId)) return doc
-  return {
+  // Regridded so the survivors close the gap the deleted one left, rather
+  // than keeping a hole at its old time.
+  return regrid({
     ...doc,
     keyframes: doc.keyframes.filter((k) => k.id !== keyframeId),
     scene: { ...doc.scene, markings: doc.scene.markings.filter((m) => m.keyframeId !== keyframeId) },
-  }
+  })
 }
 
 // Collapses the timeline down to one keyframe at t=0, holding whatever was
@@ -255,56 +314,16 @@ export function deleteKeyframe<T extends SceneDocument>(doc: T, keyframeId: stri
 // so every entity's position is silently lost rather than just its timing.
 export function clearKeyframes<T extends SceneDocument>(doc: T): T {
   if (doc.keyframes.length <= 1) return doc
-  return {
+  return regrid({
     ...doc,
     keyframes: [{ id: generateId('keyframe'), t: 0, states: statesHoldingAt(doc.keyframes, 0) }],
     scene: { ...doc.scene, markings: doc.scene.markings.filter((m) => !m.keyframeId) },
-  }
+  })
 }
 
-// Spreads the existing keyframes evenly, keeping their order. With no
-// `stepSeconds`, spacing is derived from the CURRENT `duration_seconds` (the
-// original behaviour — the tactics timeline bar's plain "Balance timing").
-// Given an explicit `stepSeconds` instead, every gap becomes exactly that —
-// duration_seconds is recomputed to match rather than left stale, since the
-// point of setting an explicit gap is the drill actually taking that long
-// per step, not just the keyframes moving inside an unrelated total. This is
-// what retimes an older drill onto a new default gap after the fact — see
-// APPEND_GAP_SECONDS (useKeyframeToggle.ts) and the Timeline tab's "Match
-// current spacing" button, 2026-08-31.
-export function balanceTiming<T extends SceneDocument>(doc: T, stepSeconds?: number): T {
-  const count = doc.keyframes.length
-  if (count === 0) return doc
-  const spacing = stepSeconds ?? (count === 1 ? 0 : doc.duration_seconds / (count - 1))
-  const keyframes = sortKeyframes(doc.keyframes).map((keyframe, index) => ({
-    ...keyframe,
-    t: roundTime(index * spacing),
-  }))
-  return {
-    ...doc,
-    keyframes,
-    duration_seconds: stepSeconds === undefined ? doc.duration_seconds : Math.max(1, Math.round(spacing * (count - 1))),
-  }
-}
-
-// Uniformly compresses or stretches every keyframe's own time by `factor`,
-// carrying `duration_seconds` along with them so the ratio between "when a
-// keyframe lands" and "how long the whole drill runs" never drifts — the
-// Timeline tab's Speed up/Slow down pair (2026-08-31) is this applied at a
-// fixed step each press. Unlike `setDuration`, which deliberately leaves
-// existing keyframes where they are when the clip shrinks (see its own
-// comment), moving every keyframe's time is the entire point here — that's
-// what makes the drill actually play faster or slower, not just changes how
-// much room sits around timing that stayed put.
-export function scaleTiming<T extends SceneDocument>(doc: T, factor: number): T {
-  if (!Number.isFinite(factor) || factor <= 0 || factor === 1) return doc
-  if (doc.keyframes.length <= 1) return doc
-  return {
-    ...doc,
-    duration_seconds: Math.max(1, Math.round(doc.duration_seconds * factor)),
-    keyframes: doc.keyframes.map((keyframe) => ({ ...keyframe, t: roundTime(keyframe.t * factor) })),
-  }
-}
+// `balanceTiming`, `scaleTiming` and `setDuration` used to live here. All
+// three are gone: with the grid, keyframes are always already balanced, and
+// there is no duration to set independently of them. See `regrid` above.
 
 // Copy/paste of a whole keyframe (Stage 2.2, Ctrl+C / Ctrl+V). What travels is
 // the `states` map — where everyone stood — not the id or the time, because
@@ -316,11 +335,11 @@ export function copyKeyframe(doc: SceneDocument, keyframeId: string): Keyframe |
   return keyframe ? { ...keyframe, states: { ...keyframe.states } } : null
 }
 
-// Pastes a copied shape in as a NEW keyframe at `t`. States are filtered to
-// entities the document still has, so pasting a keyframe copied before a
-// player was deleted doesn't resurrect a position for a cast member that no
-// longer exists. Refused (unchanged) if `t` is already occupied, exactly as
-// addKeyframe is.
+// Pastes a copied shape in as a NEW keyframe at the end of the grid. States
+// are filtered to entities the document still has, so pasting a keyframe
+// copied before a player was deleted doesn't resurrect a position for a cast
+// member that no longer exists. Refused (unchanged) at MAX_KEYFRAMES, exactly
+// as addKeyframe is — `t` now only seeds the pose, not the position.
 export function pasteKeyframe<T extends SceneDocument>(doc: T, id: string, t: number, clipboard: Keyframe): T {
   const live: Record<string, EntityState> = {}
   for (const entity of doc.scene.entities) {
@@ -398,12 +417,7 @@ export function setOrientation<T extends SceneDocument>(doc: T, orientation: Pit
   return setPitch(doc, { ...doc.pitch, orientation })
 }
 
-// Existing keyframes are deliberately left where they are when the duration
-// shrinks: silently dragging a coach's keyframes is worse than leaving one
-// past the end, and `balanceTiming` is the tool for redistributing them.
-export function setDuration<T extends SceneDocument>(doc: T, seconds: number): T {
-  // Both columns are `integer`, so round here rather than letting Postgres do
-  // it and leave local state disagreeing with the row.
-  const value = Math.max(1, Math.round(seconds))
-  return doc.duration_seconds === value ? doc : { ...doc, duration_seconds: value }
-}
+// `setDuration` is gone. Duration is derived from the keyframe count by
+// `regrid`/`durationForCount` and is not independently settable — migration
+// 037 widened the column to numeric(4,1) to hold the half-seconds the 1.5s
+// grid produces.

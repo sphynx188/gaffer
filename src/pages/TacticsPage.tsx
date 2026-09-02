@@ -14,7 +14,7 @@ import {
   UserCog,
 } from 'lucide-react'
 import { useStore } from '../store'
-import { isLicensedDoc, selectMyRole } from '../store/slices/clubSlice'
+import { canEditDocWith, isLicensedDoc, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
 import type { DrillPhaseOfPlay, Tactic } from '../store'
 import { DRILL_PHASES_OF_PLAY, DRILL_PHASE_OF_PLAY_LABELS } from '../store'
@@ -224,10 +224,10 @@ export function TacticsPage() {
   const activeTactic = activeId ? (tactics.find((t) => t.id === activeId) ?? null) : null
 
   // club_id === selectedClubId is a hard precondition — see clubSlice's
-  // canEditDoc comment for why: without it, a tactic you created stays
+  // canEditDocWith comment for why: without it, a tactic you created stays
   // "yours to edit" even from a club it's merely licensed into.
   const canEdit = (tactic: Tactic) =>
-    tactic.club_id === selectedClubId && (isAdmin || tactic.created_by === myUserId)
+    canEditDocWith(tactic, { selectedClubId, isAdmin, userId: myUserId })
 
   // Only this club's own tactic-kind collections — collection_tactic's RLS
   // checks collection.kind = 'tactic' since migration 032, and requires

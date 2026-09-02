@@ -41,6 +41,14 @@ export interface TourStep {
   // and pitch/canvas/name steps leave it unset. Tactics has no such tabs at
   // all — this field is drill-only.
   panelTab?: 'tools' | 'timeline'
+  // Below `lg` the app's primary nav is a hamburger DRAWER rather than the
+  // desktop rail, so an app-shell step pointing at a nav entry has nothing to
+  // measure until that drawer is open (2026-09-01). Exactly the same problem
+  // openTools/openProperties solve for the editors' mobile sheets, and set
+  // for the same reason — it names the surface, and the host opens it before
+  // the tour measures. Unset on every editor step; those two are unset on
+  // every app-shell step.
+  openNav?: boolean
 }
 
 export const TOUR_STEPS: TourStep[] = [
@@ -111,7 +119,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'timeline',
     anchor: 'timeline-bar',
     title: 'Keyframes & playback',
-    body: 'A drill is a timeline, not a single snapshot. Add a keyframe wherever the picture should change, then play it back to see it move.',
+    body: 'A drill is a timeline, not a single snapshot. Add a keyframe for each moment you want to show and they play back in order — Speed up and Slow down change how fast you watch, never the drill itself.',
     placement: 'left',
     openProperties: true,
     panelTab: 'timeline',

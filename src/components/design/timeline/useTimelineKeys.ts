@@ -44,8 +44,8 @@ export function useTimelineKeys({
     if (!enabled) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      // Never steal a key from a form field — the duration input on the
-      // timeline itself is one.
+      // Never steal a key from a form field — a keyframe's name, the drill's
+      // own metadata fields, anything the editor renders as an input.
       if (isTypingTarget(event.target)) return
       // The canvas claims arrow keys for nudging a selection and space for
       // panning, and calls preventDefault when it does. This listener is on

@@ -273,10 +273,11 @@ export interface TacticSlice {
 
   addTacticKeyframe: (tacticId: string, t: number, states?: Record<string, EntityState>) => string | null
   updateTacticKeyframeState: (tacticId: string, keyframeId: string, states: Record<string, EntityState>) => void
-  moveTacticKeyframe: (tacticId: string, keyframeId: string, t: number) => void
+  // Moves a keyframe one slot earlier (-1) or later (+1). Order is the only
+  // timing a coach controls; the 1.5s grid derives the times from it.
+  reorderTacticKeyframe: (tacticId: string, keyframeId: string, delta: number) => void
   deleteTacticKeyframe: (tacticId: string, keyframeId: string) => void
   clearTacticKeyframes: (tacticId: string) => void
-  balanceTacticTiming: (tacticId: string) => void
 
   // Ctrl+C / Ctrl+V over a whole keyframe (plan 2.2). Copy is not a mutation —
   // it neither commits nor saves, it only fills the clipboard.
@@ -345,7 +346,6 @@ export interface TacticSlice {
   ) => void
   setTacticView: (tacticId: string, view: 'single' | 'dual') => void
   setTacticPitch: (tacticId: string, pitch: PitchConfig) => void
-  setTacticDuration: (tacticId: string, seconds: number) => void
   // The live orientation switcher (decided 2026-08-26). Transposes every
   // entity state, marking point and movement path in lockstep with the
   // markings — see canvas/transposeScene.ts, shared with the drill editor.
@@ -856,8 +856,8 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
       commit(tacticId, 'timeline', (t) => scene.updateKeyframeState(t, keyframeId, states))
     },
 
-    moveTacticKeyframe: (tacticId, keyframeId, t) => {
-      commit(tacticId, 'timeline', (tactic) => scene.moveKeyframe(tactic, keyframeId, t))
+    reorderTacticKeyframe: (tacticId, keyframeId, delta) => {
+      commit(tacticId, 'timeline', (tactic) => scene.reorderKeyframe(tactic, keyframeId, delta))
     },
 
     deleteTacticKeyframe: (tacticId, keyframeId) => {
@@ -866,10 +866,6 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
 
     clearTacticKeyframes: (tacticId) => {
       commit(tacticId, 'timeline', (t) => scene.clearKeyframes(t))
-    },
-
-    balanceTacticTiming: (tacticId) => {
-      commit(tacticId, 'timeline', (t) => scene.balanceTiming(t))
     },
 
     copyTacticKeyframe: (tacticId, keyframeId) => {
@@ -1031,10 +1027,6 @@ export const createTacticSlice: StateCreator<StoreState, [], [], TacticSlice> = 
 
     setTacticPitch: (tacticId, pitch) => {
       commit(tacticId, 'timeline', (t) => scene.setPitch(t, pitch))
-    },
-
-    setTacticDuration: (tacticId, seconds) => {
-      commit(tacticId, 'timeline', (t) => scene.setDuration(t, seconds))
     },
 
     setTacticOrientation: (tacticId, orientation) => {

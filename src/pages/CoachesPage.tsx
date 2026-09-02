@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Check, LibraryBig, Pencil, Plus, Shield, UserMinus, Users } from 'lucide-react'
+import { Check, Copy, LibraryBig, Link2, Pencil, Plus, Shield, Trash2, UserMinus, Users } from 'lucide-react'
 import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
+import { inviteUrl } from '../store/invites'
 import { useSession } from '../hooks/useSession'
 import type { ClubMemberRow, Collection } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -167,7 +168,9 @@ function CoachesScreen() {
         </div>
       )}
 
-      <AddCoachDialog open={adding} onClose={() => setAdding(false)} onCreated={(id) => setSelectedId(id)} />
+      <PendingInvites />
+
+      <InviteCoachDialog open={adding} onClose={() => setAdding(false)} />
     </div>
   )
 }
@@ -238,6 +241,7 @@ function MemberDetail({
               <input
                 id="member-name"
                 autoFocus
+                maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Sam Whitfield"
@@ -377,109 +381,209 @@ function MemberDetail({
   )
 }
 
-// Same form the old Settings page carried, in a dialog so the list stays put.
-// The password is set by the admin and handed over out of band — there is no
-// invite email on this project (see supabase/functions/create-coach).
-function AddCoachDialog({
+// Links that have been handed out but not yet opened. Worth showing as its
+// own section rather than mixing into the member list: these people have no
+// account yet, so there is nothing to grant them, rename or click into — the
+// only two things an admin can do is copy the link again or revoke it.
+function PendingInvites() {
+  const invites = useStore((s) => s.invites)
+  const revokeInvite = useStore((s) => s.revokeInvite)
+  const [copiedToken, setCopiedToken] = useState<string | null>(null)
+
+  if (invites.length === 0) return null
+
+  const copy = async (token: string) => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl(token))
+      setCopiedToken(token)
+    } catch {
+      // Clipboard unavailable — not worth an error state, see the dialog.
+    }
+  }
+
+  return (
+    <section className="mt-6">
+      <h2 className="mb-2 text-sm font-semibold text-ink">Pending invites</h2>
+      <ul className="overflow-hidden rounded-xl border border-line bg-panel">
+        {invites.map((invite) => (
+          <li
+            key={invite.token}
+            className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-4 py-2.5 last:border-b-0"
+          >
+            <Link2 className="h-3.5 w-3.5 shrink-0 text-ink-faint" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-ink">
+                {invite.display_name?.trim() || invite.invited_email?.trim() || 'Unnamed invite'}
+              </span>
+              <span className="block truncate text-xs text-ink-faint">
+                Expires {new Date(invite.expires_at).toLocaleDateString()}
+              </span>
+            </span>
+            <Badge tone="neutral">{invite.role}</Badge>
+            <button
+              type="button"
+              onClick={() => copy(invite.token)}
+              className="flex min-h-9 items-center gap-1.5 rounded-md border border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+            >
+              <Copy className="h-3.5 w-3.5" />
+              {copiedToken === invite.token ? 'Copied' : 'Copy link'}
+            </button>
+            <button
+              type="button"
+              onClick={() => revokeInvite(invite.token)}
+              className="flex min-h-9 items-center gap-1.5 rounded-md border border-line px-2 text-xs font-medium text-ink-muted transition-colors hover:border-bad/50 hover:text-bad"
+              title="Revoke this invite — the link stops working immediately"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Revoke
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+// Invites a coach instead of creating their login (migration 039). The admin
+// no longer picks — and therefore no longer knows — anyone else's password:
+// they generate a link, the coach opens it and authenticates however they
+// like, and `redeem_club_invite` binds whatever identity they arrive with to
+// this club. The email field is a note-to-self for the admin's own records;
+// nothing authorizes against it, which is exactly what lets a coach redeem
+// with a personal Google account or an Apple relay address.
+function InviteCoachDialog({
   open,
   onClose,
-  onCreated,
 }: {
   open: boolean
   onClose: () => void
-  onCreated: (userId: string) => void
 }) {
-  const createCoach = useStore((s) => s.createCoach)
+  const createInvite = useStore((s) => s.createInvite)
   const clubActionError = useStore((s) => s.clubActionError)
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // The generated link, held here so the dialog can switch from "compose" to
+  // "copy this" without closing — the link is the entire deliverable, and
+  // closing on success would throw it away before the admin had it.
+  const [link, setLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
-  const canSubmit = email.trim().length > 0 && password.length >= 6 && !submitting
+  const close = () => {
+    setDisplayName('')
+    setEmail('')
+    setLink(null)
+    setCopied(false)
+    onClose()
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!canSubmit) return
+    if (submitting) return
     setSubmitting(true)
-    const userId = await createCoach({ email: email.trim(), password, displayName: displayName.trim() })
+    const token = await createInvite('coach', displayName.trim() || null, email.trim() || null)
     setSubmitting(false)
-    if (userId) {
-      setDisplayName('')
-      setEmail('')
-      setPassword('')
-      onCreated(userId)
-      onClose()
+    if (token) setLink(inviteUrl(token))
+  }
+
+  const copy = async () => {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+    } catch {
+      // Clipboard blocked (insecure context, permissions) — the link is on
+      // screen and selectable, so this is a missing convenience, not a
+      // failure worth an error state.
     }
   }
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
-      title="Add a coach"
-      description="They can sign in straight away with the email and password you set."
+      onClose={close}
+      title={link ? 'Invite ready' : 'Invite a coach'}
+      description={
+        link
+          ? 'Send them this link. It works once, and expires in 14 days.'
+          : 'They pick their own password when they open the link — you never handle it.'
+      }
       footer={
-        <>
-          <button type="button" onClick={onClose} className="px-2 py-1.5 text-sm text-ink-muted hover:text-ink">
-            Cancel
-          </button>
+        link ? (
           <button
-            type="submit"
-            form="add-coach-form"
-            disabled={!canSubmit}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            type="button"
+            onClick={close}
+            className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover"
           >
-            {submitting ? 'Adding…' : 'Add coach'}
+            Done
           </button>
-        </>
+        ) : (
+          <>
+            <button type="button" onClick={close} className="px-2 py-1.5 text-sm text-ink-muted hover:text-ink">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="invite-coach-form"
+              disabled={submitting}
+              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            >
+              {submitting ? 'Creating…' : 'Create invite link'}
+            </button>
+          </>
+        )
       }
     >
-      <form id="add-coach-form" onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label htmlFor="coach-name" className="block text-xs font-medium text-ink-muted">
-            Display name
-          </label>
-          <input
-            id="coach-name"
-            autoFocus
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="e.g. Sam Whitfield"
-            className={`mt-1 ${FIELD}`}
-          />
+      {link ? (
+        <div className="space-y-3">
+          <p className="break-all rounded-md border border-line bg-panel-raised px-2 py-2 font-mono text-xs text-ink">
+            {link}
+          </p>
+          <button
+            type="button"
+            onClick={copy}
+            className="flex min-h-9 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
         </div>
-        <div>
-          <label htmlFor="coach-email" className="block text-xs font-medium text-ink-muted">
-            Email
-          </label>
-          <input
-            id="coach-email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="coach@example.com"
-            className={`mt-1 ${FIELD}`}
-          />
-        </div>
-        <div>
-          <label htmlFor="coach-password" className="block text-xs font-medium text-ink-muted">
-            Password
-          </label>
-          <input
-            id="coach-password"
-            type="password"
-            minLength={6}
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 6 characters"
-            className={`mt-1 ${FIELD}`}
-          />
-        </div>
-        {clubActionError && <p className="text-sm text-bad">{clubActionError}</p>}
-      </form>
+      ) : (
+        <form id="invite-coach-form" onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label htmlFor="coach-name" className="block text-xs font-medium text-ink-muted">
+              Display name
+            </label>
+            <input
+              id="coach-name"
+              autoFocus
+              maxLength={80}
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g. Sam Whitfield"
+              className={`mt-1 ${FIELD}`}
+            />
+            <p className="mt-1 text-xs text-ink-faint">How they'll appear in your squad list.</p>
+          </div>
+          <div>
+            <label htmlFor="coach-email" className="block text-xs font-medium text-ink-muted">
+              Email <span className="text-ink-faint">(optional)</span>
+            </label>
+            <input
+              id="coach-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="coach@example.com"
+              className={`mt-1 ${FIELD}`}
+            />
+            <p className="mt-1 text-xs text-ink-faint">
+              Just so you remember who the link was for — they can sign in with any email.
+            </p>
+          </div>
+          {clubActionError && <p className="text-sm text-bad">{clubActionError}</p>}
+        </form>
+      )}
     </Modal>
   )
 }

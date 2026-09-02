@@ -1,8 +1,17 @@
 import type { StateCreator } from 'zustand'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import { runSupabaseAction, type SupabaseCallResult } from '../supabaseAction'
-import type { Club, ClubLicense, ClubMemberRow, ClubMembership, ClubRole, Collection, CollectionKind } from '../types'
+import type {
+  Club,
+  ClubInvite,
+  ClubLicense,
+  ClubMemberRow,
+  ClubMembership,
+  ClubRole,
+  Collection,
+  CollectionKind,
+} from '../types'
+import { mintShareToken } from '../shareToken'
 import type { StoreState } from '../useStore'
 
 const CREST_BUCKET = 'club-crests'
@@ -10,12 +19,6 @@ const CREST_MIME_EXT: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
-}
-
-export interface NewCoachInput {
-  email: string
-  password: string
-  displayName: string
 }
 
 export interface CollectionUpdateInput {
@@ -44,31 +47,6 @@ interface ClubMemberJoinRow {
 // concern area, selectedClubId persisted to localStorage and reconciled
 // against the RLS-scoped membership list on every fetch.
 const SELECTED_CLUB_STORAGE_KEY = 'gaffer-selected-club'
-
-// `functions.invoke`'s error on a non-2xx response is always the same
-// generic FunctionsHttpError("Edge Function returned a non-2xx status
-// code") — the edge function's own `{error: "..."}` body (a duplicate
-// email, a role check failing) is unread on `error.context`, the raw
-// Response, because `invoke` only calls `.json()` on the SUCCESS path.
-// Reading it here is what turns "non-2xx status code" into the actual
-// reason a coach can act on.
-async function resolveFunctionError(
-  error: unknown,
-  data: { error?: string } | null,
-  fallback: string
-): Promise<string> {
-  if (error instanceof FunctionsHttpError) {
-    try {
-      const body: unknown = await error.context.json()
-      if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
-        return (body as { error: string }).error
-      }
-    } catch {
-      // Body wasn't JSON (a gateway error page, say) — fall through.
-    }
-  }
-  return (error as { message?: string } | null)?.message ?? data?.error ?? fallback
-}
 
 function readStoredClubId(): string | null {
   if (typeof window === 'undefined') return null
@@ -101,6 +79,7 @@ function writeStoredClubId(id: string | null): void {
 function clearClubScopedState() {
   return {
     clubMembers: [],
+    invites: [],
     collections: [],
     collectionDrillIds: {},
     collectionTacticIds: {},
@@ -121,6 +100,9 @@ export interface ClubSlice {
   selectedClubId: string | null
 
   clubMembers: ClubMemberRow[]
+  // Unredeemed seats at the selected club (migration 039). Redeemed rows are
+  // not carried: once a coach is in, `clubMembers` is where they show up.
+  invites: ClubInvite[]
   collections: Collection[]
   // Both maps: collectionId -> the ids filed in it. Populated from every
   // collection_drill/collection_tactic row RLS lets the caller read — spans
@@ -153,7 +135,12 @@ export interface ClubSlice {
   removeTacticFromCollection: (collectionId: string, tacticId: string) => Promise<boolean>
   grantCollectionAccess: (collectionId: string, userId: string) => Promise<boolean>
   revokeCollectionAccess: (collectionId: string, userId: string) => Promise<boolean>
-  createCoach: (input: NewCoachInput) => Promise<string | null>
+  // Invite-based onboarding (039) — replaced `createCoach`, which called an
+  // edge function that minted the login with the service-role key and made
+  // the ADMIN choose the coach's password. Returns the token to build a
+  // /join/:token link from, or null on failure.
+  createInvite: (role: ClubRole, displayName: string | null, email: string | null) => Promise<string | null>
+  revokeInvite: (token: string) => Promise<boolean>
   // Coaches tab (2026-08-30). Both are plain club_member writes that
   // club_member_admin_update/_delete (028) already permit; removing a coach
   // removes their MEMBERSHIP (and every grant with it), not their login —
@@ -187,18 +174,26 @@ export const selectMyRole = (s: StoreState): ClubRole | null =>
 // `doc.club_id === s.selectedClubId` up front closes that: editing a doc
 // is only ever possible from ITS OWN home club's context, never from a
 // club it's merely licensed into, whoever wrote it.
-export const canEditDoc = (
-  s: StoreState,
+//
+// Takes the three values the rule depends on rather than the whole store, so
+// a component that already subscribes to `selectedClubId` and `isAdmin`
+// individually can apply it inline without a second whole-state
+// subscription. That inline need is why seven call sites had each hand-copied
+// the boolean instead of calling the store-shaped selector this used to be —
+// and hand-copying an ACCESS-CONTROL rule seven times means the next
+// correction to it has seven places to miss, which is a poor trade for one
+// selector's ergonomics. `isLicensedDoc` below was extracted for exactly the
+// same reason; this is that treatment applied to the edit-rights half.
+export const canEditDocWith = (
   doc: { club_id: string; created_by: string },
-  userId: string | null
-): boolean =>
-  doc.club_id === s.selectedClubId && (selectMyRole(s) === 'admin' || doc.created_by === userId)
+  ctx: { selectedClubId: string | null; isAdmin: boolean; userId: string | null }
+): boolean => doc.club_id === ctx.selectedClubId && (ctx.isAdmin || doc.created_by === ctx.userId)
 
 // A drill/tactic is only ever visible for one of two reasons (the same
 // `inScope` every library/home fetch applies): it's owned by the selected
 // club, or it's licensed IN from another club. So among visible docs,
 // "not owned by us" and "licensed to us" are the same thing, which is
-// exactly the precondition `canEditDoc` above now gates on first — this
+// exactly the precondition `canEditDocWith` above now gates on first — this
 // is that same test, standalone and callable inline (no full-state
 // subscription) for callers that only need the licensing question, not
 // the fuller edit-rights one.
@@ -212,6 +207,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
   selectedClubId: readStoredClubId(),
 
   clubMembers: [],
+  invites: [],
   collections: [],
   collectionDrillIds: {},
   collectionTacticIds: {},
@@ -306,7 +302,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     )
     const ownCollectionIds = ownCollectionIdsRes.data?.map((c) => c.id) ?? []
 
-    const [membersRes, collectionsRes, collectionDrillRes, collectionTacticRes, accessRes, outRes, inRes] =
+    const [membersRes, invitesRes, collectionsRes, collectionDrillRes, collectionTacticRes, accessRes, outRes, inRes] =
       await Promise.all([
         runSupabaseAction<ClubMemberRow[]>(
           () =>
@@ -316,6 +312,20 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
               .eq('club_id', clubId)
               .order('created_at'),
           "Couldn't load club members, try again."
+        ),
+        // Only unredeemed, unexpired seats — a redeemed invite's person is
+        // already in `clubMembers`, so listing it again would show every
+        // coach twice on the Coaches tab.
+        runSupabaseAction<ClubInvite[]>(
+          () =>
+            supabase
+              .from('club_invite')
+              .select('*')
+              .eq('club_id', clubId)
+              .is('redeemed_at', null)
+              .gt('expires_at', new Date().toISOString())
+              .order('created_at', { ascending: false }),
+          "Couldn't load pending invites, try again."
         ),
         runSupabaseAction<Collection[]>(
           () => supabase.from('collection').select('*').order('created_at'),
@@ -409,6 +419,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       collectionDrillIds,
       collectionTacticIds,
       collectionAccess,
+      ...(invitesRes.data ? { invites: invitesRes.data } : {}),
       ...(outRes.data ? { licensesOut: outRes.data } : {}),
       ...(inRes.data ? { licensesIn: inRes.data } : {}),
       licenseClubNames,
@@ -581,29 +592,49 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     return true
   },
 
-  // functions.invoke is not Postgrest — direct call, error handled here
-  // rather than through runSupabaseAction (which expects a PostgrestError).
-  //
-  // On a non-2xx response, supabase-js throws the body away and hands back a
-  // FunctionsHttpError whose `.message` is always the same generic "Edge
-  // Function returned a non-2xx status code" — the edge function's own
-  // `{error: "..."}` (a duplicate email, an admin check failure) is still
-  // sitting unread on `.context`, the raw Response. That generic string was
-  // literally the only thing a coach ever saw here; read the real body
-  // instead so the message says what actually went wrong.
-  createCoach: async ({ email, password, displayName }) => {
+  // A plain insert, not an edge function: nothing here needs the service-role
+  // key any more, because no login is being created. `club_invite_admin_insert`
+  // (039) is what authorizes it, so an admin can only ever invite into a club
+  // they actually administer.
+  createInvite: async (role, displayName, email) => {
     const clubId = get().selectedClubId
     if (!clubId) return null
+    const userId = (await supabase.auth.getUser()).data.user?.id
+    if (!userId) return null
     set({ clubActionError: null })
-    const { data, error } = await supabase.functions.invoke('create-coach', {
-      body: { club_id: clubId, email, password, display_name: displayName },
-    })
-    if (error || data?.error) {
-      set({ clubActionError: await resolveFunctionError(error, data, "Couldn't create coach, try again.") })
+    const token = mintShareToken()
+    const { error } = await runSupabaseAction<null>(
+      () =>
+        supabase.from('club_invite').insert({
+          token,
+          club_id: clubId,
+          role,
+          display_name: displayName,
+          invited_email: email,
+          created_by: userId,
+        }),
+      "Couldn't create the invite, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
       return null
     }
     await get().fetchClubData()
-    return data.user_id as string
+    return token
+  },
+
+  revokeInvite: async (token) => {
+    set({ clubActionError: null })
+    const { error } = await runSupabaseAction<null>(
+      () => supabase.from('club_invite').delete().eq('token', token),
+      "Couldn't revoke the invite, try again."
+    )
+    if (error) {
+      set({ clubActionError: error })
+      return false
+    }
+    set({ invites: get().invites.filter((i) => i.token !== token) })
+    return true
   },
 
   // A security-definer RPC (035/036), not a plain table update: RLS only

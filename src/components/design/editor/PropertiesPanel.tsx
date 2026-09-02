@@ -1,5 +1,4 @@
 import {
-  AlignHorizontalDistributeCenter,
   ChevronUp,
   Clock,
   FastForward,
@@ -34,7 +33,9 @@ import { EquipmentIcon } from '../canvas/EquipmentShapes'
 import { EQUIPMENT } from '../pitchTheme'
 import { stepKeyframe } from '../timeline/cursor'
 import type { TimelineHost } from '../timeline/TimelineHost'
-import { appendKeyframe, APPEND_GAP_SECONDS, MAX_KEYFRAMES } from '../timeline/useKeyframeToggle'
+import { appendKeyframe } from '../timeline/useKeyframeToggle'
+import { MAX_KEYFRAMES } from '../../../store/sceneActions'
+import { PLAYBACK_SPEEDS } from '../timeline/useTimelinePlayback'
 import type { TimelinePlayback } from '../timeline/useTimelinePlayback'
 import { ToolsPanel, type ToolsPanelProps } from './ToolsPanel'
 
@@ -113,12 +114,6 @@ const FIELD =
 const ROW = 'flex min-h-11 flex-1 items-center justify-center rounded-md border px-2 text-sm font-medium transition-colors lg:min-h-9'
 const ON = 'border-accent bg-accent text-white'
 const OFF = 'border-line text-ink-muted hover:border-line-strong'
-
-// How much closer/further apart every keyframe moves per Speed up/Slow down
-// press (2026-08-31) — a moderate, repeatable nudge rather than a single
-// drastic jump, so a coach can feel their way to the right pace rather than
-// overshooting it. Exactly inverse so the two buttons undo each other.
-const TIMING_STEP = 0.9
 
 const KIND_LABEL: Record<SceneEntity['kind'], string> = { player: 'Player', ball: 'Ball', equipment: 'Equipment' }
 
@@ -613,9 +608,17 @@ export function TimelineControls({
       </div>
 
       <div className="flex gap-1.5">
-        <button type="button" onClick={playback.cycleSpeed} className={ROW + ' ' + OFF + ' font-mono'} title="Playback speed">
+        {/* A readout, not a control — Speed up / Slow down below are the only
+            way to change it, so this stays a single obvious pair rather than
+            two competing ones. */}
+        <span
+          className={ROW + ' ' + OFF + ' font-mono'}
+          title="Playback speed"
+          aria-live="polite"
+          aria-label={`Playback speed ${playback.speed}×`}
+        >
           {playback.speed}×
-        </button>
+        </span>
         <button
           type="button"
           onClick={playback.toggleLoop}
@@ -628,49 +631,33 @@ export function TimelineControls({
         </button>
       </div>
 
-      {/* Retimes every keyframe together, not the preview-only speed cycle
-          above — see scaleTiming's own comment. Absent for tactics, which
-          don't get this capability (host.scaleTiming is optional). */}
-      {host.scaleTiming && (
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => host.scaleTiming?.(1 / TIMING_STEP)}
-            className={ROW + ' gap-1.5 ' + OFF}
-            title="Space every keyframe further apart"
-          >
-            <Rewind className="h-3.5 w-3.5" />
-            Slow down
-          </button>
-          <button
-            type="button"
-            onClick={() => host.scaleTiming?.(TIMING_STEP)}
-            className={ROW + ' gap-1.5 ' + OFF}
-            title="Pull every keyframe closer together"
-          >
-            <FastForward className="h-3.5 w-3.5" />
-            Speed up
-          </button>
-        </div>
-      )}
-
-      {/* A drill built before APPEND_GAP_SECONDS last changed keeps whatever
-          gap it was authored under — Speed up/Slow down nudge that gap by a
-          percentage, which never lands exactly on a specific target the way
-          this does. Re-spaces every keyframe at exactly today's default,
-          recomputing the total duration to match (scene.balanceTiming's own
-          comment). */}
-      {host.scaleTiming && host.keyframes.length > 1 && (
+      {/* Changes how fast the coach WATCHES the drill, nothing else. Keyframe
+          timing is a fixed grid the editor can't retime (scene.regrid), so
+          these no longer touch the document at all — they were previously
+          wired to a keyframe-scaling action whose duration silently froze
+          against its own keyframes. Same pair, same place, honest now. */}
+      <div className="flex gap-1.5">
         <button
           type="button"
-          onClick={() => host.balanceTiming(APPEND_GAP_SECONDS)}
-          className={'w-full ' + ROW + ' gap-1.5 ' + OFF}
-          title={`Re-space every keyframe exactly ${APPEND_GAP_SECONDS}s apart`}
+          onClick={() => playback.stepSpeed(-1)}
+          disabled={playback.speed === PLAYBACK_SPEEDS[0]}
+          className={ROW + ' gap-1.5 ' + OFF + ' disabled:opacity-40'}
+          title="Play the drill more slowly"
         >
-          <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" />
-          Match current spacing ({APPEND_GAP_SECONDS}s)
+          <Rewind className="h-3.5 w-3.5" />
+          Slow down
         </button>
-      )}
+        <button
+          type="button"
+          onClick={() => playback.stepSpeed(1)}
+          disabled={playback.speed === PLAYBACK_SPEEDS[PLAYBACK_SPEEDS.length - 1]}
+          className={ROW + ' gap-1.5 ' + OFF + ' disabled:opacity-40'}
+          title="Play the drill faster"
+        >
+          <FastForward className="h-3.5 w-3.5" />
+          Speed up
+        </button>
+      </div>
 
       <button
         type="button"

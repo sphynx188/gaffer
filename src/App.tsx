@@ -5,6 +5,7 @@ import { useStore } from './store'
 import { Login } from './components/Login'
 import { ResetPassword } from './components/ResetPassword'
 import { CreateClub } from './components/CreateClub'
+import { JoinPage } from './pages/JoinPage'
 import { OfflineBanner } from './components/OfflineBanner'
 import { AppShell } from './layout/AppShell'
 import { HomePage } from './pages/HomePage'
@@ -67,6 +68,10 @@ function App() {
       <Routes>
         <Route path="/d/:token" element={<SharedDrillPage />} />
         <Route path="/t/:token" element={<SharedTacticPage />} />
+        {/* Also above the gate, and for the same reason — but unlike the two
+            share routes this one WRITES: it is what turns a visitor with no
+            account into a club member (migration 039). */}
+        <Route path="/join/:token" element={<JoinPage />} />
         <Route path="*" element={<AuthedApp />} />
       </Routes>
       </Suspense>

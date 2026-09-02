@@ -15,11 +15,9 @@ export function useTacticTimelineHost(tactic: Tactic): TimelineHost {
   const updateMarking = useStore((s) => s.updateTacticMarking)
   const addKeyframe = useStore((s) => s.addTacticKeyframe)
   const updateKeyframeState = useStore((s) => s.updateTacticKeyframeState)
-  const moveKeyframe = useStore((s) => s.moveTacticKeyframe)
+  const reorderKeyframe = useStore((s) => s.reorderTacticKeyframe)
   const deleteKeyframe = useStore((s) => s.deleteTacticKeyframe)
   const clearKeyframes = useStore((s) => s.clearTacticKeyframes)
-  const balanceTiming = useStore((s) => s.balanceTacticTiming)
-  const setDuration = useStore((s) => s.setTacticDuration)
   const addPhase = useStore((s) => s.addTacticPhase)
   const updatePhase = useStore((s) => s.updateTacticPhase)
   const removePhase = useStore((s) => s.removeTacticPhase)
@@ -37,11 +35,9 @@ export function useTacticTimelineHost(tactic: Tactic): TimelineHost {
       updateMarking: (markingId, patch) => updateMarking(tactic.id, markingId, patch),
       addKeyframe: (t, states) => addKeyframe(tactic.id, t, states),
       updateKeyframeState: (keyframeId, states) => updateKeyframeState(tactic.id, keyframeId, states),
-      moveKeyframe: (keyframeId, t) => moveKeyframe(tactic.id, keyframeId, t),
+      reorderKeyframe: (keyframeId, delta) => reorderKeyframe(tactic.id, keyframeId, delta),
       deleteKeyframe: (keyframeId) => deleteKeyframe(tactic.id, keyframeId),
       clearKeyframes: () => clearKeyframes(tactic.id),
-      balanceTiming: () => balanceTiming(tactic.id),
-      setDuration: (seconds) => setDuration(tactic.id, seconds),
       phases: tactic.phases,
       addPhase: (phase) => addPhase(tactic.id, phase),
       updatePhase: (phaseId, patch) => updatePhase(tactic.id, phaseId, patch),
@@ -61,11 +57,9 @@ export function useTacticTimelineHost(tactic: Tactic): TimelineHost {
       updateMarking,
       addKeyframe,
       updateKeyframeState,
-      moveKeyframe,
+      reorderKeyframe,
       deleteKeyframe,
       clearKeyframes,
-      balanceTiming,
-      setDuration,
       addPhase,
       updatePhase,
       removePhase,

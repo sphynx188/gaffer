@@ -28,6 +28,12 @@ interface OnboardingTourProps {
    * it ends up.
    */
   settleMs?: number
+  /**
+   * Names the walkthrough for screen readers. Defaults to the editor's, which
+   * is where this component started; the app-shell tour passes its own so a
+   * coach being walked around the NAV is not told they are in an editor.
+   */
+  label?: string
 }
 
 interface Rect {
@@ -105,7 +111,16 @@ function positionTooltip(
   }
 }
 
-export function OnboardingTour({ step, stepIndex, stepCount, onNext, onBack, onSkip, settleMs = 0 }: OnboardingTourProps) {
+export function OnboardingTour({
+  step,
+  stepIndex,
+  stepCount,
+  onNext,
+  onBack,
+  onSkip,
+  settleMs = 0,
+  label,
+}: OnboardingTourProps) {
   const [anchorRect, setAnchorRect] = useState<Rect | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
@@ -171,7 +186,7 @@ export function OnboardingTour({ step, stepIndex, stepCount, onNext, onBack, onS
   const isLast = stepIndex === stepCount - 1
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-label="Editor walkthrough" aria-modal="true">
+    <div className="fixed inset-0 z-50" role="dialog" aria-label={label ?? 'Editor walkthrough'} aria-modal="true">
       {/* The spotlight: a transparent box the size of the anchor (plus a
           little padding), whose box-shadow fills the rest of the viewport.
           This is the standard CSS cutout trick — an SVG mask would do the

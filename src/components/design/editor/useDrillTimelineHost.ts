@@ -16,12 +16,9 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
   const updateMarking = useStore((s) => s.updateMarking)
   const addKeyframe = useStore((s) => s.addKeyframe)
   const updateKeyframeState = useStore((s) => s.updateKeyframeState)
-  const moveKeyframe = useStore((s) => s.moveKeyframe)
+  const reorderKeyframe = useStore((s) => s.reorderKeyframe)
   const deleteKeyframe = useStore((s) => s.deleteKeyframe)
   const clearKeyframes = useStore((s) => s.clearKeyframes)
-  const balanceTiming = useStore((s) => s.balanceTiming)
-  const scaleTiming = useStore((s) => s.scaleTiming)
-  const setDuration = useStore((s) => s.setDuration)
 
   // Memoised on the drill's identity and the store actions, all of which are
   // stable — so the host is a new object only when the drill actually changes,
@@ -36,12 +33,9 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
       updateMarking: (markingId, patch) => updateMarking(drill.id, markingId, patch),
       addKeyframe: (t, states) => addKeyframe(drill.id, t, states),
       updateKeyframeState: (keyframeId, states) => updateKeyframeState(drill.id, keyframeId, states),
-      moveKeyframe: (keyframeId, t) => moveKeyframe(drill.id, keyframeId, t),
+      reorderKeyframe: (keyframeId, delta) => reorderKeyframe(drill.id, keyframeId, delta),
       deleteKeyframe: (keyframeId) => deleteKeyframe(drill.id, keyframeId),
       clearKeyframes: () => clearKeyframes(drill.id),
-      balanceTiming: (stepSeconds) => balanceTiming(drill.id, stepSeconds),
-      scaleTiming: (factor) => scaleTiming(drill.id, factor),
-      setDuration: (seconds) => setDuration(drill.id, seconds),
     }),
     [
       drill.id,
@@ -53,12 +47,9 @@ export function useDrillTimelineHost(drill: Drill): TimelineHost {
       updateMarking,
       addKeyframe,
       updateKeyframeState,
-      moveKeyframe,
+      reorderKeyframe,
       deleteKeyframe,
       clearKeyframes,
-      balanceTiming,
-      scaleTiming,
-      setDuration,
     ]
   )
 }

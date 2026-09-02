@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
-  AlignHorizontalDistributeCenter,
+  ChevronLeft,
+  ChevronRight,
   Eraser,
   Maximize2,
   Plus,
@@ -8,8 +9,8 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
+import { KEYFRAME_GAP_SECONDS, MAX_KEYFRAMES } from '../../../store/sceneActions'
 import type { RenderFrame } from '../canvas/interpolate'
-import { snapToFrame } from './frames'
 import { AddPhaseDialog, PhaseTrack } from './PhaseTrack'
 import { firstFreeSpan } from './phases'
 import { formatSegment, segmentSpeeds, type SpeedVerdict } from './speeds'
@@ -28,10 +29,6 @@ interface TimelineEditorProps {
   frame: RenderFrame | null
   className?: string
 }
-
-// Tick spacings to choose from, coarsest that still gives a readable ruler.
-const TICK_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60]
-const MAX_TICKS = 10
 
 // Timeline zoom (Stage 5.4). 1 is fit-to-view; above that the track grows wider
 // than its container and scrolls, which is the only way to place a keyframe
@@ -55,25 +52,23 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n))
 }
 
-function tickStepFor(duration: number): number {
-  for (const step of TICK_STEPS) {
-    if (duration / step <= MAX_TICKS) return step
-  }
-  return duration / MAX_TICKS
-}
-
 export function TimelineEditor({ host, playback, frame, className }: TimelineEditorProps) {
   const trackRef = useRef<HTMLDivElement | null>(null)
-  // A keyframe being dragged shows where it would land without writing there
-  // yet. moveKeyframe is a committed mutation — calling it on every pointer
-  // move would push a separate undo entry per frame of the drag.
-  const [dragging, setDragging] = useState<{ id: string; t: number } | null>(null)
-  const [durationDraft, setDurationDraft] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [addingPhase, setAddingPhase] = useState(false)
 
   const { parked, dirty, label, toggle } = useKeyframeToggle(host, frame, playback)
   const duration = host.duration
+  const parkedIndex = parked ? host.keyframes.findIndex((k) => k.id === parked.id) : -1
+
+  // Reordering moves the keyframe out from under the playhead, so the playhead
+  // follows it to its new slot — otherwise the next press would act on
+  // whichever keyframe slid into the old position instead.
+  const moveParked = (delta: number) => {
+    if (!parked || parkedIndex === -1) return
+    host.reorderKeyframe(parked.id, delta)
+    playback.seek((parkedIndex + delta) * KEYFRAME_GAP_SECONDS)
+  }
   const segments = segmentSpeeds(host.scene, host.keyframes, host.pitch)
 
   // Phases are a tactics concept; a host that doesn't supply them gets no
@@ -129,17 +124,12 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
   }, [canPhase])
 
   const handleTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragging) return
     event.currentTarget.setPointerCapture(event.pointerId)
     playback.pause()
     playback.seek(timeAt(event.clientX))
   }
 
   const handleTrackPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (dragging) {
-      setDragging({ ...dragging, t: timeAt(event.clientX) })
-      return
-    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) playback.seek(timeAt(event.clientX))
   }
 
@@ -147,33 +137,7 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
-    if (dragging) {
-      // Snapped to the 1/30s grid (Stage 5.3), so two keyframes that look
-      // aligned actually are.
-      host.moveKeyframe(dragging.id, snapToFrame(dragging.t))
-      setDragging(null)
-    }
   }
-
-  const beginKeyframeDrag = (id: string, t: number) => (event: ReactPointerEvent<HTMLElement>) => {
-    // Without this the track underneath would treat the press as a scrub.
-    event.stopPropagation()
-    trackRef.current?.setPointerCapture(event.pointerId)
-    playback.pause()
-    playback.seek(t)
-    setDragging({ id, t })
-  }
-
-  const commitDuration = () => {
-    if (durationDraft === null) return
-    const parsed = Number(durationDraft)
-    if (Number.isFinite(parsed) && parsed > 0) host.setDuration(parsed)
-    setDurationDraft(null)
-  }
-
-  const tickStep = tickStepFor(Math.max(duration, 1))
-  const ticks: number[] = []
-  for (let t = 0; t <= duration + 1e-9; t += tickStep) ticks.push(Number(t.toFixed(3)))
 
   return (
     <div className={'space-y-3 rounded-xl border border-line bg-panel p-3 ' + (className ?? '')}>
@@ -203,12 +167,16 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
             onPointerUp={handleTrackPointerUp}
             onPointerCancel={handleTrackPointerUp}
           >
-        {/* Ruler */}
+        {/* Ruler. Numbered by KEYFRAME, not by seconds — the grid makes every
+            gap identical, so a seconds scale would only expose an internal
+            unit a coach never sets. */}
         <div className="relative h-5 border-b border-line">
-          {ticks.map((tick) => (
-            <div key={tick} className="absolute top-0 h-full" style={{ left: `${percentOf(tick)}%` }}>
+          {host.keyframes.map((keyframe, index) => (
+            <div key={keyframe.id} className="absolute top-0 h-full" style={{ left: `${percentOf(keyframe.t)}%` }}>
               <div className="h-1.5 w-px bg-line-strong" />
-              <span className="absolute left-1 top-0 font-mono text-[10px] tabular-nums text-ink-faint">{tick}s</span>
+              <span className="absolute left-1 top-0 font-mono text-[10px] tabular-nums text-ink-faint">
+                {index + 1}
+              </span>
             </div>
           ))}
         </div>
@@ -230,19 +198,26 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
           ))}
         </div>
 
-        {/* Keyframe diamonds, draggable to retime. */}
-        {host.keyframes.map((keyframe) => {
-          const at = dragging?.id === keyframe.id ? dragging.t : keyframe.t
+        {/* Keyframe diamonds. Click to park the playhead on one; they can't be
+            dragged, because the 1.5s grid owns their times (scene.regrid) and
+            a coach never sees or sets the seconds behind them. */}
+        {host.keyframes.map((keyframe, index) => {
           const isParked = parked?.id === keyframe.id
+          const label = keyframe.name || `Keyframe ${index + 1}`
           return (
             <button
               key={keyframe.id}
               type="button"
-              onPointerDown={beginKeyframeDrag(keyframe.id, keyframe.t)}
+              onPointerDown={(event) => {
+                // Without this the track underneath would treat it as a scrub.
+                event.stopPropagation()
+                playback.pause()
+                playback.seek(keyframe.t)
+              }}
               className="absolute bottom-0 flex h-6 w-6 -translate-x-1/2 items-center justify-center rounded-full transition-colors"
-              style={{ left: `${percentOf(at)}%` }}
-              title={`${keyframe.name ? keyframe.name + ' · ' : ''}${keyframe.t}s — drag to retime`}
-              aria-label={`Keyframe at ${keyframe.t} seconds`}
+              style={{ left: `${percentOf(keyframe.t)}%` }}
+              title={label}
+              aria-label={label}
             >
               <span
                 className={
@@ -309,22 +284,37 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
           onClick={() => host.clearKeyframes()}
           disabled={host.keyframes.length <= 1}
           className={ACTION}
-          title={host.keyframes.length <= 1 ? 'Nothing to clear' : 'Collapse to a single keyframe at 0s'}
+          title={host.keyframes.length <= 1 ? 'Nothing to clear' : 'Collapse back to a single keyframe'}
         >
           <Eraser className="h-3.5 w-3.5" />
           Clear keyframes
         </button>
 
-        <button
-          type="button"
-          onClick={() => host.balanceTiming()}
-          disabled={host.keyframes.length < 2}
-          className={ACTION}
-          title="Spread the keyframes evenly across the timeline"
-        >
-          <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" />
-          Balance timing
-        </button>
+        {/* What replaced drag-to-retime. A coach can still change WHEN a
+            keyframe happens relative to the others — that's the running
+            order — but not the seconds, which the grid owns. */}
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => moveParked(-1)}
+            disabled={!parked || parkedIndex <= 0}
+            className={ACTION}
+            title={parked ? 'Move this keyframe earlier' : 'Park the playhead on a keyframe to move it'}
+            aria-label="Move keyframe earlier"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => moveParked(1)}
+            disabled={!parked || parkedIndex === -1 || parkedIndex >= host.keyframes.length - 1}
+            className={ACTION}
+            title={parked ? 'Move this keyframe later' : 'Park the playhead on a keyframe to move it'}
+            aria-label="Move keyframe later"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
 
         {canPhase && (
           <button
@@ -379,23 +369,13 @@ export function TimelineEditor({ host, playback, frame, className }: TimelineEdi
           </button>
         </div>
 
-        <label htmlFor="drill-duration" className="ml-auto text-xs font-medium text-ink-muted">
-          Duration
-        </label>
-        <input
-          id="drill-duration"
-          type="number"
-          min={1}
-          step={1}
-          value={durationDraft ?? String(duration)}
-          onChange={(e) => setDurationDraft(e.target.value)}
-          onBlur={commitDuration}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur()
-          }}
-          className="h-11 w-20 rounded-md border border-line bg-panel px-2 text-sm lg:h-8 tabular-nums text-ink outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/30"
-        />
-        <span className="text-xs text-ink-muted">s</span>
+        {/* Was a Duration input. Duration is derived from the keyframe count
+            now (scene.regrid), so this reports the shape of the drill in the
+            unit a coach actually thinks in — keyframes — rather than offering
+            a seconds field that can disagree with them. */}
+        <span className="ml-auto text-xs font-medium text-ink-muted tabular-nums">
+          {host.keyframes.length} / {MAX_KEYFRAMES} keyframes
+        </span>
       </div>
     </div>
   )
