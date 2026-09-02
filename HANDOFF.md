@@ -276,6 +276,108 @@ in.
 
 ---
 
+## Session log — Keyframe grid, invite onboarding, Google sign-in, walkthroughs (2026-09-01/02)
+
+Branch `fixed-keyframe-grid-and-invite-onboarding`, 11 commits, **not merged
+and not pushed**. Migrations 037–041, all applied live.
+
+Started as a code review of the previous session's work and turned into four
+connected pieces of work. Each one was caused by the one before it.
+
+### 1. Keyframe timing is a fixed grid now (037)
+
+The review found a real defect. `duration_seconds` was an `integer` and Speed
+up/Slow down scaled by ±10%, so **every duration ≤ 5s was a fixed point of
+`Math.round`** — `Math.round(5 × 0.9)` is 5. The duration silently froze
+while the keyframes kept compressing, and ~69 presses collapsed two keyframes
+onto the same `t`, which `addKeyframe` had always refused to allow. Proved it
+by running the real reducer rather than reading it.
+
+Max's call was to delete the whole problem rather than patch it: keyframe N
+sits at exactly N × 1.5s, at most 10, `duration_seconds` **derived**. Four
+controls went — the duration input, drag-to-retime, Balance timing, and the
+keyframe-scaling pair. `regrid` in `sceneActions.ts` is now the only thing
+that assigns a time. Speed up/Slow down survive as PLAYBACK speed.
+
+037 widened the column to `numeric(4,1)` because half the grid's spans are
+half-seconds (4 keyframes = 4.5s). **Seconds are gone from the UI entirely** —
+the ruler counts keyframes, segment bars carry m/s only.
+
+### 2. Coaches join by invite (039/040), not by an admin minting their login
+
+`create-coach` had to create the account AND choose the coach's password,
+because `club_member`'s PK meant a membership couldn't exist before the
+account did. Every admin knew every coach's password. `club_invite` inverts
+it: the row exists first, keyed by a token from the same `mintShareToken()`
+the share links use, redeemed by `redeem_club_invite` for whoever is signed
+in. **The identity that redeems is irrelevant** — that is what makes
+third-party sign-in worth having at all.
+
+`CreateClub` is no longer a dead end: "zero memberships" is not only "a
+founder who hasn't made their club yet", and without an invite escape hatch a
+mismatched sign-in silently created a stray club.
+
+### 3. Google sign-in (client side done; **provider config is Max's**)
+
+Enabled and working end to end as far as Google's own sign-in page — verified
+the 302 chain carries the right `client_id` and that `redirect_to` preserves
+`/join/:token`. `redirectTo` is the CURRENT page, which is the whole trick.
+
+**Testing it surfaced a gap**: `signInWithOAuth` navigates away, so its
+promise only reports pre-redirect failures. A cancelled consent screen came
+back as params on the URL that nothing read — the coach just saw the join
+page again. `lib/authRedirectError.ts` reads both the query string (PKCE) and
+the hash (implicit).
+
+### 4. Three onboarding surfaces redesigned + two walkthroughs
+
+`/impeccable onboard`. `AuthLayout` — Login, JoinPage and CreateClub were one
+journey rendered three ways. **The join screen leads with the club** (crest,
+name), not the app. Then an app-shell walkthrough on the same machinery as
+the editors' tours, with **two scripts**: an invited coach gets library-first,
+a founder gets design-your-first-drill, because "start with the library"
+points at nothing in a brand-new club. See CLAUDE.md for the two load-bearing
+details (`justJoined` before async board counts; Home-only gate).
+
+### 5. Backfill (041)
+
+61 documents onto the grid. 56 needed only the duration column. **One** drill
+needed its keyframe times — `[0, 1.351, 2.7, 4.051]` at 7.0s, the exact
+signature of the scaleTiming bug. One casualty is also the best evidence the
+defect was real. Backup in `public._keyframe_grid_backup_20260902`; restore
+statement is in 041's header. **Do not re-run 041** — it derives times from
+position.
+
+### Also fixed, from the review
+
+`canEditDoc` was exported, called by nothing, and its rule hand-copied into 7
+places — an access-control rule with 7 places to miss. Now one
+`canEditDocWith`. `update_club_member_name` validates its input (038).
+`.gitignore` covers `.claude/`, whose worktrees were a second full checkout
+oxlint was linting: 200+ warnings → 3. Vite pinned to 5173 with `strictPort`,
+because a drifting dev port breaks the OAuth redirect allowlist in a way that
+names neither the port nor the allowlist.
+
+### Open for Max
+
+- **`create-coach` is still deployed and ACTIVE** with nothing calling it — an
+  admin can still mint arbitrary logins via the service-role key. Needs
+  `supabase login` then `supabase functions delete create-coach`; the CLI here
+  is unauthenticated and that command is interactive.
+- **Leaked-password protection is off** (Auth → Providers → Email). Matters
+  more now that passwords are the main path.
+- **Google OAuth consent screen is in Testing** — only listed test users can
+  sign in until it's published. Scopes are just `email profile`, so publishing
+  should be quick.
+- **None of the walkthrough work has been seen in a browser.** It only renders
+  behind a session and signing in means typing a password. Build/lint clean
+  and two bugs were fixed by reasoning (drawer staying open on *finish*; the
+  app tour opening over the editor's), but the mobile drawer behaviour is the
+  most likely thing to still be wrong.
+- Branch is unmerged and unpushed.
+
+---
+
 ## Session log — Home audit fixes (2026-08-30)
 
 Continuation of the session below. `/impeccable audit home tab` on the
