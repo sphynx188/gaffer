@@ -4,10 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Gaffer — a solo-built football/soccer coaching PWA. A coach manages multiple
-teams: roster, session planning/scheduling, attendance, and a Konva-based
-drill-design canvas. Single external user (the repo owner, a coach); no
-public signup flow beyond Supabase auth.
+Gaffer — a football/soccer coaching PWA sold to **clubs and academies**, not
+to individual coaches. A club owns a library of drills and tactics that its
+coaches build on and reuse, so the club's coaching knowledge survives staff
+turnover — that premise is what the data model and the onboarding are both
+shaped around. Alongside it: teams, rosters, session planning/scheduling,
+attendance, and a Konva-based drill-design canvas.
+
+Two roles. A **Technical Director / lead coach** is a club admin — they
+create content, curate collections and invite staff. A **coach** uses and
+reuses the shared library. See [PRODUCT.md](PRODUCT.md), which is the source
+of truth for audience and business model.
+
+This paragraph used to read "single external user (the repo owner, a coach);
+no public signup flow beyond Supabase auth". That is **wrong** and has been
+since club tenancy (migrations 027/028) — there is open email/password
+sign-up, Google sign-in, and invite-based coach onboarding (039). It is
+called out rather than quietly deleted because it survived several sessions
+as the first thing anyone read here, and PRODUCT.md had to spend a paragraph
+contradicting it.
 
 Stack: React 19 + Vite + TypeScript (non-strict — see `tsconfig.app.json`,
 no `strict: true`) + Zustand 5 (slices) + Supabase (Postgres/Auth/RLS) +

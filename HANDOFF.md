@@ -278,10 +278,11 @@ in.
 
 ## Session log — Keyframe grid, invite onboarding, Google sign-in, walkthroughs (2026-09-01/02)
 
-Branch `fixed-keyframe-grid-and-invite-onboarding`, 11 commits, **not merged
-and not pushed**. Migrations 037–041, all applied live.
+**Merged to `main` and pushed** — `1e3989c`, a `--no-ff` merge of 15 commits
+from `fixed-keyframe-grid-and-invite-onboarding`. Migrations 037–041, all
+applied live before the merge.
 
-Started as a code review of the previous session's work and turned into four
+Started as a code review of the previous session and turned into four
 connected pieces of work. Each one was caused by the one before it.
 
 ### 1. Keyframe timing is a fixed grid now (037)
@@ -317,27 +318,48 @@ third-party sign-in worth having at all.
 founder who hasn't made their club yet", and without an invite escape hatch a
 mismatched sign-in silently created a stray club.
 
-### 3. Google sign-in (client side done; **provider config is Max's**)
+### 3. Google sign-in — working end to end
 
-Enabled and working end to end as far as Google's own sign-in page — verified
-the 302 chain carries the right `client_id` and that `redirect_to` preserves
-`/join/:token`. `redirectTo` is the CURRENT page, which is the whole trick.
+`redirectTo` is the CURRENT page, which is what carries `/join/:token`
+through the round trip. Getting it live took three separate fixes, all
+config, none of them code:
 
-**Testing it surfaced a gap**: `signInWithOAuth` navigates away, so its
-promise only reports pre-redirect failures. A cancelled consent screen came
-back as params on the URL that nothing read — the coach just saw the join
-page again. `lib/authRedirectError.ts` reads both the query string (PKCE) and
-the hash (implicit).
+1. **Missing OAuth secret** — the authorize step only needs the client id, so
+   it 302'd to Google fine and failed at exchange.
+2. **Zero test users** while the consent screen was in Testing, which meant
+   Google sign-in worked for *nobody*, including Max. Not visible from any
+   API — found by reading the Cloud Console.
+3. **Wrong client secret** — `Unable to exchange external code`. Authorize
+   works on the id alone; only the exchange uses the secret, so that error
+   isolates it. Re-pasting fixed it.
+
+**Identity linking verified**: signing in with Google on an email that already
+had a password account linked to the SAME user
+(`providers: "email, google"`, one row, 2 memberships intact) rather than
+creating a duplicate. That was the live risk in this whole design and it
+resolved the good way.
+
+`lib/authRedirectError.ts` exists because `signInWithOAuth` navigates away, so
+its promise only reports pre-redirect failures. A cancelled consent screen
+came back as params nothing read. It checks the query string (PKCE) and the
+hash (implicit).
 
 ### 4. Three onboarding surfaces redesigned + two walkthroughs
 
 `/impeccable onboard`. `AuthLayout` — Login, JoinPage and CreateClub were one
 journey rendered three ways. **The join screen leads with the club** (crest,
-name), not the app. Then an app-shell walkthrough on the same machinery as
-the editors' tours, with **two scripts**: an invited coach gets library-first,
-a founder gets design-your-first-drill, because "start with the library"
-points at nothing in a brand-new club. See CLAUDE.md for the two load-bearing
-details (`justJoined` before async board counts; Home-only gate).
+name), not the app.
+
+The app-shell walkthrough runs on the editors' own tour machinery with **two
+scripts**: an invited coach gets library-first, a founder gets
+design-your-first-drill, because "start with the library" points at nothing in
+a brand-new club. See CLAUDE.md for the two load-bearing details
+(`justJoined` before async board counts; Home-only gate).
+
+**Verified in-browser** at 1440px and 390px: all 13 anchors resolve, the
+mobile drawer opens itself for nav steps and closes itself on *finish* (not
+just skip — that was a real bug, fixed by deriving `navVisible` rather than
+syncing it through an effect).
 
 ### 5. Backfill (041)
 
@@ -346,38 +368,50 @@ needed its keyframe times — `[0, 1.351, 2.7, 4.051]` at 7.0s, the exact
 signature of the scaleTiming bug. One casualty is also the best evidence the
 defect was real. Backup in `public._keyframe_grid_backup_20260902`; restore
 statement is in 041's header. **Do not re-run 041** — it derives times from
-position.
+position. Drop the backup table once the grid has had real use.
 
 ### Also fixed, from the review
 
 `canEditDoc` was exported, called by nothing, and its rule hand-copied into 7
 places — an access-control rule with 7 places to miss. Now one
-`canEditDocWith`. `update_club_member_name` validates its input (038).
+`canEditDocWith`, and the fix was later confirmed live: opening a drill owned
+by another club while it was created by the same user correctly redirected to
+the read-only viewer. `update_club_member_name` validates its input (038).
 `.gitignore` covers `.claude/`, whose worktrees were a second full checkout
 oxlint was linting: 200+ warnings → 3. Vite pinned to 5173 with `strictPort`,
 because a drifting dev port breaks the OAuth redirect allowlist in a way that
 names neither the port nor the allowlist.
 
+### Password policy
+
+Supabase now enforces min 8 with lowercase, uppercase and a digit — the free
+tier's stand-in for leaked-password protection, which is **Pro-only** and
+therefore not available on this project. The client matches via
+`lib/passwordPolicy.ts` (one module, not the six places "6" was written into).
+**Sign-in is deliberately not validated** — applying the policy there would
+lock out anyone whose password predates it.
+
 ### Open for Max
 
-- **`create-coach` is still deployed and ACTIVE** with nothing calling it — an
-  admin can still mint arbitrary logins via the service-role key. Needs
-  `supabase login` then `supabase functions delete create-coach`; the CLI here
-  is unauthenticated and that command is interactive.
-- **Leaked-password protection is off** (Auth → Providers → Email). Matters
-  more now that passwords are the main path.
-- **Google OAuth consent screen is in Testing** — only listed test users can
-  sign in until it's published. Scopes are just `email profile`, so publishing
-  should be quick.
-- **None of the walkthrough work has been seen in a browser.** It only renders
-  behind a session and signing in means typing a password. Build/lint clean
-  and two bugs were fixed by reasoning (drawer staying open on *finish*; the
-  app tour opening over the editor's), but the mobile drawer behaviour is the
-  most likely thing to still be wrong.
-- Branch is unmerged and unpushed.
+- **Google consent screen is still in Testing.** Works for listed test users
+  (currently just maxburatto68@gmail.com), so **every coach invited has to be
+  added as a test user until it is published**. Publishing needs the
+  Application home page and privacy policy links filled on the Branding page —
+  they are the only empty required-for-production fields. Do NOT upload an app
+  logo: that is what triggers Google's brand verification. Scopes are
+  `email profile`, both non-sensitive, so no full verification is needed.
+- `/privacy` and `/terms` routes do not exist yet; they are what unblocks the
+  above.
+- Leaked-password protection needs a Supabase Pro plan.
+- `_keyframe_grid_backup_20260902` can be dropped once the grid is trusted.
+
+### Closed since the previous entry
+
+`create-coach` is **deleted** (zero edge functions on the project) — it was
+still deployed and callable with the service-role key after nothing in the app
+used it.
 
 ---
-
 ## Session log — Home audit fixes (2026-08-30)
 
 Continuation of the session below. `/impeccable audit home tab` on the
