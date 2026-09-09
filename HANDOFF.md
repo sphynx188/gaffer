@@ -322,6 +322,9 @@ not here; the open items that matter are listed under Next Steps.
    `style-src` keeps `'unsafe-inline'` (Konva/React set element styles,
    Google Fonts CSS is cross-origin). `connect-src`/`img-src` name the
    Supabase host exactly — update both if the project ever moves.
+   Vercel rejects unknown keys in `vercel.json` (the first push carried a
+   `$comment` block and the deployment died with no build logs at all),
+   so the rationale lives here rather than in the file. JSON, no comments.
 
 4. **No error boundary, and raw Postgres text reached the UI.** New
    `src/components/ErrorBoundary.tsx` wraps `<App />` in `main.tsx`

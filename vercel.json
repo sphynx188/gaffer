@@ -1,6 +1,10 @@
 {
-  "$comment": "Added 2026-09-09 (pre-deployment audit). Two jobs. (1) The rewrite: this is a client-routed SPA and Vercel serves nothing but real files by default, so before this every deep link — /d/:token share links, /join/:token invites, a refresh on /library/drills — returned Vercel's plain-text NOT_FOUND in production. Static files still win over the rewrite (Vercel checks the filesystem first), so /assets, /sw.js and /manifest.webmanifest are unaffected. (2) The headers: CSP and friends. script-src is strict ('self' only) — that is the one that matters, because the Supabase session lives in localStorage and any injected script could read it. The former inline theme script in index.html moved to /theme-init.js to make that possible. style-src keeps 'unsafe-inline' because Konva and React write element styles and Google Fonts serves its CSS cross-origin. connect-src and img-src name the Supabase project host exactly (REST, Auth, Realtime, and the public thumbnail/crest buckets); change both if the project ever moves.",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -9,10 +13,22 @@
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://zaougjiavbqdlgweidpc.supabase.co; connect-src 'self' https://zaougjiavbqdlgweidpc.supabase.co wss://zaougjiavbqdlgweidpc.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
       ]
     }
   ]
