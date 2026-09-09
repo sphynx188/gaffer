@@ -7,6 +7,7 @@ import { ResetPassword } from './components/ResetPassword'
 import { CreateClub } from './components/CreateClub'
 import { JoinPage } from './pages/JoinPage'
 import { OfflineBanner } from './components/OfflineBanner'
+import { PrivacyPage, TermsPage } from './pages/LegalPages'
 import { AppShell } from './layout/AppShell'
 import { HomePage } from './pages/HomePage'
 import { CreatePage } from './pages/CreatePage'
@@ -72,6 +73,11 @@ function App() {
             share routes this one WRITES: it is what turns a visitor with no
             account into a club member (migration 039). */}
         <Route path="/join/:token" element={<JoinPage />} />
+        {/* Public, and above the gate for the same reason the share pages are: a privacy
+            policy behind a login is no use to someone deciding whether to sign up — and
+            Google's consent screen has to be able to reach it (macOS plan stage 18). */}
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
         <Route path="*" element={<AuthedApp />} />
       </Routes>
       </Suspense>
