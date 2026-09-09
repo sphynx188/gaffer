@@ -363,11 +363,18 @@ causes on purpose (its session-less second client — see `supabase.ts`). Not ex
 error boundary itself (no way to force a render crash in the prod bundle
 without editing it).
 
-### Not committed / not pushed
+### Committed and deployed
 
-All of the above is uncommitted on `main`, on top of the already-unpushed
-042 commit. **The `vercel.json` fix only takes effect on push** — until
-then production deep links stay broken.
+Pushed as `c1605a7` (the fixes, plus the previously unpushed 042 commit
+that was sitting ahead of origin) and `6d49369` (the `$comment` fix
+above). Vercel built `6d49369` and it is live: curl against
+`gaffer-khaki.vercel.app` shows every header, all four deep links
+(`/library/drills`, `/d/…`, `/join/…`, a nonsense path) return 200 with
+the app shell, and `/theme-init.js`, `/registerSW.js`, `/sw.js` and the
+manifest are still served as themselves. Left uncommitted on purpose
+because they predate this session and are unrelated: `CLAUDE.md` (a
+77-line trim), `package.json`/`package-lock.json` (adds `playwright` as
+a dev dependency).
 
 ### Next Steps (still open from the audit)
 
