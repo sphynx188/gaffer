@@ -376,13 +376,40 @@ because they predate this session and are unrelated: `CLAUDE.md` (a
 77-line trim), `package.json`/`package-lock.json` (adds `playwright` as
 a dev dependency).
 
+### Supabase Auth dashboard pass (2026-09-10)
+
+Walked every Authentication config page in the dashboard (the Management
+API route was blocked in this environment). One change made, the rest is
+the recorded state so nobody has to click through the slow dashboard
+again to learn it:
+
+- **Changed:** Email OTP / recovery-link expiry 3600 → **1800 seconds**
+  (Sign In / Providers → Email). Verified on a fresh load.
+- **Cannot change on the free plan:** "Prevent use of leaked passwords"
+  (HaveIBeenPwned) and every User Sessions control (single session per
+  user, time-box, inactivity timeout) are Pro-plan features — the advisor
+  WARN about leaked passwords will stay until an upgrade.
+- **Left at defaults, reviewed:** password policy 8+ with lower/upper/
+  digit (matches `passwordPolicy.ts`); access token 3600 s; refresh
+  token rotation ON with a 10 s reuse interval; rate limits — sign-up/
+  sign-in 30 per 5 min per IP, OTP verification 30 per 5 min per IP,
+  token refresh 150 per 5 min per IP, emails **2 per hour** (the
+  built-in SMTP cap, not raisable without custom SMTP — an onboarding
+  push of more than two invites/resets an hour will hit it); captcha
+  off (turning it on needs a widget in `Login.tsx`, not just a toggle);
+  "Confirm email" off and "Allow new users to sign up" on, by the
+  standing product decision; secure email change ON; "Require current
+  password when updating" OFF on purpose — the recovery-link flow calls
+  `updateUser` without one and would break.
+- **URL configuration is tight:** Site URL is the production origin;
+  redirect allow-list is the production origin, `localhost:5173` and the
+  `gaffer://auth-callback` scheme, nothing else.
+
 ### Next Steps (still open from the audit)
 
-- Supabase dashboard, not code: enable leaked-password protection
-  (advisor WARN); recovery-link expiry is Supabase's 60-minute default
-  and the checklist wants ≤30; auth rate limits are platform defaults;
-  signup is open with email confirmation off, so anyone can register any
-  address.
+- Free-plan ceilings, dashboard side: leaked-password protection and
+  session time-boxing both need Pro. Custom SMTP would lift the
+  2-emails-an-hour cap.
 - No backups: the org is on the free plan (no automated backups, pauses
   after a week idle). Upgrade or script a nightly `pg_dump`, and run one
   restore.
