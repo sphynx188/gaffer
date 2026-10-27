@@ -3,7 +3,6 @@ import {
   Clock,
   FastForward,
   Footprints,
-  Hash,
   Layers,
   Pause,
   Play,
@@ -23,13 +22,13 @@ import type {
   EquipmentType,
   Marking,
   MarkerStyle,
-  PlayerDisplay,
   PlayerRole,
   SceneEntity,
   StatusRing,
 } from '../../../store'
 import { EQUIPMENT_ADVANCED, EQUIPMENT_CORE, EQUIPMENT_LABELS } from '../../../store'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
+import { ROUND_EQUIPMENT } from '../canvas/equipmentModels'
 import { EQUIPMENT } from '../pitchTheme'
 import { stepKeyframe } from '../timeline/cursor'
 import type { TimelineHost } from '../timeline/TimelineHost'
@@ -116,13 +115,6 @@ const ON = 'border-accent bg-accent text-white'
 const OFF = 'border-line text-ink-muted hover:border-line-strong'
 
 const KIND_LABEL: Record<SceneEntity['kind'], string> = { player: 'Player', ball: 'Ball', equipment: 'Equipment' }
-
-const DISPLAYS: { value: PlayerDisplay; label: string }[] = [
-  { value: 'compact', label: 'Compact' },
-  { value: 'standard', label: 'Standard' },
-  { value: 'presentation', label: 'Presentation' },
-  { value: 'dot', label: 'Dot' },
-]
 
 const BODY_SHAPES: { value: BodyShape; label: string }[] = [
   { value: 'auto', label: 'Auto' },
@@ -276,47 +268,11 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
       {entity.kind === 'player' && (
         <>
           <Choice
-            label="Display"
-            options={DISPLAYS.map((d) => ({ value: d.value, label: d.label }))}
-            value={entity.display ?? 'standard'}
-            onChange={(value) => updateEntity(entity.id, { display: value as PlayerDisplay })}
-          />
-          <Choice
             label="Team"
             options={[{ value: 'A', label: 'A' }, { value: 'B', label: 'B' }]}
             value={entity.team ?? 'A'}
             onChange={(value) => updateEntity(entity.id, { team: value })}
           />
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Field label="Number">
-                <input
-                  type="number"
-                  min={1}
-                  value={entity.number ?? ''}
-                  onChange={(e) => {
-                    const parsed = Number(e.target.value)
-                    updateEntity(entity.id, { number: Number.isFinite(parsed) && parsed > 0 ? parsed : undefined })
-                  }}
-                  className={FIELD}
-                />
-              </Field>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                updateEntity(entity.id, { display: (entity.display ?? 'standard') === 'dot' ? 'standard' : 'dot' })
-              }
-              aria-pressed={(entity.display ?? 'standard') !== 'dot'}
-              title={(entity.display ?? 'standard') === 'dot' ? 'Show number' : 'Hide number'}
-              className={
-                'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors ' +
-                ((entity.display ?? 'standard') !== 'dot' ? ON : OFF)
-              }
-            >
-              <Hash className="h-4 w-4" />
-            </button>
-          </div>
           <Field label="Label">
             <input
               value={entity.label ?? ''}
@@ -503,17 +459,21 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
             value={entity.color ?? ''}
             onChange={(value) => updateEntity(entity.id, { color: value || undefined })}
           />
-          <Field label={`Rotation — ${Math.round(entity.rotation ?? 0)}°`}>
-            <input
-              type="range"
-              min={0}
-              max={350}
-              step={10}
-              value={entity.rotation ?? 0}
-              onChange={(e) => updateEntity(entity.id, { rotation: Number(e.target.value) || undefined })}
-              className="w-full accent-accent"
-            />
-          </Field>
+          {/* Round kit looks the same from every side, so it gets no
+              rotation control. */}
+          {!ROUND_EQUIPMENT.has(entity.equipment ?? 'cone') && (
+            <Field label={`Rotation — ${Math.round(entity.rotation ?? 0)}°`}>
+              <input
+                type="range"
+                min={0}
+                max={350}
+                step={10}
+                value={entity.rotation ?? 0}
+                onChange={(e) => updateEntity(entity.id, { rotation: Number(e.target.value) || undefined })}
+                className="w-full accent-accent"
+              />
+            </Field>
+          )}
           <div className="space-y-1">
             <p className="text-xs font-medium text-ink-muted">Repeat along a line</p>
             <p className="text-xs text-ink-faint">Copies this piece evenly to its right — a cone grid in two taps.</p>

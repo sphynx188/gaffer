@@ -18,17 +18,30 @@
 // of the stroke range turned a marking into a soft grey smudge. The line is
 // very slightly green rather than pure white, which is what keeps it from
 // glaring against the darker surface.
+//
+// Restyled 2026-10-28 to match The Tactics App's pitch: flat mowing stripes in
+// two close, muted greens (sampled from their canvas), running across the
+// pitch's length and through the surround, with pure white markings. `fill`
+// is the dark stripe and doubles as the base colour wherever stripes aren't
+// drawn.
 export const TURF = {
-  fill: '#177245',
-  line: '#e5f7df',
+  fill: '#5b9c54',
+  stripe: '#63a85b',
+  line: '#ffffff',
+  // Stripe width in real metres, so a half pitch or small-sided preset gets
+  // the same stripes rather than squeezed ones. 105m / 20 — a full pitch gets
+  // twenty, with the halfway line on a boundary.
+  stripeMeters: 5.25,
 } as const
 
 // The boundary carries more weight than what's inside it — first-phase-studio
 // strokes the outer rect at 3 and everything internal at 2. Without a
 // hierarchy every marking competes equally and the pitch reads as a flat mesh
 // of lines rather than as a shape with things drawn inside it.
+// 2026-10-28: the boundary now matches everything else, as The Tactics App
+// draws it — one thin, even weight reads cleaner than a heavier outline.
 export const PITCH_LINE_WEIGHT = {
-  boundary: 1.5,
+  boundary: 1,
   // The goal frame is stroked at the normal weight, not heavier: it is a small
   // shape, and at 3x the stroke was thicker than the frame was deep, so it
   // filled in as a solid block instead of reading as a goal.
@@ -63,7 +76,32 @@ export const PLAYER = {
 //
 // `named` maps the optional per-entity colour override onto real values, so a
 // coach can bib their cones without any of this leaking hex into components.
+//
+// 2026-10-28: the art direction moved from flat cartoon silhouettes to
+// realistic kit, modelled on Alpha Gear product photos — so the defaults below
+// are the colours the real pieces come in (orange cones, neon slalom poles on
+// black rubber bases, an orange free-kick mannequin, an aluminium goal with
+// navy sleeves and a white net). Shading is derived from these in
+// EquipmentShapes.tsx, so an override colour gets the same lighting.
 export const EQUIPMENT = {
+  cone: '#f04a3a',
+  disc: '#f5c816',
+  pole: '#d6ee2e',
+  mannequin: '#ff5a1f',
+  hurdle: '#f26a1b',
+  ring: '#f5c816',
+  rung: '#f5c816',
+  strap: '#1c1c1e',
+  rubber: '#1f1f22',
+  aluminium: '#b9c0c9',
+  aluminiumLight: '#eef1f4',
+  aluminiumDark: '#7b8592',
+  goalWhite: '#f4f5f7',
+  goalSleeve: '#1f2a4a',
+  steel: '#3d444e',
+  netFill: 'rgba(255, 255, 255, 0.28)',
+  netLine: 'rgba(255, 255, 255, 0.8)',
+  spike: '#a1a1aa',
   marker: '#eab308',
   markerDeep: '#f59e0b',
   frame: '#2563eb',
@@ -87,6 +125,12 @@ export const BALL = {
   // than a literal pentagon pattern, which stops reading as a ball at the
   // size a coach actually draws one. Polish pass, 2026-08-29.
   seam: '#64748b',
+  // 2026-10-28: the GIOCA match ball (canvas/BallShape.tsx), its colours
+  // sampled from a photo of the real one.
+  panel: '#ffffff',
+  band: '#8a8b90',
+  bandDot: '#b9bbbf',
+  ink: '#46474c',
 } as const
 
 // Shared by every "live" token on the pitch (player, ball) — a small drop
@@ -123,9 +167,14 @@ export const ANNOTATION = {
 // Deliberately a light ring rather than a fill — a selected player still has
 // to read as that player's team color first, which is the whole basis of the
 // "shape distinction over palette" rule above.
+// The selection ring (2026-10-28): a white hairline with a faint tint inside
+// and a small gap from the piece — it was a thick white stroke with a heavy
+// glow, which shouted over the piece it was marking.
 export const SELECTION = {
   halo: '#fefdf8',
-  haloShadow: 'rgba(0, 0, 0, 0.45)',
+  haloWidth: 1.5,
+  haloFill: 'rgba(254, 253, 248, 0.14)',
+  haloShadow: 'rgba(0, 0, 0, 0.3)',
   marqueeStroke: '#fefdf8',
   marqueeFill: 'rgba(254, 253, 248, 0.12)',
 } as const
@@ -145,21 +194,52 @@ export const EMPHASIS = {
   highlightRim: 'rgba(250, 204, 21, 0.8)',
 } as const
 
-// How much room each equipment type needs around its origin, as a multiple of
-// the base unit EquipmentShapes draws at. PitchCanvas uses it for the drag
-// bound and the selection halo, so a full goal doesn't get a halo sized for a
-// cone. Lives here rather than beside the shapes so that file exports only
-// components.
-export const EQUIPMENT_EXTENT: Record<string, number> = {
-  cone: 1.1,
-  marker: 0.9,
-  pole: 1.3,
-  mannequin: 1.5,
-  mini_goal: 1.3,
-  agility_ring: 1.0,
-  full_goal: 1.9,
-  ladder: 2.2,
-  hurdle: 1.2,
-  rebounder: 1.4,
-  passing_gate: 1.4,
+// How big players, balls and equipment draw, in base units (1% of the
+// canvas width), 2026-10-28. Not real-world scale — true scale leaves a ball
+// a speck on a full pitch — but sized to make sense against each other: the
+// ball is nearly a player's size but never bigger, a cone about a player's
+// width, poles and mannequins taller, a mini goal about two players wide,
+// and a full goal and a ladder the largest pieces.
+export const TOKEN_SIZE = {
+  playerRadius: 1.5,
+  ballRadius: 1.2,
+} as const
+
+// For each equipment piece: how big its main dimension draws, in base units,
+// and that same dimension in EquipmentShapes' drawing units — the ratio is
+// the unit EquipmentShapes draws at.
+export const EQUIPMENT_SIZE: Record<string, { size: number; units: number }> = {
+  cone: { size: 3.2, units: 2.3 }, // height
+  marker: { size: 2.6, units: 1.43 }, // diameter
+  pole: { size: 5, units: 2.8 }, // height
+  mannequin: { size: 6, units: 3.15 }, // height
+  mini_goal: { size: 6.5, units: 2.2 }, // width
+  full_goal: { size: 10, units: 3.6 }, // width
+  agility_ring: { size: 3.2, units: 1.8 }, // diameter
+  ladder: { size: 9, units: 4 }, // length
+  hurdle: { size: 3.4, units: 1.8 }, // width
+  rebounder: { size: 5, units: 1.9 }, // width
+  passing_gate: { size: 4.5, units: 2 }, // gap
+}
+
+// Each equipment piece's drawn bounding box, in EquipmentShapes' drawing
+// units around its origin, measured from the shape code (ground shadows
+// left out — they're soft and fade to nothing). PitchCanvas wraps the
+// selection outline round this box, so it fits every piece snugly whatever
+// its shape — a circle for round kit, a pill for long kit like a ladder —
+// and derives the drag bound from it. Lives here rather than beside the
+// shapes so that file exports only components. If a shape's drawing
+// changes, its box here has to change with it.
+export const EQUIPMENT_BOUNDS: Record<string, { x0: number; y0: number; x1: number; y1: number }> = {
+  cone: { x0: -0.98, y0: -1.15, x1: 0.98, y1: 1.27 },
+  marker: { x0: -0.72, y0: -0.3, x1: 0.72, y1: 0.44 },
+  pole: { x0: -0.6, y0: -1.43, x1: 0.6, y1: 1.6 },
+  mannequin: { x0: -0.66, y0: -1.57, x1: 0.66, y1: 1.58 },
+  mini_goal: { x0: -1.39, y0: -1.22, x1: 1.18, y1: 0.08 },
+  full_goal: { x0: -2.23, y0: -1.78, x1: 1.88, y1: 0.08 },
+  agility_ring: { x0: -0.98, y0: -0.5, x1: 0.98, y1: 0.55 },
+  ladder: { x0: -0.61, y0: -2.07, x1: 0.61, y1: 2.07 },
+  hurdle: { x0: -1.2, y0: -0.65, x1: 1.2, y1: 0.63 },
+  rebounder: { x0: -1.02, y0: -0.67, x1: 1.84, y1: 0.67 },
+  passing_gate: { x0: -1.48, y0: -0.82, x1: 1.48, y1: 0.96 },
 }

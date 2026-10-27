@@ -36,6 +36,7 @@ export interface MetersRect {
   w: number
   h: number
   strokeWidthScale?: number // multiplier on the base stroke width; the boundary reads heavier
+  goal?: boolean // drawn as a netted goal frame rather than a plain outline
 }
 
 export interface MetersLine {
@@ -194,6 +195,7 @@ function goalFrame(widthMeters: number, lengthMeters: number, farEnd: boolean): 
     w: goal,
     h: depth,
     strokeWidthScale: PITCH_LINE_WEIGHT.goal,
+    goal: true,
   }
 }
 

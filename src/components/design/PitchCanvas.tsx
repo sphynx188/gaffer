@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
-import { Arc, Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Shape, Stage, Tag, Text, Transformer } from 'react-konva'
+import { Arrow, Circle, Ellipse, Group, Label, Layer, Line, Rect, Shape, Stage, Tag, Text, Transformer } from 'react-konva'
 import type { Marking, PhasePoint, PitchConfig } from '../../store'
 import { isOverlayMarking } from '../../store'
 import type { RenderFrame } from './canvas/interpolate'
 import type { MotionPath } from './timeline/motion'
-import { ANNOTATION, ARROW, BALL, EMPHASIS, EQUIPMENT, EQUIPMENT_EXTENT, PLAYER, SELECTION, TOKEN_SHADOW, TURF } from './pitchTheme'
+import { ANNOTATION, ARROW, BALL, EMPHASIS, EQUIPMENT, EQUIPMENT_BOUNDS, EQUIPMENT_SIZE, PLAYER, SELECTION, TOKEN_SIZE, TOKEN_SHADOW, TURF } from './pitchTheme'
 import { EquipmentShape } from './canvas/EquipmentShapes'
+import { BallShape } from './canvas/BallShape'
+import { FLAT_EQUIPMENT, equipmentBounds } from './canvas/equipmentModels'
 import {
   GRID_STEP_METERS,
   assignTeamColors,
@@ -415,7 +417,33 @@ export function PitchCanvas({
   // the space inside the boxes they enclose and make the pitch shout over the
   // players on it. This lands between the two, nearer theirs. The boundary
   // keeps its 1.5x, which is their 3-to-2 exactly.
-  const lineWidth = Math.max(1.5, width * 0.0038)
+  // 2026-10-28: thinned again to The Tactics App's weight — about 2px on a
+  // 900px pitch. Thin lines on flat stripes are what read as crisp.
+  const lineWidth = Math.max(1, width * 0.0022)
+  // Mowing stripes run across the pitch's long axis (vertical bands on a
+  // landscape pitch, horizontal on a portrait one), anchored at the goal line
+  // so the halfway line falls on a stripe boundary, and carried through the
+  // surround to the stage edge.
+  const stripesVertical = pitch.orientation === 'landscape'
+  const stripePx = TURF.stripeMeters * (stripesVertical ? scaleX : scaleY)
+  const stripeOrigin = stripesVertical ? pitchOffsetX : pitchOffsetY
+  const stripeSpan = stripesVertical ? width : height
+  const stripes: { start: number; light: boolean }[] = []
+  if (stripePx > 0) {
+    const first = Math.floor(-stripeOrigin / stripePx)
+    for (let k = first; stripeOrigin + k * stripePx < stripeSpan; k++) {
+      stripes.push({ start: stripeOrigin + k * stripePx, light: Math.abs(k) % 2 === 1 })
+    }
+  }
+  // The same bands for the CSS box behind the stage, which shows in the
+  // margin around it; offset by where the stage sits inside the box.
+  const boxStripeOffset = stripesVertical
+    ? (renderBoxWidth - width) / 2 + pitchOffsetX
+    : (renderBoxHeight - height) / 2 + pitchOffsetY
+  const boxStripes =
+    stripePx > 0
+      ? `repeating-linear-gradient(${stripesVertical ? '90deg' : '180deg'}, ${TURF.fill} 0 ${stripePx}px, ${TURF.stripe} ${stripePx}px ${stripePx * 2}px)`
+      : undefined
 
   // Frame coordinates are normalized 0-1 and convert directly against Stage
   // width/height — never against the pitch markings' meters scale, which is a
@@ -848,20 +876,21 @@ export function PitchCanvas({
   if (showGrid && gridStepY > 0) for (let f = gridStepY; f < 1; f += gridStepY) gridRows.push(Number(f.toFixed(5)))
 
   const baseUnit = width / 100
-  // Markers were 3.5 base units of radius, which on a full pitch made each
-  // player about 7m across — ten times life size, and enough that a full
-  // 11-a-side board crowded and tokens touched. 2.7 keeps them comfortably
-  // tappable while letting a whole team sit on the pitch with space between
-  // the lines showing through. The number scales with them, or a font sized
-  // for the old circle would overflow the new one.
-  const playerRadius = baseUnit * 2.7
-  const coneRadius = baseUnit * 2.4
-  const ballRadius = baseUnit * 1.6
+  // Players, balls and equipment are sized against each other rather than
+  // to real-world scale (pitchTheme's TOKEN_SIZE / EQUIPMENT_SIZE), all off
+  // the same base unit so they keep their proportions at any canvas size.
+  const playerRadius = baseUnit * TOKEN_SIZE.playerRadius
+  const ballRadius = baseUnit * TOKEN_SIZE.ballRadius
+  const equipmentUnit = (type: string) => {
+    const size = EQUIPMENT_SIZE[type] ?? EQUIPMENT_SIZE.cone
+    return (baseUnit * size.size) / size.units
+  }
   const arrowStrokeWidth = Math.max(2, baseUnit * 0.8)
   const numberFontSize = baseUnit * 2.3
   const labelFontSize = baseUnit * 2.3
   const annotationFontSize = baseUnit * 2.4
-  const haloWidth = Math.max(2, baseUnit * 0.6)
+  // Breathing room between a selected piece and its selection ring.
+  const haloGap = Math.max(3, baseUnit * 0.4)
 
   const players = entities.filter((entity) => entity.kind === 'player')
   const equipment = entities.filter((entity) => entity.kind === 'equipment')
@@ -942,6 +971,8 @@ export function PitchCanvas({
           height: renderBoxHeight,
           flexShrink: 0,
           backgroundColor: TURF.fill,
+          backgroundImage: boxStripes,
+          backgroundPosition: stripesVertical ? `${boxStripeOffset}px 0` : `0 ${boxStripeOffset}px`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -987,10 +1018,29 @@ export function PitchCanvas({
               something else, and never redraws while entities move. --- */}
           <Layer listening={false}>
             <Rect x={0} y={0} width={width} height={height} fill={TURF.fill} />
+            {stripes.map(({ start, light }) =>
+              light ? (
+                stripesVertical ? (
+                  <Rect key={`stripe-${start}`} x={start} y={0} width={stripePx} height={height} fill={TURF.stripe} />
+                ) : (
+                  <Rect key={`stripe-${start}`} x={0} y={start} width={width} height={stripePx} fill={TURF.stripe} />
+                )
+              ) : null,
+            )}
             {/* Everything below is in pitch coordinates; the Group carries the
                 surround that makes room for the goals behind each goal line. */}
             <Group x={pitchOffsetX} y={pitchOffsetY}>
-            {markings.rects.map((r, i) => (
+            {markings.rects.map((r, i) =>
+              r.goal ? (
+                <GoalNet
+                  key={`rect-${i}`}
+                  x={r.x * scaleX}
+                  y={r.y * scaleY}
+                  width={r.w * scaleX}
+                  height={r.h * scaleY}
+                  lineWidth={lineWidth}
+                />
+              ) : (
               <Rect
                 key={`rect-${i}`}
                 x={r.x * scaleX}
@@ -1000,7 +1050,8 @@ export function PitchCanvas({
                 stroke={TURF.line}
                 strokeWidth={lineWidth * (r.strokeWidthScale ?? 1)}
               />
-            ))}
+              ),
+            )}
             {markings.lines.map((l, i) => (
               <Line
                 key={`line-${i}`}
@@ -1234,11 +1285,23 @@ export function PitchCanvas({
             {equipment.map((item) => {
               const p = toPx(item)
               const type = item.equipment ?? 'cone'
-              const extent = (EQUIPMENT_EXTENT[type] ?? 1) * coneRadius
+              const unit = equipmentUnit(type)
+              const rotation = item.rotation ?? 0
+              // A flat piece (the ladder) turns whole in the plane of the
+              // pitch, outline and all; anything upright stays upright and
+              // turns through its 3D model, so its outline is measured from
+              // the turned shape.
+              const flat = FLAT_EQUIPMENT.has(type)
+              const box = equipmentBounds(type, flat ? 0 : rotation)
+              // The drag bound keeps the whole piece on the pitch: its
+              // farthest edge from the origin, on any side.
+              const extent = Math.max(-box.x0, box.x1, -box.y0, box.y1) * unit
               return (
-                <Group key={item.id} x={p.x} y={p.y} rotation={item.rotation ?? 0} {...entityHandlers(item.id, extent)}>
-                  {isSelected(item.id) && <SelectionHalo radius={extent + haloWidth} strokeWidth={haloWidth} />}
-                  <EquipmentShape type={type} unit={coneRadius} color={EQUIPMENT.named[item.color ?? ''] ?? item.color} />
+                <Group key={item.id} x={p.x} y={p.y} rotation={flat ? rotation : 0} {...entityHandlers(item.id, extent)}>
+                  {isSelected(item.id) && (
+                    <SelectionFrame x0={box.x0 * unit} y0={box.y0 * unit} x1={box.x1 * unit} y1={box.y1 * unit} gap={haloGap} />
+                  )}
+                  <EquipmentShape type={type} unit={unit} rotation={flat ? 0 : rotation} color={EQUIPMENT.named[item.color ?? ''] ?? item.color} />
                 </Group>
               )
             })}
@@ -1255,14 +1318,17 @@ export function PitchCanvas({
                 ghost.entities.map((entity) => {
                   const p = toPx(entity)
                   if (entity.kind === 'equipment') {
+                    const type = entity.equipment ?? 'cone'
+                    const box = EQUIPMENT_BOUNDS[type] ?? EQUIPMENT_BOUNDS.cone
+                    const size = Math.min(box.x1 - box.x0, box.y1 - box.y0) * equipmentUnit(type)
                     return (
                       <Rect
                         key={`onion-${index}-${entity.id}`}
-                        x={p.x - coneRadius / 2}
-                        y={p.y - coneRadius / 2}
-                        width={coneRadius}
-                        height={coneRadius}
-                        cornerRadius={coneRadius / 4}
+                        x={p.x - size / 2}
+                        y={p.y - size / 2}
+                        width={size}
+                        height={size}
+                        cornerRadius={size / 4}
                         fill={EQUIPMENT.named[entity.color ?? ''] ?? entity.color ?? EQUIPMENT.marker}
                       />
                     )
@@ -1356,47 +1422,9 @@ export function PitchCanvas({
               const p = toPx(ball)
               return (
                 <Group key={ball.id} x={p.x} y={p.y} {...entityHandlers(ball.id, ballRadius)}>
-                  {isSelected(ball.id) && <SelectionHalo radius={ballRadius + haloWidth * 1.5} strokeWidth={haloWidth} />}
-                  <Circle
-                    x={0}
-                    y={0}
-                    radius={ballRadius}
-                    fill={BALL.fill}
-                    stroke={BALL.stroke}
-                    strokeWidth={1.5}
-                    shadowColor={TOKEN_SHADOW.color}
-                    shadowOpacity={TOKEN_SHADOW.opacity}
-                    shadowBlur={TOKEN_SHADOW.blur}
-                    shadowOffsetY={TOKEN_SHADOW.offsetY}
-                  />
-                  {/* A hint of panel seams — one ring, two mirrored arcs — rather
-                      than a literal pentagon pattern, which stops reading as a
-                      ball at the size a coach actually draws one. */}
-                  <Circle x={0} y={0} radius={ballRadius * 0.45} stroke={BALL.seam} strokeWidth={0.9} opacity={0.75} listening={false} />
-                  <Arc
-                    x={0}
-                    y={0}
-                    innerRadius={ballRadius * 0.61}
-                    outerRadius={ballRadius * 0.61}
-                    angle={82}
-                    rotation={28}
-                    stroke={BALL.seam}
-                    strokeWidth={0.85}
-                    opacity={0.7}
-                    listening={false}
-                  />
-                  <Arc
-                    x={0}
-                    y={0}
-                    innerRadius={ballRadius * 0.61}
-                    outerRadius={ballRadius * 0.61}
-                    angle={82}
-                    rotation={208}
-                    stroke={BALL.seam}
-                    strokeWidth={0.85}
-                    opacity={0.7}
-                    listening={false}
-                  />
+                  {isSelected(ball.id) && <SelectionHalo radius={ballRadius + haloGap} />}
+                  <Circle radius={Math.max(ballRadius, MIN_TOUCH_RADIUS)} fill="rgba(0,0,0,0)" />
+                  <BallShape radius={ballRadius} />
                 </Group>
               )
             })}
@@ -1404,13 +1432,11 @@ export function PitchCanvas({
             {players.map((player) => {
               const p = toPx(player)
               const fill = playerFill(player.color) ?? teamColors.get(player.team ?? '') ?? PLAYER.fallback
-              const display = player.display ?? 'standard'
-              // Dot mode is a bare marker — no number, no label, no room to
-              // read either at the size coaches use it (a full squad packed
-              // onto one pitch). Presentation goes the other way, sized up
-              // for a projector; compact keeps the number but drops the name
-              // chip that standard shows underneath.
-              const radius = display === 'dot' ? playerRadius * 0.55 : display === 'presentation' ? playerRadius * 1.3 : playerRadius
+              // Every player is a bare dot marker — no number, no label, no
+              // room to read either at the size coaches use it (a full squad
+              // packed onto one pitch). Size is not user-selectable (see
+              // playerRadius).
+              const radius = playerRadius
               // A tactic's slots usually outnumber a real roster (an 11-a-side
               // board with a 3-player test squad, or any club that hasn't
               // filled every position) — most markers have no bound player_id
@@ -1421,17 +1447,18 @@ export function PitchCanvas({
               // instead of reading as an anonymous dot indistinguishable from
               // every other one on the board.
               const markerText = player.number != null ? String(player.number) : (player.roleTag ?? player.role ?? null)
-              const showNumber = display !== 'dot' && markerText != null
-              const showLabel = display === 'standard' || display === 'presentation'
+              const showNumber = false
+              const showLabel = false
               const numberIsText = player.number == null && markerText != null
-              const fontSize = (display === 'presentation' ? numberFontSize * 1.3 : numberFontSize) * (numberIsText && markerText.length > 2 ? 0.72 : 1)
-              const chipFontSize = display === 'presentation' ? labelFontSize * 1.3 : labelFontSize
+              const fontSize = numberFontSize * (numberIsText && markerText.length > 2 ? 0.72 : 1)
+              const chipFontSize = labelFontSize
               // The dot, number and label chip drag together as one unit, so
               // the Group carries the absolute position and every child is
               // positioned relative to it.
               return (
                 <Group key={player.id} x={p.x} y={p.y} {...entityHandlers(player.id, radius)}>
-                  {isSelected(player.id) && <SelectionHalo radius={radius + haloWidth} strokeWidth={haloWidth} />}
+                  {isSelected(player.id) && <SelectionHalo radius={radius + haloGap} />}
+                  <Circle radius={Math.max(radius, MIN_TOUCH_RADIUS)} fill="rgba(0,0,0,0)" />
                   <Circle
                     x={0}
                     y={0}
@@ -1501,7 +1528,7 @@ export function PitchCanvas({
                   <Tag
                     fill={ANNOTATION.background}
                     stroke={isSelected(note.id) ? SELECTION.halo : ANNOTATION.border}
-                    strokeWidth={isSelected(note.id) ? haloWidth : 1}
+                    strokeWidth={isSelected(note.id) ? SELECTION.haloWidth : 1}
                     cornerRadius={4}
                   />
                   <Text text={text} fontSize={annotationFontSize} fill={ANNOTATION.text} padding={4} />
@@ -1680,19 +1707,90 @@ export function PitchCanvas({
   )
 }
 
+// A goal as The Tactics App draws one: a fine diagonal crosshatch net, clipped
+// to the goal's footprint, inside a white frame at the normal line weight.
+function GoalNet({ x, y, width, height, lineWidth }: { x: number; y: number; width: number; height: number; lineWidth: number }) {
+  const spacing = Math.max(3, lineWidth * 3)
+  return (
+    <Group x={x} y={y}>
+      <Group clipX={0} clipY={0} clipWidth={width} clipHeight={height}>
+        <Shape
+          sceneFunc={(ctx, shape) => {
+            ctx.beginPath()
+            const span = width + height
+            for (let d = -height; d <= span; d += spacing) {
+              ctx.moveTo(d, 0)
+              ctx.lineTo(d + height, height)
+              ctx.moveTo(d + height, 0)
+              ctx.lineTo(d, height)
+            }
+            ctx.strokeShape(shape)
+          }}
+          stroke={TURF.line}
+          strokeWidth={Math.max(0.5, lineWidth * 0.45)}
+          opacity={0.7}
+        />
+      </Group>
+      <Rect x={0} y={0} width={width} height={height} stroke={TURF.line} strokeWidth={lineWidth} />
+    </Group>
+  )
+}
+
+// An invisible circle at least this big (px) round every player and ball, so
+// they stay easy to grab on a small canvas.
+const MIN_TOUCH_RADIUS = 10
+
+// The selection outline for a piece of equipment: a pill round its drawn
+// bounding box (rounded fully at the ends), so a squarish piece gets a
+// circle-like ring and a long one (a ladder, a pole) a snug pill rather than
+// a circle with empty space at its sides. The rounded ends are pushed out
+// just far enough to clear the box's corners too, not only its sides.
+function SelectionFrame({ x0, y0, x1, y1, gap }: { x0: number; y0: number; x1: number; y1: number; gap: number }) {
+  const cx = (x0 + x1) / 2
+  const cy = (y0 + y1) / 2
+  const halfW = (x1 - x0) / 2
+  const halfH = (y1 - y0) / 2
+  const short = Math.min(halfW, halfH)
+  const long = Math.max(halfW, halfH)
+  const r = short + gap
+  // Place each end cap's centre so the box corner lies within r - gap/2 of
+  // it — at least half the gap clear on the diagonal, the full gap on every
+  // side — without the pill overshooting the piece.
+  const capCentre = long - Math.sqrt((r - gap / 2) ** 2 - short ** 2)
+  const longHalf = capCentre + r
+  const w = 2 * (halfW >= halfH ? longHalf : r)
+  const h = 2 * (halfW >= halfH ? r : longHalf)
+  return (
+    <Rect
+      x={cx - w / 2}
+      y={cy - h / 2}
+      width={w}
+      height={h}
+      cornerRadius={r}
+      stroke={SELECTION.halo}
+      strokeWidth={SELECTION.haloWidth}
+      fill={SELECTION.haloFill}
+      shadowColor={SELECTION.haloShadow}
+      shadowBlur={3}
+      listening={false}
+    />
+  )
+}
+
 // A ring drawn just outside a selected entity, sized by the caller so it
 // clears whatever silhouette it's wrapping. Never listens — the entity's own
 // Group already handles the click.
-function SelectionHalo({ radius, strokeWidth }: { radius: number; strokeWidth: number }) {
+function SelectionHalo({ radius }: { radius: number }) {
   return (
     <Circle
       x={0}
       y={0}
       radius={radius}
       stroke={SELECTION.halo}
-      strokeWidth={strokeWidth}
+      strokeWidth={SELECTION.haloWidth}
+      fill={SELECTION.haloFill}
       shadowColor={SELECTION.haloShadow}
-      shadowBlur={strokeWidth * 2}
+      shadowBlur={3}
       listening={false}
     />
   )
