@@ -13,6 +13,7 @@ import {
   SESSION_BLOCK_LABELS,
 } from '../../../store'
 import { formatDimensions, presetLabel } from '../canvas/pitchPresets'
+import { DrillFilingFields } from '../DrillFilingFields'
 import { PitchPanel } from './PitchPanel'
 import { equipmentSummary } from './equipmentSummary'
 
@@ -56,6 +57,7 @@ interface DrillDetailsDrawerProps {
 export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, capturing }: DrillDetailsDrawerProps) {
   const updateDrill = useStore((s) => s.updateDrill)
   const setDrillPitch = useStore((s) => s.setDrillPitch)
+  const setDrillTags = useStore((s) => s.setDrillTags)
   // Metadata commits go straight to the database and only reach local state
   // once the write succeeds, so a failed one used to leave the typed value
   // sitting in the field looking saved with nothing anywhere saying otherwise
@@ -133,6 +135,14 @@ export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, c
         <div className="flex-1 overflow-y-auto p-4">
           {tab === 'basic' && (
             <div key={drill.id} className="space-y-3">
+              <DrillFilingFields
+                collectionId={drill.collection_id}
+                tagIds={drill.tag_ids ?? []}
+                onCollectionChange={(id) => {
+                  if (id !== drill.collection_id) patch({ collection_id: id })
+                }}
+                onTagsChange={(ids) => void setDrillTags(drill.id, ids)}
+              />
               <TextField
                 id="details-name"
                 label="Name"
@@ -162,13 +172,6 @@ export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, c
                   onCommit={(value) => patch({ players_recommended: value })}
                 />
               </div>
-              <TextField
-                id="details-category"
-                label="Category"
-                placeholder="e.g. Rondo"
-                defaultValue={drill.category}
-                onCommit={(value) => patch({ category: value })}
-              />
               <div className="grid grid-cols-2 gap-2">
                 <TextField
                   id="details-age-min"
@@ -313,13 +316,6 @@ export function DrillDetailsDrawer({ drill, open, onClose, onCaptureThumbnail, c
                 label="Setup time (min)"
                 defaultValue={drill.setup_minutes}
                 onCommit={(value) => patch({ setup_minutes: value })}
-              />
-              <TextField
-                id="details-subcategory"
-                label="Subcategory"
-                placeholder="e.g. 4v2 positional"
-                defaultValue={drill.subcategory}
-                onCommit={(value) => patch({ subcategory: value })}
               />
               <TextField
                 id="details-outcome"
