@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Copy, Eye, FolderPlus, Pause, PenSquare, Play, Trash2 } from 'lucide-react'
+import { Copy, Eye, FolderInput, Pause, PenSquare, Play, Trash2 } from 'lucide-react'
 import type { Drill } from '../../store'
 import {
   DRILL_DIFFICULTY_LABELS,
@@ -33,23 +33,26 @@ export function DrillDetails({
   drill,
   canEdit,
   canDuplicate,
-  canFile,
-  collectionNames,
+  canMove,
+  collectionName,
+  tagNames,
   onClose,
   onDuplicate,
   onDelete,
-  onAddToCollection,
+  onMove,
 }: {
   drill: Drill
   canEdit: boolean
   /** False for a licensed-in drill — view-only, no copying another club's IP. */
   canDuplicate: boolean
-  canFile: boolean
-  collectionNames: string[]
+  /** The caller may refile this drill — their own, or any drill for an admin. */
+  canMove: boolean
+  collectionName: string | null
+  tagNames: string[]
   onClose: () => void
   onDuplicate: () => Promise<void>
   onDelete: () => void
-  onAddToCollection: () => void
+  onMove: () => void
 }) {
   const [duplicating, setDuplicating] = useState(false)
   const playback = useTimelinePlayback(drill.duration_seconds)
@@ -80,7 +83,7 @@ export function DrillDetails({
   const ageBand = drill.age_min && drill.age_max ? `${drill.age_min}–${drill.age_max}` : (drill.age_min ?? drill.age_max)
 
   return (
-    <DetailsPane title={drill.name} subtitle={drill.category} onClose={onClose}>
+    <DetailsPane title={drill.name} subtitle={collectionName ?? undefined} onClose={onClose}>
       <div className="flex justify-center rounded-lg bg-panel-raised p-2">
         <PitchCanvas pitch={drill.pitch} frame={frame} maxWidth={CANVAS_WIDTH} />
       </div>
@@ -125,22 +128,23 @@ export function DrillDetails({
         </div>
       </DetailSection>
 
-      {/* A drill can sit in several collections at once, so where it's filed
-          is a list, not a location — the one piece of "where is this?" the
-          sidebar can't answer while you're standing somewhere else. */}
-      <DetailSection label="In collections">
-        {collectionNames.length > 0 ? (
+      {/* Exactly one collection per drill (migration 046) — the one piece of
+          "where is this?" the sidebar can't answer while you're standing in
+          My drills or a coach's folder. */}
+      <DetailSection label="Collection">
+        <p className="text-xs text-ink">{collectionName ?? 'Uncategorised'}</p>
+      </DetailSection>
+      {tagNames.length > 0 && (
+        <DetailSection label="Tags">
           <div className="flex flex-wrap gap-1">
-            {collectionNames.map((name) => (
+            {tagNames.map((name) => (
               <Badge key={name} tone="neutral">
                 {name}
               </Badge>
             ))}
           </div>
-        ) : (
-          <p className="text-xs text-ink-faint">Not in any collection.</p>
-        )}
-      </DetailSection>
+        </DetailSection>
+      )}
 
       <div className="flex flex-wrap gap-1.5 border-t border-line pt-3">
         <Link
@@ -165,14 +169,14 @@ export function DrillDetails({
             {duplicating ? 'Duplicating…' : 'Duplicate'}
           </button>
         )}
-        {canFile && (
+        {canMove && (
           <button
             type="button"
-            onClick={onAddToCollection}
+            onClick={onMove}
             className="flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1.5 text-xs font-semibold text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
           >
-            <FolderPlus className="h-3.5 w-3.5" />
-            File
+            <FolderInput className="h-3.5 w-3.5" />
+            Move
           </button>
         )}
         {canEdit && (

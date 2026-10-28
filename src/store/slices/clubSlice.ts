@@ -461,9 +461,16 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
   },
 
   deleteCollection: async (id) => {
+    const kind = get().collections.find((c) => c.id === id)?.kind
     set({ clubDataLoading: true, clubDataError: null })
+    // Drill collections go through the RPC (migration 046): it moves any
+    // drills still filed there to Uncategorised before deleting, which a
+    // plain delete can't do (drill.collection_id is ON DELETE RESTRICT).
     const { error } = await runSupabaseAction<null>(
-      () => supabase.from('collection').delete().eq('id', id),
+      () =>
+        kind === 'drill'
+          ? supabase.rpc('delete_drill_collection', { col: id })
+          : supabase.from('collection').delete().eq('id', id),
       "Couldn't delete collection, try again."
     )
     if (error) {
@@ -471,18 +478,20 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       return false
     }
     set((state) => {
-      const { [id]: _drillIds, ...restDrillIds } = state.collectionDrillIds
       const { [id]: _tacticIds, ...restTacticIds } = state.collectionTacticIds
       const { [id]: _access, ...restAccess } = state.collectionAccess
       return {
         clubDataLoading: false,
         clubDataError: null,
         collections: state.collections.filter((c) => c.id !== id),
-        collectionDrillIds: restDrillIds,
         collectionTacticIds: restTacticIds,
         collectionAccess: restAccess,
       }
     })
+    if (kind === 'drill') {
+      // Moved drills changed collection, and Uncategorised may be new.
+      await Promise.all([get().fetchDrills(), get().fetchClubData()])
+    }
     return true
   },
 

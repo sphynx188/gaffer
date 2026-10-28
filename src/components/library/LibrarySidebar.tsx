@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType, type ReactNode } from 'react'
-import { ChevronDown, Folder, FolderPlus, LibraryBig, Lock, User, Users } from 'lucide-react'
+import { ChevronDown, Folder, FolderPlus, LibraryBig, Lock, Tags, User, Users } from 'lucide-react'
 import type { LibraryPlace } from './libraryPlaces'
 import { RowMenu, type RowMenuItem } from './RowMenu'
 
@@ -129,6 +129,7 @@ export function LibrarySidebar({
   isAdmin,
   onNewCollection,
   collectionMenu,
+  onManageTags,
 }: {
   places: LibraryPlace[]
   activePlaceId: string
@@ -137,6 +138,8 @@ export function LibrarySidebar({
   onNewCollection: () => void
   /** Per-collection actions (rename / access / delete) — admin only. */
   collectionMenu: (collectionId: string) => RowMenuItem[]
+  /** Opens the club's tag list (drills only) — admin only. */
+  onManageTags?: () => void
 }) {
   const roots = places.filter((p) => p.kind === 'all' || p.kind === 'mine')
   const collections = places.filter((p) => p.kind === 'collection')
@@ -198,6 +201,16 @@ export function LibrarySidebar({
         <p className="px-2 py-1 text-xs text-ink-faint">
           {isAdmin ? 'None yet — use the + above.' : 'None yet.'}
         </p>
+      )}
+      {isAdmin && onManageTags && (
+        <button
+          type="button"
+          onClick={onManageTags}
+          className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-medium text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink"
+        >
+          <Tags className="h-3.5 w-3.5" aria-hidden />
+          Manage tags
+        </button>
       )}
 
       {licensed.length > 0 && (

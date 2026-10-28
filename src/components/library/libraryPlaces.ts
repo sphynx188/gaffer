@@ -105,7 +105,8 @@ export function buildLibraryPlaces(args: {
   const ours = collections
     .filter((c) => c.club_id === selectedClubId && c.kind === kind && !licensedCollectionIds.has(c.id))
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name))
+    // Uncategorised (migration 046) always last.
+    .sort((a, b) => Number(a.is_uncategorised) - Number(b.is_uncategorised) || a.name.localeCompare(b.name))
   const licensed = collections
     .filter((c) => c.kind === kind && licensedCollectionIds.has(c.id))
     .slice()
@@ -141,7 +142,10 @@ export function buildLibraryPlaces(args: {
   })
 
   for (const c of ours) {
-    places.push({ id: `c:${c.id}`, kind: 'collection', title: c.name, ids: idsIn(c.id), collectionId: c.id })
+    const ids = idsIn(c.id)
+    // Uncategorised only matters while something is waiting to be sorted.
+    if (c.is_uncategorised && ids.length === 0) continue
+    places.push({ id: `c:${c.id}`, kind: 'collection', title: c.name, ids, collectionId: c.id })
   }
   for (const c of licensed) {
     places.push({ id: `l:${c.id}`, kind: 'licensed', title: c.name, ids: idsIn(c.id), collectionId: c.id })

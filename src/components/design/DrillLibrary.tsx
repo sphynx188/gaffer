@@ -3,8 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom'
 import {
   Copy,
   Eye,
-  FolderMinus,
-  FolderPlus,
+  FolderInput,
   Info,
   LibraryBig,
   Pencil,
@@ -16,6 +15,7 @@ import {
 import { useStore } from '../../store'
 import { canEditDocWith, isLicensedDoc, selectMyRole } from '../../store/slices/clubSlice'
 import { useSession } from '../../hooks/useSession'
+import { useCollectionDrillIds } from '../../hooks/useCollectionDrillIds'
 import type { LibraryOutletContext } from '../../pages/LibraryLayout'
 import type { Drill, DrillDifficulty, DrillIntensity, DrillPhaseOfPlay, SessionBlock } from '../../store'
 import {
@@ -40,7 +40,9 @@ import { LibrarySidebar } from '../library/LibrarySidebar'
 import { LibraryToolbar } from '../library/LibraryToolbar'
 import { LibraryTable, LibraryTiles, type LibraryColumn, type LibraryItemView } from '../library/LibraryItems'
 import { SelectionAction, SelectionBar } from '../library/SelectionBar'
-import { AddToCollectionDialog } from '../library/AddToCollectionDialog'
+import { TagFilterRow } from '../library/TagFilterRow'
+import { MoveToCollectionDialog } from '../library/MoveToCollectionDialog'
+import { ManageTagsDialog } from '../library/ManageTagsDialog'
 import { CollectionAccessDialog, ConfirmDialog, TextPromptDialog } from '../library/CollectionDialogs'
 import { buildLibraryPlaces, rootPlaceId } from '../library/libraryPlaces'
 import { useLibraryPlace } from '../library/useLibraryPlace'
@@ -99,7 +101,6 @@ interface Filters {
   difficulty: DrillDifficulty | ''
   intensity: DrillIntensity | ''
   phaseOfPlay: DrillPhaseOfPlay | ''
-  category: string
   maxDurationMinutes: string
 }
 
@@ -110,7 +111,6 @@ const EMPTY_FILTERS: Filters = {
   difficulty: '',
   intensity: '',
   phaseOfPlay: '',
-  category: '',
   maxDurationMinutes: '',
 }
 
@@ -131,17 +131,17 @@ function activeFilterCount(filters: Filters): number {
 // players" never fit that even before today's layout changes, it just
 // silently grew past it under auto layout whenever the table had slack.
 const DRILL_COLUMNS: LibraryColumn[] = [
-  { key: 'category', label: 'Category', sortable: true, width: 112, visibilityClassName: 'hidden md:table-cell' },
+  { key: 'collection', label: 'Collection', sortable: true, width: 112, visibilityClassName: 'hidden md:table-cell' },
   { key: 'duration', label: 'Duration', sortable: true, width: 80, visibilityClassName: 'hidden sm:table-cell' },
   { key: 'players', label: 'Players', sortable: true, width: 116, visibilityClassName: 'hidden lg:table-cell' },
   { key: 'created', label: 'Added', sortable: true, naturalDir: 'desc', width: 96, visibilityClassName: 'hidden xl:table-cell' },
 ]
 
-const COMPACT_COLUMN_KEYS = ['category', 'duration']
+const COMPACT_COLUMN_KEYS = ['collection', 'duration']
 
 const DRILL_SORT_OPTIONS = [
   { value: 'name', label: 'Name' },
-  { value: 'category', label: 'Category' },
+  { value: 'collection', label: 'Collection' },
   { value: 'duration', label: 'Duration' },
   { value: 'players', label: 'Players' },
   { value: 'level', label: 'Level' },
@@ -153,13 +153,15 @@ const DRILL_SORT_OPTIONS = [
 // unknowns at the bottom is what makes the first screen of a sort useful.
 const LAST_TEXT = '￿'
 
-function compareDrills(a: Drill, b: Drill, sort: LibrarySort): number {
+// A stored sort of 'category' (before migration 046) falls through to the
+// default name order.
+function compareDrills(a: Drill, b: Drill, sort: LibrarySort, collectionName: Map<string, string>): number {
   const text = (v: string | null | undefined) => (v ?? LAST_TEXT).toLowerCase()
   const num = (v: number | null | undefined) => (v == null ? Number.POSITIVE_INFINITY : v)
   let primary = 0
   switch (sort.key) {
-    case 'category':
-      primary = text(a.category).localeCompare(text(b.category))
+    case 'collection':
+      primary = text(collectionName.get(a.collection_id)).localeCompare(text(collectionName.get(b.collection_id)))
       break
     case 'duration':
       primary = num(a.duration_minutes) - num(b.duration_minutes)
@@ -187,7 +189,8 @@ type LibraryDialog =
   | { kind: 'renameCollection'; collectionId: string; name: string }
   | { kind: 'deleteCollection'; collectionId: string; name: string }
   | { kind: 'access'; collectionId: string; name: string }
-  | { kind: 'addToCollection'; ids: string[] }
+  | { kind: 'move'; ids: string[] }
+  | { kind: 'manageTags' }
   | { kind: 'renameDrill'; id: string; name: string }
   | { kind: 'deleteDrills'; ids: string[] }
 
@@ -200,7 +203,7 @@ export function DrillLibrary() {
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
   const clubMembers = useStore((s) => s.clubMembers)
   const collections = useStore((s) => s.collections)
-  const collectionDrillIds = useStore((s) => s.collectionDrillIds)
+  const collectionDrillIds = useCollectionDrillIds()
   const licensesIn = useStore((s) => s.licensesIn)
   const fetchClubData = useStore((s) => s.fetchClubData)
   // A drill the coach opened from /design but never edited exists only in
@@ -222,14 +225,23 @@ export function DrillLibrary() {
   const createCollection = useStore((s) => s.createCollection)
   const updateCollection = useStore((s) => s.updateCollection)
   const deleteCollection = useStore((s) => s.deleteCollection)
-  const addDrillToCollection = useStore((s) => s.addDrillToCollection)
-  const removeDrillFromCollection = useStore((s) => s.removeDrillFromCollection)
+  const clubTags = useStore((s) => s.clubTags)
+  const collectionOptions = useStore((s) => s.drillCollectionOptions)
+  const fetchClubTags = useStore((s) => s.fetchClubTags)
+  const fetchDrillCollectionOptions = useStore((s) => s.fetchDrillCollectionOptions)
+  const moveDrillsToCollection = useStore((s) => s.moveDrillsToCollection)
+  const createClubTag = useStore((s) => s.createClubTag)
+  const renameClubTag = useStore((s) => s.renameClubTag)
+  const deleteClubTag = useStore((s) => s.deleteClubTag)
   const showToast = useToast()
 
   const { placeId, setPlaceId } = useLibraryPlace(rootPlaceId(isAdmin))
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // Tag chips under the toolbar — part of the place's filter state, so
+  // walking into another place clears them (spec 2026-10-28 §4).
+  const [tagFilter, setTagFilter] = useState<string[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [dialog, setDialog] = useState<LibraryDialog | null>(null)
   const { sort, toggleSort, setSort } = useLibrarySort('gaffer-library-sort-drills', { key: 'name', dir: 'asc' })
@@ -243,7 +255,22 @@ export function DrillLibrary() {
 
   useEffect(() => {
     void fetchClubData()
-  }, [fetchClubData, selectedClubId])
+    void fetchClubTags()
+    void fetchDrillCollectionOptions()
+  }, [fetchClubData, fetchClubTags, fetchDrillCollectionOptions, selectedClubId])
+
+  // Display names. A coach's own drill can sit in a collection they can't
+  // open, so `collections` (RLS-scoped) alone would leave it nameless — the
+  // picker options (every drill collection in the club) fill that gap.
+  const tagName = useMemo(() => new Map(clubTags.map((t) => [t.id, t.name])), [clubTags])
+  const collectionName = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const o of collectionOptions) map.set(o.id, o.name)
+    for (const c of collections) map.set(c.id, c.name)
+    return map
+  }, [collectionOptions, collections])
+  const tagNamesOf = (d: Drill) =>
+    (d.tag_ids ?? []).map((id) => tagName.get(id)).filter((n): n is string => Boolean(n))
 
   const licensedCollectionIds = useMemo(
     () => new Set(licensesIn.filter((l) => !l.revoked_at).map((l) => l.collection_id)),
@@ -289,16 +316,17 @@ export function DrillLibrary() {
     return [...bands].sort()
   }, [drills])
 
-  const categoryOptions = useMemo(() => {
-    const categories = new Set<string>()
-    for (const d of drills) if (d.category) categories.add(d.category)
-    return [...categories].sort()
-  }, [drills])
-
   const placeDrills = useMemo(() => {
     const ids = new Set(place.ids)
     return drills.filter((d) => ids.has(d.id))
   }, [drills, place])
+
+  // Only tags some drill in this place carries, with how many do.
+  const placeTags = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const d of placeDrills) for (const id of d.tag_ids ?? []) counts.set(id, (counts.get(id) ?? 0) + 1)
+    return clubTags.filter((t) => counts.has(t.id)).map((t) => ({ id: t.id, name: t.name, count: counts.get(t.id)! }))
+  }, [placeDrills, clubTags])
 
   // Search and filters narrow the current place, not the whole library —
   // the folder metaphor's own promise, and the toolbar prints "N of M" so
@@ -310,15 +338,20 @@ export function DrillLibrary() {
 
     return placeDrills.filter((d) => {
       if (q) {
-        const haystack = [d.name, d.category, d.objective, pitchLabel(d)].filter(Boolean).join(' ').toLowerCase()
+        const tagNames = (d.tag_ids ?? []).map((id) => tagName.get(id))
+        const haystack = [d.name, collectionName.get(d.collection_id), ...tagNames, d.objective, pitchLabel(d)]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
         if (!haystack.includes(q)) return false
       }
+      // Narrowing, not widening: a drill must carry every picked tag.
+      if (tagFilter.length && !tagFilter.every((t) => d.tag_ids?.includes(t))) return false
       if (filters.ageBand && ageBandLabel(d) !== filters.ageBand) return false
       if (filters.sessionBlock && d.session_block !== filters.sessionBlock) return false
       if (filters.difficulty && d.difficulty !== filters.difficulty) return false
       if (filters.intensity && d.intensity !== filters.intensity) return false
       if (filters.phaseOfPlay && d.phase_of_play !== filters.phaseOfPlay) return false
-      if (filters.category && d.category !== filters.category) return false
       // A player-count or duration filter can only match a drill that
       // actually recorded the number — an unset field can't be confirmed to
       // fit, so it's excluded rather than treated as "fits anything".
@@ -331,9 +364,12 @@ export function DrillLibrary() {
       }
       return true
     })
-  }, [placeDrills, query, filters])
+  }, [placeDrills, query, filters, tagFilter, collectionName, tagName])
 
-  const sorted = useMemo(() => [...matched].sort((a, b) => compareDrills(a, b, sort)), [matched, sort])
+  const sorted = useMemo(
+    () => [...matched].sort((a, b) => compareDrills(a, b, sort, collectionName)),
+    [matched, sort, collectionName]
+  )
   const orderedIds = useMemo(() => sorted.map((d) => d.id), [sorted])
   const selection = useLibrarySelection(orderedIds)
 
@@ -345,19 +381,12 @@ export function DrillLibrary() {
   const canEdit = (drill: Drill) => canEditDocWith(drill, { selectedClubId, isAdmin, userId: myUserId })
 
   // Only this club's own drill-kind collections — a licensed-in collection
-  // belongs to the club that granted it, and collection_drill's RLS requires
-  // is_club_admin, which is why filing is admin-only rather than
-  // shown-and-failing for a plain coach.
+  // belongs to the club that granted it, so the sidebar's rename / access /
+  // delete menu never offers itself there.
   const homeCollections = useMemo(
-    () =>
-      collections
-        .filter((c) => c.club_id === selectedClubId && c.kind === 'drill')
-        .sort((a, b) => a.name.localeCompare(b.name)),
+    () => collections.filter((c) => c.club_id === selectedClubId && c.kind === 'drill'),
     [collections, selectedClubId]
   )
-
-  const collectionNamesFor = (drillId: string) =>
-    homeCollections.filter((c) => (collectionDrillIds[c.id] ?? []).includes(drillId)).map((c) => c.name)
 
   const openDrill = (id: string) => {
     const drill = drills.find((d) => d.id === id)
@@ -381,25 +410,13 @@ export function DrillLibrary() {
     }
   }
 
-  const handleAddToCollection = async (collectionId: string, ids: string[]) => {
-    for (const id of ids) await addDrillToCollection(collectionId, id)
-    const name = homeCollections.find((c) => c.id === collectionId)?.name ?? 'the collection'
-    showToast(`Added ${ids.length} ${ids.length === 1 ? 'drill' : 'drills'} to ${name}`)
-    selection.clear()
-  }
-
-  const handleCreateAndAdd = async (name: string, ids: string[]) => {
-    const created = await createCollection(name, null, 'drill')
-    if (!created) return
-    for (const id of ids) await addDrillToCollection(created.id, id)
-    showToast(`Added ${ids.length} ${ids.length === 1 ? 'drill' : 'drills'} to ${created.name}`)
-    selection.clear()
-  }
-
-  const handleRemoveFromPlace = async (ids: string[]) => {
-    if (!place.collectionId) return
-    for (const id of ids) await removeDrillFromCollection(place.collectionId, id)
-    showToast(`Removed ${ids.length} ${ids.length === 1 ? 'drill' : 'drills'} from ${place.title}`)
+  // A drill lives in exactly one collection (migration 046), so filing is a
+  // move. RLS and the guard trigger decide which drills the caller may move;
+  // the toast reports how many actually did.
+  const handleMove = async (collectionId: string, ids: string[]) => {
+    const moved = await moveDrillsToCollection(ids, collectionId)
+    const name = collectionName.get(collectionId) ?? 'the collection'
+    showToast(`Moved ${moved} ${moved === 1 ? 'drill' : 'drills'} to ${name}`)
     selection.clear()
   }
 
@@ -432,24 +449,16 @@ export function DrillLibrary() {
         onSelect: () => setDialog({ kind: 'renameDrill', id: drill.id, name: drill.name }),
       })
     }
-    if (isAdmin) {
+    // A coach may move their own drill into any collection in the club,
+    // including ones they can't open (spec 2026-10-28) — so this follows
+    // edit rights, not admin.
+    if (editable) {
       items.push({
-        key: 'file',
-        label: 'Add to collection…',
-        icon: FolderPlus,
-        onSelect: () => setDialog({ kind: 'addToCollection', ids: [drill.id] }),
+        key: 'move',
+        label: 'Move to collection…',
+        icon: FolderInput,
+        onSelect: () => setDialog({ kind: 'move', ids: [drill.id] }),
       })
-      if (place.kind === 'collection' && place.collectionId) {
-        items.push({
-          key: 'unfile',
-          // Not `Remove from ${place.title}`: a long collection name
-          // truncated inside the menu, and you're standing in the folder
-          // the item is being removed from anyway.
-          label: 'Remove from collection',
-          icon: FolderMinus,
-          onSelect: () => void handleRemoveFromPlace([drill.id]),
-        })
-      }
     }
     if (editable) {
       items.push({
@@ -472,11 +481,12 @@ export function DrillLibrary() {
     subtitle: drill.objective,
     metaLine:
       [
-        drill.category,
+        collectionName.get(drill.collection_id),
         drill.duration_minutes != null ? `${drill.duration_minutes} min` : null,
         drill.difficulty ? DRILL_DIFFICULTY_LABELS[drill.difficulty] : null,
         playerCountLabel(drill),
         ageBandLabel(drill),
+        tagNamesOf(drill).join(', ') || null,
         // An attached real-life clip (migration 045) is worth knowing about
         // before opening the drill.
         drill.video_path ? 'Video' : null,
@@ -484,7 +494,7 @@ export function DrillLibrary() {
         .filter(Boolean)
         .join(' · ') || null,
     cells: {
-      category: drill.category,
+      collection: collectionName.get(drill.collection_id) ?? null,
       duration: drill.duration_minutes != null ? `${drill.duration_minutes} min` : null,
       players: playerCountLabel(drill),
       created: new Date(drill.created_at).toLocaleDateString(),
@@ -503,27 +513,32 @@ export function DrillLibrary() {
   const collectionMenu = (collectionId: string): RowMenuItem[] => {
     const collection = homeCollections.find((c) => c.id === collectionId)
     if (!collection) return []
-    return [
-      {
-        key: 'rename',
-        label: 'Rename',
-        icon: Pencil,
-        onSelect: () => setDialog({ kind: 'renameCollection', collectionId, name: collection.name }),
-      },
+    const items: RowMenuItem[] = [
       {
         key: 'access',
         label: 'Coach access…',
         icon: UserCog,
         onSelect: () => setDialog({ kind: 'access', collectionId, name: collection.name }),
       },
-      {
+    ]
+    // Uncategorised is the holding pen deletes empty into — it can be
+    // shared, but never renamed or deleted.
+    if (!collection.is_uncategorised) {
+      items.unshift({
+        key: 'rename',
+        label: 'Rename',
+        icon: Pencil,
+        onSelect: () => setDialog({ kind: 'renameCollection', collectionId, name: collection.name }),
+      })
+      items.push({
         key: 'delete',
         label: 'Delete collection',
         icon: Trash2,
         danger: true,
         onSelect: () => setDialog({ kind: 'deleteCollection', collectionId, name: collection.name }),
-      },
-    ]
+      })
+    }
+    return items
   }
 
   if (drillsLoading && drills.length === 0) {
@@ -549,7 +564,7 @@ export function DrillLibrary() {
     return <EmptyState icon={LibraryBig} message="No drills yet." action={{ to: '/design', label: 'Build one in Design →' }} />
   }
 
-  const narrowed = query.trim() !== '' || activeFilterCount(filters) > 0
+  const narrowed = query.trim() !== '' || activeFilterCount(filters) > 0 || tagFilter.length > 0
 
   return (
     <>
@@ -562,12 +577,13 @@ export function DrillLibrary() {
               drill={activeDrill}
               canEdit={canEdit(activeDrill)}
               canDuplicate={!isLicensedDoc(activeDrill, selectedClubId)}
-              canFile={isAdmin}
-              collectionNames={collectionNamesFor(activeDrill.id)}
+              canMove={canEdit(activeDrill)}
+              collectionName={collectionName.get(activeDrill.collection_id) ?? null}
+              tagNames={tagNamesOf(activeDrill)}
               onClose={() => setActiveId(null)}
               onDuplicate={() => handleDuplicate(activeDrill.id)}
               onDelete={() => setDialog({ kind: 'deleteDrills', ids: [activeDrill.id] })}
-              onAddToCollection={() => setDialog({ kind: 'addToCollection', ids: [activeDrill.id] })}
+              onMove={() => setDialog({ kind: 'move', ids: [activeDrill.id] })}
             />
           ) : null
         }
@@ -579,6 +595,7 @@ export function DrillLibrary() {
             onSelectPlace={(id) => {
               setPlaceId(id)
               setActiveId(null)
+              setTagFilter([])
               // Walking into another folder ends the selection you made in
               // the last one — a tick that survives a navigation is a bulk
               // action waiting to surprise someone.
@@ -587,6 +604,7 @@ export function DrillLibrary() {
             isAdmin={isAdmin}
             onNewCollection={() => setDialog({ kind: 'newCollection' })}
             collectionMenu={collectionMenu}
+            onManageTags={() => setDialog({ kind: 'manageTags' })}
           />
         }
       >
@@ -597,7 +615,7 @@ export function DrillLibrary() {
           onNavigateRoot={() => setPlaceId(root)}
           query={query}
           onQueryChange={setQuery}
-          searchPlaceholder="Search name, category, objective, pitch…"
+          searchPlaceholder="Search name, collection, tag, objective…"
           view={view}
           onViewChange={setView}
           sort={sort}
@@ -614,10 +632,11 @@ export function DrillLibrary() {
               open={filtersOpen}
               onToggle={() => setFiltersOpen((v) => !v)}
               ageBandOptions={ageBandOptions}
-              categoryOptions={categoryOptions}
             />
           }
         />
+
+        <TagFilterRow tags={placeTags} selected={tagFilter} onChange={setTagFilter} />
 
         {sorted.length === 0 ? (
           <EmptyState
@@ -626,7 +645,7 @@ export function DrillLibrary() {
               narrowed
                 ? 'Nothing here matches that search.'
                 : place.kind === 'collection'
-                  ? 'This collection is empty. Select drills anywhere in the library and use "Add to collection".'
+                  ? 'This collection is empty. Create a drill in it, or move drills here from anywhere in the library.'
                   : 'Nothing here yet.'
             }
           />
@@ -657,18 +676,11 @@ export function DrillLibrary() {
       </LibraryShell>
 
       <SelectionBar count={selection.count} noun="drill" onClear={selection.clear}>
-        {isAdmin && (
+        {deletableSelected.length > 0 && (
           <SelectionAction
-            icon={FolderPlus}
-            label="Add to collection"
-            onClick={() => setDialog({ kind: 'addToCollection', ids: selectedIds })}
-          />
-        )}
-        {isAdmin && place.kind === 'collection' && (
-          <SelectionAction
-            icon={FolderMinus}
-            label="Remove from folder"
-            onClick={() => void handleRemoveFromPlace(selectedIds)}
+            icon={FolderInput}
+            label="Move to collection"
+            onClick={() => setDialog({ kind: 'move', ids: deletableSelected })}
           />
         )}
         <SelectionAction
@@ -695,6 +707,7 @@ export function DrillLibrary() {
           onSubmit={async (name) => {
             const created = await createCollection(name, null, 'drill')
             if (created) {
+              void fetchDrillCollectionOptions()
               showToast(`Created "${created.name}"`)
               setPlaceId(`c:${created.id}`)
             }
@@ -710,7 +723,7 @@ export function DrillLibrary() {
           initialValue={dialog.name}
           submitLabel="Rename"
           onSubmit={async (name) => {
-            await updateCollection(dialog.collectionId, { name })
+            if (await updateCollection(dialog.collectionId, { name })) void fetchDrillCollectionOptions()
           }}
         />
       )}
@@ -732,11 +745,17 @@ export function DrillLibrary() {
           open
           onClose={() => setDialog(null)}
           title="Delete collection"
-          message={`Delete "${dialog.name}"? The drills in it stay in the library — only the collection goes.`}
+          message={(() => {
+            const n = collectionDrillIds[dialog.collectionId]?.length ?? 0
+            return n
+              ? `Delete "${dialog.name}"? Its ${n} ${n === 1 ? 'drill moves' : 'drills move'} to Uncategorised.`
+              : `Delete "${dialog.name}"? It's empty.`
+          })()}
           confirmLabel="Delete collection"
           onConfirm={async () => {
             const deleted = await deleteCollection(dialog.collectionId)
             if (deleted) {
+              void fetchDrillCollectionOptions()
               showToast(`Deleted "${dialog.name}"`)
               if (place.collectionId === dialog.collectionId) setPlaceId(root)
             }
@@ -757,16 +776,29 @@ export function DrillLibrary() {
           onConfirm={() => handleDeleteDrills(dialog.ids)}
         />
       )}
-      {dialog?.kind === 'addToCollection' && (
-        <AddToCollectionDialog
+      {dialog?.kind === 'move' && (
+        <MoveToCollectionDialog
           open
           onClose={() => setDialog(null)}
-          collections={homeCollections}
-          collectionDocIds={collectionDrillIds}
+          options={collectionOptions}
+          currentId={
+            dialog.ids.length === 1 ? (drills.find((d) => d.id === dialog.ids[0])?.collection_id ?? null) : null
+          }
           count={dialog.ids.length}
-          noun="drill"
-          onAdd={(collectionId) => handleAddToCollection(collectionId, dialog.ids)}
-          onCreateAndAdd={(name) => handleCreateAndAdd(name, dialog.ids)}
+          onMove={(collectionId) => handleMove(collectionId, dialog.ids)}
+        />
+      )}
+      {dialog?.kind === 'manageTags' && (
+        <ManageTagsDialog
+          open
+          onClose={() => setDialog(null)}
+          tags={clubTags}
+          usage={Object.fromEntries(
+            clubTags.map((t) => [t.id, drills.filter((d) => d.tag_ids?.includes(t.id)).length])
+          )}
+          onCreate={createClubTag}
+          onRename={renameClubTag}
+          onDelete={deleteClubTag}
         />
       )}
       {dialog?.kind === 'access' && (
@@ -791,14 +823,12 @@ function DrillFilters({
   open,
   onToggle,
   ageBandOptions,
-  categoryOptions,
 }: {
   filters: Filters
   onChange: (filters: Filters) => void
   open: boolean
   onToggle: () => void
   ageBandOptions: string[]
-  categoryOptions: string[]
 }) {
   const patch = (next: Partial<Filters>) => onChange({ ...filters, ...next })
   const count = activeFilterCount(filters)
@@ -904,19 +934,6 @@ function DrillFilters({
                   ]}
                   searchable={false}
                   ariaLabel="Phase of play"
-                  triggerClassName="h-9 w-full"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-ink-muted">Category</label>
-              <div className="mt-1">
-                <Dropdown
-                  value={filters.category}
-                  onChange={(v) => patch({ category: v })}
-                  options={[{ value: '', label: 'Any category' }, ...categoryOptions.map((c) => ({ value: c, label: c }))]}
-                  searchable={categoryOptions.length > 6}
-                  ariaLabel="Category"
                   triggerClassName="h-9 w-full"
                 />
               </div>
