@@ -143,8 +143,9 @@ export function buildLibraryPlaces(args: {
 
   for (const c of ours) {
     const ids = idsIn(c.id)
-    // Uncategorised only matters while something is waiting to be sorted.
-    if (c.is_uncategorised && ids.length === 0) continue
+    // Uncategorised only matters while something is waiting to be sorted,
+    // and sorting it is an admin's job — coaches never see it (spec §4).
+    if (c.is_uncategorised && (!isAdmin || ids.length === 0)) continue
     places.push({ id: `c:${c.id}`, kind: 'collection', title: c.name, ids, collectionId: c.id })
   }
   for (const c of licensed) {

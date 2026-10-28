@@ -63,8 +63,6 @@ export interface DrillUpdateInput {
   // nullable, and `null` is a meaningful patch — clearing a field.
   objective?: string | null
   description?: string | null
-  category?: string | null
-  subcategory?: string | null
   duration_minutes?: number | null
   players_recommended?: number | null
   min_players?: number | null
@@ -819,8 +817,6 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       return get().updateDrill(created.id, {
         objective: source.objective,
         description: source.description,
-        category: source.category,
-        subcategory: source.subcategory,
         duration_minutes: source.duration_minutes,
         players_recommended: source.players_recommended,
         min_players: source.min_players,

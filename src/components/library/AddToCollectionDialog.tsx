@@ -9,10 +9,10 @@ import { Modal } from '../ui/Modal'
 // clearing the other — are now one list you pick from, with "New
 // collection…" as the first row of that list.
 //
-// The verb is "add", never "move". A drill can sit in any number of
-// collections at once (collection_drill is a join table, not a parent
+// The verb is "add", never "move". A tactic can sit in any number of
+// collections at once (collection_tactic is a join table, not a parent
 // pointer), so a folder here is really a label wearing a folder's clothes.
-// Calling it "move" would promise that the drill leaves wherever it was —
+// Calling it "move" would promise that the tactic leaves wherever it was —
 // including, in a coach's head, the sessions built on it.
 export function AddToCollectionDialog({
   open,

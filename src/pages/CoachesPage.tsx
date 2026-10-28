@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import { selectMyRole } from '../store/slices/clubSlice'
 import { inviteUrl } from '../store/invites'
 import { useSession } from '../hooks/useSession'
+import { useCollectionDrillIds } from '../hooks/useCollectionDrillIds'
 import type { ClubMemberRow, Collection } from '../store'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Badge } from '../components/ui/Badge'
@@ -50,9 +51,10 @@ function CoachesScreen() {
   const clubDataLoading = useStore((s) => s.clubDataLoading)
   const collections = useStore((s) => s.collections)
   const collectionAccess = useStore((s) => s.collectionAccess)
-  const collectionDrillIds = useStore((s) => s.collectionDrillIds)
+  const collectionDrillIds = useCollectionDrillIds()
   const collectionTacticIds = useStore((s) => s.collectionTacticIds)
   const fetchClubData = useStore((s) => s.fetchClubData)
+  const fetchDrills = useStore((s) => s.fetchDrills)
   const clubActionError = useStore((s) => s.clubActionError)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -61,6 +63,13 @@ function CoachesScreen() {
   useEffect(() => {
     void fetchClubData()
   }, [fetchClubData, selectedClubId])
+
+  // Drill counts per collection are derived from the drills themselves
+  // (drill.collection_id), so they need the drills loaded — on a cold load
+  // straight to this page nothing else has fetched them.
+  useEffect(() => {
+    void fetchDrills()
+  }, [fetchDrills, selectedClubId])
 
   // Coaches first (they are what this page is for), then admins; oldest
   // membership first within each, so the list doesn't reshuffle on rename.

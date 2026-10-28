@@ -81,7 +81,6 @@ function clearClubScopedState() {
     clubMembers: [],
     invites: [],
     collections: [],
-    collectionDrillIds: {},
     collectionTacticIds: {},
     collectionAccess: {},
     licensesOut: [],
@@ -106,10 +105,10 @@ export interface ClubSlice {
   // not carried: once a coach is in, `clubMembers` is where they show up.
   invites: ClubInvite[]
   collections: Collection[]
-  // Both maps: collectionId -> the ids filed in it. Populated from every
-  // collection_drill/collection_tactic row RLS lets the caller read — spans
-  // every club they administer or are granted into, same as `collections`.
-  collectionDrillIds: Record<string, string[]>
+  // collectionId -> the tactic ids filed in it. Populated from every
+  // collection_tactic row RLS lets the caller read — spans every club they
+  // administer or are granted into, same as `collections`. Drill membership
+  // is derived from drill.collection_id instead (useCollectionDrillIds).
   collectionTacticIds: Record<string, string[]>
   collectionAccess: Record<string, string[]> // collectionId -> userIds
   licensesOut: ClubLicense[] // granted BY selectedClubId
@@ -131,8 +130,6 @@ export interface ClubSlice {
   createCollection: (name: string, description: string | null, kind: CollectionKind) => Promise<Collection | null>
   updateCollection: (id: string, patch: CollectionUpdateInput) => Promise<boolean>
   deleteCollection: (id: string) => Promise<boolean>
-  addDrillToCollection: (collectionId: string, drillId: string) => Promise<boolean>
-  removeDrillFromCollection: (collectionId: string, drillId: string) => Promise<boolean>
   addTacticToCollection: (collectionId: string, tacticId: string) => Promise<boolean>
   removeTacticFromCollection: (collectionId: string, tacticId: string) => Promise<boolean>
   grantCollectionAccess: (collectionId: string, userId: string) => Promise<boolean>
@@ -211,7 +208,6 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
   clubMembers: [],
   invites: [],
   collections: [],
-  collectionDrillIds: {},
   collectionTacticIds: {},
   collectionAccess: {},
   licensesOut: [],
@@ -283,7 +279,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
   },
 
   // Loads, for selectedClubId: club_member rows (filtered — "this club's
-  // roster"); collection/collection_drill/collection_tactic/
+  // roster"); collection/collection_tactic/
   // collection_access rows (unfiltered — RLS alone decides visibility, home
   // + licensed-in, matching Task 5/6's LibraryGroup model, which tells
   // "home" from "licensed" by comparing collection.club_id to
@@ -304,7 +300,7 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     )
     const ownCollectionIds = ownCollectionIdsRes.data?.map((c) => c.id) ?? []
 
-    const [membersRes, invitesRes, collectionsRes, collectionDrillRes, collectionTacticRes, accessRes, outRes, inRes] =
+    const [membersRes, invitesRes, collectionsRes, collectionTacticRes, accessRes, outRes, inRes] =
       await Promise.all([
         runSupabaseAction<ClubMemberRow[]>(
           () =>
@@ -332,10 +328,6 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
         runSupabaseAction<Collection[]>(
           () => supabase.from('collection').select('*').order('created_at'),
           "Couldn't load collections, try again."
-        ),
-        runSupabaseAction<{ collection_id: string; drill_id: string }[]>(
-          () => supabase.from('collection_drill').select('collection_id, drill_id'),
-          "Couldn't load collection contents, try again."
         ),
         runSupabaseAction<{ collection_id: string; tactic_id: string }[]>(
           () => supabase.from('collection_tactic').select('collection_id, tactic_id'),
@@ -368,16 +360,11 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
     const firstError =
       membersRes.error ||
       collectionsRes.error ||
-      collectionDrillRes.error ||
       collectionTacticRes.error ||
       accessRes.error ||
       outRes.error ||
       inRes.error
 
-    const collectionDrillIds: Record<string, string[]> = {}
-    for (const row of collectionDrillRes.data ?? []) {
-      ;(collectionDrillIds[row.collection_id] ??= []).push(row.drill_id)
-    }
     const collectionTacticIds: Record<string, string[]> = {}
     for (const row of collectionTacticRes.data ?? []) {
       ;(collectionTacticIds[row.collection_id] ??= []).push(row.tactic_id)
@@ -418,7 +405,6 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       clubDataError: firstError,
       ...(membersRes.data ? { clubMembers: membersRes.data } : {}),
       ...(collectionsRes.data ? { collections: collectionsRes.data } : {}),
-      collectionDrillIds,
       collectionTacticIds,
       collectionAccess,
       ...(invitesRes.data ? { invites: invitesRes.data } : {}),
@@ -492,42 +478,6 @@ export const createClubSlice: StateCreator<StoreState, [], [], ClubSlice> = (set
       // Moved drills changed collection, and Uncategorised may be new.
       await Promise.all([get().fetchDrills(), get().fetchClubData()])
     }
-    return true
-  },
-
-  addDrillToCollection: async (collectionId, drillId) => {
-    const { error } = await runSupabaseAction<null>(
-      () => supabase.from('collection_drill').insert({ collection_id: collectionId, drill_id: drillId }),
-      "Couldn't add drill to collection, try again."
-    )
-    if (error) {
-      set({ clubDataError: error })
-      return false
-    }
-    set((state) => ({
-      collectionDrillIds: {
-        ...state.collectionDrillIds,
-        [collectionId]: [...(state.collectionDrillIds[collectionId] ?? []), drillId],
-      },
-    }))
-    return true
-  },
-
-  removeDrillFromCollection: async (collectionId, drillId) => {
-    const { error } = await runSupabaseAction<null>(
-      () => supabase.from('collection_drill').delete().eq('collection_id', collectionId).eq('drill_id', drillId),
-      "Couldn't remove drill from collection, try again."
-    )
-    if (error) {
-      set({ clubDataError: error })
-      return false
-    }
-    set((state) => ({
-      collectionDrillIds: {
-        ...state.collectionDrillIds,
-        [collectionId]: (state.collectionDrillIds[collectionId] ?? []).filter((id) => id !== drillId),
-      },
-    }))
     return true
   },
 

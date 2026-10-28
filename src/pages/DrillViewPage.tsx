@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Copy, LibraryBig } from 'lucide-react'
 import { useStore } from '../store'
@@ -21,6 +21,11 @@ export function DrillViewPage() {
   const drills = useStore((s) => s.drills)
   const drillsLoading = useStore((s) => s.drillsLoading)
   const fetchDrills = useStore((s) => s.fetchDrills)
+  const collections = useStore((s) => s.collections)
+  const drillCollectionOptions = useStore((s) => s.drillCollectionOptions)
+  const clubTags = useStore((s) => s.clubTags)
+  const fetchClubTags = useStore((s) => s.fetchClubTags)
+  const fetchDrillCollectionOptions = useStore((s) => s.fetchDrillCollectionOptions)
   const duplicateDrill = useStore((s) => s.duplicateDrill)
   const [duplicating, setDuplicating] = useState(false)
 
@@ -28,7 +33,25 @@ export function DrillViewPage() {
     void fetchDrills()
   }, [fetchDrills])
 
+  // Names for the drill's collection and tags. The options list covers
+  // collections this coach can't open; `collections` covers licensed-in ones.
+  useEffect(() => {
+    void fetchClubTags()
+    void fetchDrillCollectionOptions()
+  }, [fetchClubTags, fetchDrillCollectionOptions, selectedClubId])
+
   const drill = drills.find((d) => d.id === drillId) ?? null
+
+  const filing = useMemo(() => {
+    if (!drill) return undefined
+    const collection =
+      collections.find((c) => c.id === drill.collection_id)?.name ??
+      drillCollectionOptions.find((c) => c.id === drill.collection_id)?.name ??
+      null
+    const tagNames = new Map(clubTags.map((t) => [t.id, t.name]))
+    const tags = (drill.tag_ids ?? []).map((id) => tagNames.get(id)).filter((name): name is string => Boolean(name))
+    return { collection, tags }
+  }, [drill, collections, drillCollectionOptions, clubTags])
 
   const handleDuplicate = async () => {
     if (!drill) return
@@ -62,7 +85,7 @@ export function DrillViewPage() {
         <Link to="/drills" className="text-sm font-medium text-accent-ink hover:underline">
           ← Back to the drill library
         </Link>
-        <SharedDrill drill={drill} />
+        <SharedDrill drill={drill} filing={filing} />
         {isLicensedDoc(drill, selectedClubId) ? (
           <p className="text-center text-xs text-ink-faint">Licensed to your club — view only.</p>
         ) : (

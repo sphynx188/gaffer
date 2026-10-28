@@ -324,9 +324,10 @@ export interface PitchConfig {
 // Drill metadata (rework plan Stage 8.1). The four short vocabularies below
 // are unions rather than free text because Stage 9's library filters on them:
 // "a 12-minute technical rondo for 8 players" only works if every technical
-// drill spells `technical` the same way. `category`/`subcategory` are
-// deliberately NOT unions — a coach's own naming for what a drill is about
-// shouldn't be frozen into a type here.
+// drill spells `technical` the same way. What a drill is *about* is no longer
+// free text here: it's the drill's collection plus its club tags
+// (`collection_id` / `tag_ids`, migration 046), which replaced the old
+// free-text category columns.
 export const DRILL_DIFFICULTIES = ['beginner', 'intermediate', 'advanced'] as const
 export type DrillDifficulty = (typeof DRILL_DIFFICULTIES)[number]
 
@@ -411,8 +412,6 @@ export interface Drill {
   // does a drill created and never opened in Details.
   objective: string | null
   description: string | null
-  category: string | null
-  subcategory: string | null
   duration_minutes: number | null
   players_recommended: number | null
   min_players: number | null
@@ -580,8 +579,8 @@ export interface ClubInvitePreview {
 }
 
 // Enforced, not a convention (migration 032): a collection is always
-// exactly one kind, never both — collection_drill/collection_tactic's own
-// RLS refuses filing the wrong content type into it. Immutable after
+// exactly one kind, never both — the drill.collection_id trigger (046) and
+// collection_tactic's RLS refuse filing the wrong content type into it. Immutable after
 // creation; there is no rename-kind path, since that would mean silently
 // orphaning whatever's already filed under the old kind.
 export type CollectionKind = 'drill' | 'tactic'

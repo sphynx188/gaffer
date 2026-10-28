@@ -512,33 +512,30 @@ export function DrillLibrary() {
 
   const collectionMenu = (collectionId: string): RowMenuItem[] => {
     const collection = homeCollections.find((c) => c.id === collectionId)
-    if (!collection) return []
-    const items: RowMenuItem[] = [
+    // Uncategorised is the admin-only holding pen deletes empty into: never
+    // renamed or deleted, and never shared, since coaches don't see it (spec §4).
+    if (!collection || collection.is_uncategorised) return []
+    return [
+      {
+        key: 'rename',
+        label: 'Rename',
+        icon: Pencil,
+        onSelect: () => setDialog({ kind: 'renameCollection', collectionId, name: collection.name }),
+      },
       {
         key: 'access',
         label: 'Coach access…',
         icon: UserCog,
         onSelect: () => setDialog({ kind: 'access', collectionId, name: collection.name }),
       },
-    ]
-    // Uncategorised is the holding pen deletes empty into — it can be
-    // shared, but never renamed or deleted.
-    if (!collection.is_uncategorised) {
-      items.unshift({
-        key: 'rename',
-        label: 'Rename',
-        icon: Pencil,
-        onSelect: () => setDialog({ kind: 'renameCollection', collectionId, name: collection.name }),
-      })
-      items.push({
+      {
         key: 'delete',
         label: 'Delete collection',
         icon: Trash2,
         danger: true,
         onSelect: () => setDialog({ kind: 'deleteCollection', collectionId, name: collection.name }),
-      })
-    }
-    return items
+      },
+    ]
   }
 
   if (drillsLoading && drills.length === 0) {

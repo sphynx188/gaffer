@@ -4,6 +4,7 @@ import { ArrowRight, LibraryBig, Plus, Shield } from 'lucide-react'
 import { useStore } from '../store'
 import { canEditDocWith, selectMyRole } from '../store/slices/clubSlice'
 import { useSession } from '../hooks/useSession'
+import { useCollectionDrillIds } from '../hooks/useCollectionDrillIds'
 import { useRecentBoards } from '../hooks/useRecentBoards'
 import { PitchCanvas } from '../components/design/PitchCanvas'
 import type { RenderFrame } from '../components/design/canvas/interpolate'
@@ -49,7 +50,7 @@ export function HomePage() {
   const isAdmin = useStore((s) => selectMyRole(s) === 'admin')
   const clubMembers = useStore((s) => s.clubMembers)
   const collections = useStore((s) => s.collections)
-  const collectionDrillIds = useStore((s) => s.collectionDrillIds)
+  const collectionDrillIds = useCollectionDrillIds()
   const collectionTacticIds = useStore((s) => s.collectionTacticIds)
   const collectionAccess = useStore((s) => s.collectionAccess)
   const licensesIn = useStore((s) => s.licensesIn)

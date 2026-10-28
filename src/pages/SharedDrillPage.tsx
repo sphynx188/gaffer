@@ -101,7 +101,18 @@ function Frame({ children }: { children: React.ReactNode }) {
 // the store instead of a token fetch. `shareToken` is only passed by the
 // public page: it is what unlocks the drill's video for a visitor with no
 // account (migration 045), where the viewer's own session does the same job.
-export function SharedDrill({ drill, shareToken }: { drill: Drill; shareToken?: string }) {
+// `filing` (collection + tag names) is likewise in-app only: the public page
+// never passes it, because an anonymous visitor isn't shown a club's
+// collections or tags (spec 2026-10-28 §2).
+export function SharedDrill({
+  drill,
+  shareToken,
+  filing,
+}: {
+  drill: Drill
+  shareToken?: string
+  filing?: { collection: string | null; tags: string[] }
+}) {
   const playback = useTimelinePlayback(drill.duration_seconds)
   const frame = useMemo(
     () => frameAt(drill.scene, drill.keyframes, playback.currentTime),
@@ -138,6 +149,11 @@ export function SharedDrill({ drill, shareToken }: { drill: Drill; shareToken?: 
               </Badge>
             ))}
           </div>
+        )}
+        {filing && (filing.collection || filing.tags.length > 0) && (
+          <p className="mt-2 text-xs text-ink-muted">
+            {[filing.collection, ...filing.tags].filter(Boolean).join(' · ')}
+          </p>
         )}
       </header>
 

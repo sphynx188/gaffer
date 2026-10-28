@@ -168,12 +168,6 @@ export function DrillCard({ drill }: { drill: Drill }) {
         <header className="card-block border-b border-line pb-4">
           <h1 className="text-2xl font-semibold tracking-tight">{drill.name}</h1>
           {drill.objective && <p className="card-muted mt-1 text-sm text-ink-muted">{drill.objective}</p>}
-          {drill.category && (
-            <p className="card-muted mt-1 text-xs uppercase tracking-wide text-ink-faint">
-              {drill.category}
-              {drill.subcategory ? ` · ${drill.subcategory}` : ''}
-            </p>
-          )}
         </header>
 
         {/* Diagram beside the facts, not above them — the board is portrait
