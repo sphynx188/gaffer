@@ -420,6 +420,12 @@ export interface Drill {
   setup_minutes: number | null
   learning_outcome: string | null
   video_url: string | null
+  // An uploaded clip of the drill being run (migration 045): an object path in
+  // the private `drill-videos` bucket, never a URL — it plays through a
+  // short-lived signed URL. Copies of a drill share the same path, which is
+  // how the video travels with it. `video_url` above is the older free-text
+  // link field and is unrelated.
+  video_path: string | null
   thumbnail_url: string | null
   coaching: DrillCoaching
 

@@ -477,6 +477,9 @@ export function DrillLibrary() {
         drill.difficulty ? DRILL_DIFFICULTY_LABELS[drill.difficulty] : null,
         playerCountLabel(drill),
         ageBandLabel(drill),
+        // An attached real-life clip (migration 045) is worth knowing about
+        // before opening the drill.
+        drill.video_path ? 'Video' : null,
       ]
         .filter(Boolean)
         .join(' · ') || null,

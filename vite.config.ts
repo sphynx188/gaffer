@@ -17,6 +17,20 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Mediabunny (the drill-video compressor, compressVideo.ts) is only
+        // ever imported dynamically, so it already lands in its own chunk —
+        // but under its entry file's name, `src-[hash].js`. A stable name is
+        // what lets the PWA precache below leave it out by pattern.
+        chunkFileNames: (chunk) =>
+          chunk.moduleIds.some((id) => id.includes('/node_modules/mediabunny/'))
+            ? 'assets/mediabunny-[hash].js'
+            : 'assets/[name]-[hash].js',
+      },
+    },
+  },
   plugins: [
     react(),
     tailwindcss(),
@@ -66,6 +80,11 @@ export default defineConfig({
         // Precache the built app shell (JS/CSS/HTML + the icons above) so it
         // loads with no network at all.
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // ~700 kB that only a coach attaching a drill video ever needs, and
+        // that needs a connection to upload anyway — not worth putting on
+        // every install. It is fetched over the network the first time it is
+        // used, like any other request.
+        globIgnores: ['**/mediabunny-*.js'],
         // Read-only offline data: GET requests to the Supabase REST API are
         // served from the network when available and fall back to the last
         // successful response when it isn't.

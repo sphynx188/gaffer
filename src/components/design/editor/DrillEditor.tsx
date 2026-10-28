@@ -32,6 +32,7 @@ import { getPitchMarkings, snapToPitchGrid } from '../pitchGeometry'
 import { OnboardingTour } from './onboarding/OnboardingTour'
 import { DRILL_TOUR_SEEN_KEY, useOnboardingTour } from './onboarding/useOnboardingTour'
 import { TOUR_STEPS } from './onboarding/tourSteps'
+import { DrillVideoPanel } from '../DrillVideo'
 
 // The drill editor shell (rework plan Stage 5.2): top bar, left tool rail,
 // pitch, contextual right panel, timeline docked at the bottom. Below `lg` the
@@ -692,7 +693,11 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       hideDesktopRail
       canvas={canvas}
       inspector={properties}
-      timeline={null}
+      // The slot under the canvas row has been empty since the timeline bar
+      // moved into the Keyframes panel; the drill's real-life video sits here
+      // now, below the pitch and full width, where scrolling past the pitch
+      // finds it without it ever eating into the canvas's own height.
+      timeline={<DrillVideoPanel drill={drill} />}
       railOpen={toolsOpen}
       onRailClose={() => setToolsOpen(false)}
       railTitle="Tools"

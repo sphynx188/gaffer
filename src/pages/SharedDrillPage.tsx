@@ -13,6 +13,7 @@ import { equipmentSummary } from '../components/design/editor/equipmentSummary'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
 import { Badge } from '../components/ui/Badge'
+import { DrillVideoPlayer } from '../components/design/DrillVideo'
 
 // The public share page (rework plan Stage 10.4) — `/d/:token`, readable with
 // no account, mirroring Teloframe's Player Explanation. This is the app's ONLY
@@ -78,7 +79,7 @@ export function SharedDrillPage() {
 
   return (
     <Frame>
-      <SharedDrill drill={drill} />
+      <SharedDrill drill={drill} shareToken={token} />
     </Frame>
   )
 }
@@ -97,8 +98,10 @@ function Frame({ children }: { children: React.ReactNode }) {
 // Exported for DrillViewPage.tsx (club tenancy, Task 5) — the in-app
 // read-only viewer for a licensed/collection drill reuses the exact same
 // presentational component the public share page renders, fed a Drill from
-// the store instead of a token fetch.
-export function SharedDrill({ drill }: { drill: Drill }) {
+// the store instead of a token fetch. `shareToken` is only passed by the
+// public page: it is what unlocks the drill's video for a visitor with no
+// account (migration 045), where the viewer's own session does the same job.
+export function SharedDrill({ drill, shareToken }: { drill: Drill; shareToken?: string }) {
   const playback = useTimelinePlayback(drill.duration_seconds)
   const frame = useMemo(
     () => frameAt(drill.scene, drill.keyframes, playback.currentTime),
@@ -161,6 +164,13 @@ export function SharedDrill({ drill }: { drill: Drill }) {
           {equipment ? ` · ${equipment}` : ''}
         </p>
       </div>
+
+      {drill.video_path && (
+        <section className="rounded-xl border border-line bg-panel p-4">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">In real life</h2>
+          <DrillVideoPlayer path={drill.video_path} shareToken={shareToken} />
+        </section>
+      )}
 
       {coaching.setup && <Block title="Setup">{coaching.setup}</Block>}
       <ListBlock title="Coaching points" items={coaching.points} />

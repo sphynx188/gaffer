@@ -71,6 +71,9 @@ export interface DrillUpdateInput {
   setup_minutes?: number | null
   learning_outcome?: string | null
   video_url?: string | null
+  // Written only by uploadDrillVideo/removeDrillVideo (and duplicateDrill),
+  // which keep the storage object and the column in step.
+  video_path?: string | null
   thumbnail_url?: string | null
   coaching?: DrillCoaching
 
@@ -111,6 +114,25 @@ const AUTOSAVE_IDLE_MS = 800
 
 // Created by migration 017, public-read, one PNG per drill named by id.
 const THUMBNAIL_BUCKET = 'drill-thumbnails'
+
+// Created by migration 045, PRIVATE — a drill video is footage of real
+// (often young) players, so it is only ever reached through a signed URL.
+// The limit and types mirror the bucket's own, checked here first so a coach
+// gets a plain message instead of a storage error.
+const VIDEO_BUCKET = 'drill-videos'
+export const DRILL_VIDEO_MAX_BYTES = 50 * 1024 * 1024
+export const DRILL_VIDEO_TYPES = ['video/mp4', 'video/quicktime']
+// Long enough to watch a clip through and scrub back; the player asks for a
+// fresh one whenever it remounts.
+const VIDEO_URL_SECONDS = 60 * 60
+
+// The session-less client a share page reads through (see fetchSharedDrill).
+function shareClient(token: string) {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { 'x-share-token': token } },
+  })
+}
 
 function snapshotOf(drill: Drill): DrillSnapshot {
   return {
@@ -206,6 +228,20 @@ export interface DrillSlice {
   // re-capture replaces the old image rather than accumulating orphans.
   // Returns the stored URL, or null if either half failed.
   uploadDrillThumbnail: (drillId: string, dataUrl: string) => Promise<string | null>
+
+  // A real-life video of the drill being run (migration 045). Each upload is
+  // a NEW object at `<drill id>/<random>.<ext>` rather than an upsert over a
+  // fixed name: duplicates and cross-club copies point at the same object, so
+  // overwriting it in place would swap the video under every copy. The old
+  // object is deleted afterwards only once no drill anywhere still uses it.
+  // Both return whether the drill now has what was asked for.
+  uploadDrillVideo: (drillId: string, file: File) => Promise<boolean>
+  removeDrillVideo: (drillId: string) => Promise<boolean>
+
+  // A signed URL to play a drill's video. A share page passes its token,
+  // which is what lets an anonymous visitor through the bucket's read policy
+  // for that one drill.
+  drillVideoUrl: (path: string, shareToken?: string) => Promise<string | null>
 
   // -------------------------------------------------------------------------
   // Entities, keyframes and markings (rework plan Stage 2.1).
@@ -441,6 +477,23 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
   // the store object deliberately, like `pendingSaves` and `history` — it is
   // bookkeeping for the save path, not state any component renders.
   const unsavedDrafts = new Set<string>()
+
+  // Deletes a video object once no drill points at it any more. Copies share
+  // one object and this client can't see other clubs' copies, so the
+  // drill_video_in_use RPC (045) answers across all of them; anything short
+  // of a clear "not in use" keeps the file — an orphaned file costs storage,
+  // a deleted one breaks somebody's drill. Failures stay silent for the same
+  // reason: the coach's own action has already succeeded.
+  const releaseVideo = async (path: string, drillId: string) => {
+    const { data: inUse, error } = await runSupabaseAction<boolean>(() =>
+      supabase.rpc('drill_video_in_use', { path, except_drill: drillId })
+    )
+    if (error || inUse !== false) return
+    await runSupabaseAction(
+      async () =>
+        (await supabase.storage.from(VIDEO_BUCKET).remove([path])) as unknown as SupabaseCallResult<unknown>
+    )
+  }
 
   const commit = (drillId: string, mutate: (drill: Drill) => Drill) => {
     const current = get().drills.find((d) => d.id === drillId)
@@ -684,11 +737,17 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         setup_minutes: source.setup_minutes,
         learning_outcome: source.learning_outcome,
         video_url: source.video_url,
+        // Unlike thumbnail_url, the video IS copied: it's footage of the
+        // drill, not a rendering of this row's board, so the duplicate should
+        // carry it. The two drills share one object, and removing it from
+        // either leaves it in place for the other (releaseVideo).
+        video_path: source.video_path,
         coaching: source.coaching,
       })
     },
 
     deleteDrill: async (drillId) => {
+      const videoPath = get().drills.find((d) => d.id === drillId)?.video_path ?? null
       set({ drillsLoading: true, drillsError: null })
       const { error } = await runSupabaseAction<null>(
         () => supabase.from('drill').delete().eq('id', drillId),
@@ -708,6 +767,11 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         drillsError: null,
         drills: state.drills.filter((d) => d.id !== drillId),
       }))
+      // After the row is gone, so a failed delete never costs the video. The
+      // drill can no longer vouch for the object, so only its uploader passes
+      // the bucket's delete policy here; anyone else leaves an orphan, which
+      // is the safe direction to fail in.
+      if (videoPath) await releaseVideo(videoPath, drillId)
       return true
     },
 
@@ -731,10 +795,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       // signed in on the same browser reads this page as a visitor would —
       // which is the only way the page can be trusted to look the same to the
       // teammate it was sent to.
-      const client = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-        global: { headers: { 'x-share-token': token } },
-      })
+      const client = shareClient(token)
       const { data, error } = await runSupabaseAction<Drill[]>(
         () => client.from('drill').select('*').eq('share_token', token).limit(1),
         "Couldn't load this drill."
@@ -771,6 +832,76 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       const url = `${publicData.publicUrl}?v=${Date.now()}`
       const updated = await get().updateDrill(drillId, { thumbnail_url: url })
       return updated ? url : null
+    },
+
+    uploadDrillVideo: async (drillId, file) => {
+      // Some browsers hand over a phone clip with no MIME type at all, so
+      // fall back to the extension before refusing it.
+      const type =
+        file.type || (/\.mov$/i.test(file.name) ? 'video/quicktime' : /\.mp4$/i.test(file.name) ? 'video/mp4' : '')
+      if (!DRILL_VIDEO_TYPES.includes(type)) {
+        set({ drillsError: 'That file isn’t a video Gaffer can play — use an MP4 or a phone .mov.' })
+        return false
+      }
+      if (file.size > DRILL_VIDEO_MAX_BYTES) {
+        set({ drillsError: 'That video is over 50 MB. Trim it or export it at a lower quality, then try again.' })
+        return false
+      }
+      // The bucket's insert policy joins the object's drill id back to a
+      // drill row, so a draft that has never been written has to be written
+      // first. Queuing its current content and flushing is exactly the insert
+      // its first canvas edit would have made.
+      if (unsavedDrafts.has(drillId)) {
+        const draft = get().drills.find((d) => d.id === drillId)
+        if (!draft) return false
+        if (!pendingSaves.has(drillId)) pendingSaves.set(drillId, snapshotOf(draft))
+        await get().flushDrillSave()
+        if (unsavedDrafts.has(drillId)) return false
+      }
+      const previous = get().drills.find((d) => d.id === drillId)?.video_path ?? null
+      const ext = type === 'video/quicktime' ? 'mov' : 'mp4'
+      const path = `${drillId}/${crypto.randomUUID()}.${ext}`
+      set({ drillsLoading: true, drillsError: null })
+      const { error } = await runSupabaseAction(
+        async () =>
+          (await supabase.storage
+            .from(VIDEO_BUCKET)
+            .upload(path, file, { contentType: type })) as unknown as SupabaseCallResult<{ path: string }>,
+        "Couldn't upload the video, try again."
+      )
+      if (error) {
+        set({ drillsLoading: false, drillsError: error })
+        return false
+      }
+      const updated = await get().updateDrill(drillId, { video_path: path })
+      if (!updated) {
+        // Nothing points at the new object yet, so it can go straight away.
+        await releaseVideo(path, drillId)
+        return false
+      }
+      if (previous) await releaseVideo(previous, drillId)
+      return true
+    },
+
+    removeDrillVideo: async (drillId) => {
+      const previous = get().drills.find((d) => d.id === drillId)?.video_path ?? null
+      if (!previous) return true
+      const updated = await get().updateDrill(drillId, { video_path: null })
+      if (!updated) return false
+      await releaseVideo(previous, drillId)
+      return true
+    },
+
+    drillVideoUrl: async (path, shareToken) => {
+      const client = shareToken ? shareClient(shareToken) : supabase
+      const { data } = await runSupabaseAction<{ signedUrl: string }>(
+        async () =>
+          (await client.storage
+            .from(VIDEO_BUCKET)
+            .createSignedUrl(path, VIDEO_URL_SECONDS)) as unknown as SupabaseCallResult<{ signedUrl: string }>,
+        "Couldn't load the drill video."
+      )
+      return data?.signedUrl ?? null
     },
 
     addEntity: (drillId, kind, position, extra) => {
