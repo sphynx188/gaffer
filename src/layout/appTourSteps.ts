@@ -100,7 +100,7 @@ export const FOUNDER_TOUR_STEPS: TourStep[] = [
     id: 'library',
     anchor: 'nav-library',
     title: 'It all collects here',
-    body: 'Every drill and tactic you make lands in the club library, ready to reuse next season filed in its collection and searchable by tag.',
+    body: 'Every drill and tactic you make lands in the club library, ready to reuse next season, filed in its collection and searchable by tag.',
     placement: 'right',
     openNav: true,
   },
