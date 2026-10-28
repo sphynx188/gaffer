@@ -1,5 +1,6 @@
 import { ChevronDown, Eraser } from 'lucide-react'
 import { MARKING_TOOLS, type MarkingTool } from './markingTools'
+import { TOOL_GRID, ToolTile } from './ToolTile'
 
 // The markings rail panel (rework plan Stage 6.4). The tool table itself lives
 // in markingTools.tsx so this file exports only a component.
@@ -69,9 +70,18 @@ export function MarkingsPanel({
               from the thirteen tools that actually draw, so the list reads
               as "one way out, many ways in" instead of fourteen equals. */}
           <div className="my-1.5 border-t border-line" />
-          {drawTools.map((tool) => (
-            <MarkingRow key={tool.id} tool={tool} pressed={armed && value === tool.id} onChange={onChange} />
-          ))}
+          <div className={TOOL_GRID}>
+            {drawTools.map((tool) => (
+              <ToolTile
+                key={tool.id}
+                icon={tool.icon}
+                label={tool.label}
+                shortcut={tool.key}
+                pressed={armed && value === tool.id}
+                onClick={() => onChange(tool.id)}
+              />
+            ))}
+          </div>
           {onClearDrawings && (
             <button
               type="button"

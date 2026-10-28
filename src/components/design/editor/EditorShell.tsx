@@ -161,11 +161,13 @@ export function EditorLayout({
         {/* Inspector — desktop only; below lg it's the right-hand sheet.
             Capped and scrolled on the same reserve the canvas uses: without
             it, selecting an entity grew this panel past 800px — taller than
-            the pitch — and pushed the docked timeline off the bottom. */}
+            the pitch — and pushed the docked timeline off the bottom.
+            w-52 since 2026-10-28 (was w-64): the tool palettes became
+            three-to-a-row tiles (ToolTile), so the 48px went to the pitch. */}
         {!boardOnly && (
           <div
             data-onboarding-anchor={inspectorAnchor}
-            className="hidden w-64 shrink-0 overflow-y-auto rounded-xl border border-line bg-panel p-3 lg:block"
+            className="hidden w-52 shrink-0 overflow-y-auto rounded-xl border border-line bg-panel p-3 lg:block"
             style={{ maxHeight: maxPanelHeight }}
           >
             {inspector}

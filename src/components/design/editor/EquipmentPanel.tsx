@@ -2,6 +2,7 @@ import { ChevronDown } from 'lucide-react'
 import type { EquipmentType } from '../../../store'
 import { EQUIPMENT_ADVANCED, EQUIPMENT_CORE, EQUIPMENT_LABELS } from '../../../store'
 import { EquipmentIcon } from '../canvas/EquipmentShapes'
+import { TOOL_GRID, ToolTile } from './ToolTile'
 
 // The equipment library (rework plan Stage 6.3), grouped Core / Advanced the
 // way the target app groups it: the five a coach reaches for every session,
@@ -16,7 +17,10 @@ import { EquipmentIcon } from '../canvas/EquipmentShapes'
 export type EquipmentGroupKey = 'core' | 'advanced'
 
 interface EquipmentPanelProps {
-  value: EquipmentType
+  // The piece to show as pressed — null while some other tool is armed, so a
+  // remembered choice doesn't read as active with Select live (2026-10-28,
+  // the same rule as MarkingsPanel's `armed`).
+  value: EquipmentType | null
   onChange: (equipment: EquipmentType) => void
   // Dragging a piece straight onto the pitch, as well as arming it — the same
   // pair of gestures every placement tool in the rail supports.
@@ -61,7 +65,7 @@ function Group({
 }: {
   title: string
   types: EquipmentType[]
-  value: EquipmentType
+  value: EquipmentType | null
   onChange: (equipment: EquipmentType) => void
   onStartDrag?: (equipment: EquipmentType) => (event: React.PointerEvent) => void
   collapsed: boolean
@@ -78,23 +82,20 @@ function Group({
         <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
         {title}
       </button>
-      {!collapsed &&
-        types.map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => onChange(type)}
-            onPointerDown={onStartDrag?.(type)}
-            aria-pressed={value === type}
-            className={
-              'flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors lg:min-h-9 ' +
-              (value === type ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
-            }
-          >
-            <EquipmentIcon type={type} />
-            {EQUIPMENT_LABELS[type]}
-          </button>
-        ))}
+      {!collapsed && (
+        <div className={TOOL_GRID}>
+          {types.map((type) => (
+            <ToolTile
+              key={type}
+              icon={<EquipmentIcon type={type} />}
+              label={EQUIPMENT_LABELS[type]}
+              pressed={value === type}
+              onClick={() => onChange(type)}
+              onPointerDown={onStartDrag?.(type)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

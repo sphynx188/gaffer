@@ -6,6 +6,7 @@ import { EquipmentPanel, type EquipmentGroupKey } from './EquipmentPanel'
 import { MarkingsPanel } from './MarkingsPanel'
 import type { MarkingTool } from './markingTools'
 import { BallToolIcon, PlayerToolIcon, PLAYER_A_COLOR, PLAYER_B_COLOR } from './toolIcons'
+import { TOOL_GRID, ToolTile } from './ToolTile'
 
 // The drag-and-drop palette (2026-08-31) — the right panel's Tools tab,
 // beside Timeline (PropertiesPanel's own keyframe view). Everything that gets
@@ -84,43 +85,38 @@ export function ToolsPanel(props: ToolsPanelProps) {
           Players &amp; ball
         </CategoryHeader>
         {!collapsed.players && (
-          <>
-            <div className="grid grid-cols-2 gap-1.5">
-              <PlayerSwatch
-                team="A"
-                active={props.team === 'A'}
+          <div className={TOOL_GRID}>
+            {(['A', 'B'] as const).map((team) => (
+              <ToolTile
+                key={team}
+                anchor={team === 'A' ? 'tool-player' : undefined}
+                icon={<PlayerToolIcon color={team === 'B' ? PLAYER_B_COLOR : PLAYER_A_COLOR} />}
+                label={`Team ${team}`}
+                // Only while the player tool is the one armed — the remembered
+                // team alone would read as active with Select live (see
+                // MarkingsPanel's `armed`).
+                pressed={props.tool === 'player' && props.team === team}
                 onClick={() => {
-                  props.onTeamChange('A')
+                  props.onTeamChange(team)
                   props.onToolChange('player')
                 }}
-                onPointerDown={props.onStartDrag({ kind: 'player', team: 'A' })}
+                onPointerDown={props.onStartDrag({ kind: 'player', team })}
               />
-              <PlayerSwatch
-                team="B"
-                active={props.team === 'B'}
-                onClick={() => {
-                  props.onTeamChange('B')
-                  props.onToolChange('player')
-                }}
-                onPointerDown={props.onStartDrag({ kind: 'player', team: 'B' })}
-              />
-            </div>
-            <button
-              type="button"
+            ))}
+            <ToolTile
+              icon={<BallToolIcon />}
+              label="Ball"
+              pressed={props.tool === 'ball'}
               onClick={() => props.onToolChange('ball')}
               onPointerDown={props.onStartDrag({ kind: 'ball' })}
-              className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-ink-muted transition-colors hover:bg-panel-raised hover:text-ink lg:min-h-9"
-            >
-              <BallToolIcon />
-              Ball
-            </button>
-          </>
+            />
+          </div>
         )}
       </div>
 
       <div data-onboarding-anchor="tool-equipment" className="border-t border-line pt-3">
         <EquipmentPanel
-          value={props.equipment}
+          value={props.tool === 'equipment' ? props.equipment : null}
           onChange={(value) => {
             props.onEquipmentChange(value)
             props.onToolChange('equipment')
@@ -167,35 +163,6 @@ function CategoryHeader({
     >
       <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`} />
       {children}
-    </button>
-  )
-}
-
-function PlayerSwatch({
-  team,
-  active,
-  onClick,
-  onPointerDown,
-}: {
-  team: string
-  active: boolean
-  onClick: () => void
-  onPointerDown: (event: ReactPointerEvent) => void
-}) {
-  return (
-    <button
-      type="button"
-      data-onboarding-anchor={team === 'A' ? 'tool-player' : undefined}
-      onClick={onClick}
-      onPointerDown={onPointerDown}
-      aria-pressed={active}
-      className={
-        'flex min-h-11 items-center gap-2 rounded-md px-2 text-sm transition-colors lg:min-h-9 ' +
-        (active ? 'bg-accent/15 text-accent-ink' : 'text-ink-muted hover:bg-panel-raised hover:text-ink')
-      }
-    >
-      <PlayerToolIcon color={team === 'B' ? PLAYER_B_COLOR : PLAYER_A_COLOR} />
-      Team {team}
     </button>
   )
 }
