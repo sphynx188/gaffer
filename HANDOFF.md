@@ -276,6 +276,62 @@ in.
 
 ---
 
+## Session log — Canvas restyle, drill video, collections + tags (2026-10-28)
+
+All pushed to `main` and live on `gaffer-khaki.vercel.app`.
+
+### Shipped
+
+1. **Canvas restyle** (`5b0bbcd`): pitch art after The Tactics App, realistic
+   equipment modelled on Alpha Gear photos, the partner's GIOCA ball, relative
+   (not real-world) sizing, cleaner selection outline, equipment that turns in
+   3D (`canvas/equipmentModels.ts`), rotation hidden for round kit.
+2. **Drill video** (`a966542`, migration **045**): a box under the pitch takes
+   an MP4 / phone .mov; it plays in the editor, the read-only view and share
+   links. Private `drill-videos` bucket with one-hour signed URLs (footage of
+   young players). Copies share one object; `drill_video_in_use` stops a file
+   being deleted while another drill uses it. Clips are shrunk in the browser
+   with Mediabunny to 720p at a bitrate fitted to length (~5 min fits 50 MB),
+   loaded on demand and kept out of the PWA precache.
+3. **CSP fix** (`766a762`): `vercel.json` had no `media-src`, so signed Storage
+   video URLs were blocked on the deployed site (dev doesn't apply those
+   headers, which is why it played locally).
+4. **Collections + tags** (spec + plan under `docs/superpowers/`, migrations
+   **046**/**047**): every drill in exactly one collection, chosen on a new
+   "New drill" form; optional club-wide tags; library tag-chip filter (AND),
+   Move to collection, Manage tags, delete-collection → Uncategorised.
+   CLAUDE.md's Data model section has the rules. Built task by task by
+   subagents, each diff reviewed; 046 ran before the deploy (additive, with a
+   transitional default to Uncategorised), 047 after the user confirmed the
+   live site.
+
+### Verified
+
+- `supabase/tests/046_collections_tags_test.sql` (16 RLS/data checks — run the
+  whole file through `execute_sql`; it rolls itself back) passes after 046 and
+  after 047.
+- Signed-in admin walkthrough on localhost against the live DB: create with
+  collection + tags, edit in Details, duplicate, two-tag filter, bulk move,
+  delete a non-empty collection, add/rename/delete a tag. All test data removed.
+- 047 confirmed: `collection_drill` and the category columns are gone, and an
+  insert with no collection is refused.
+
+### Not verified / open
+
+- **Coach view and licensing in the app**: no coach account was signed in.
+  Coach permissions are covered by the SQL tests; a licensee seeing a newly
+  filed drill is not.
+- **Licensed drills show no tag names in the receiving club** — their
+  `club_tag` rows belong to the licensor and `club_tag_read` is members-only.
+  Not in the spec; shows as "no tags", not an error.
+- **One migrated drill lost its category text as a tag**: `6bf2beee…` sits in
+  "3v2" with category "Possession", which matched a collection name and was
+  skipped by 046's rule. It's in the backup if anyone wants it re-added.
+- Drill video playback on the deployed site after the CSP fix wasn't watched
+  end to end.
+
+---
+
 ## Session log — Pre-deployment security audit fixes (2026-09-09)
 
 Ran a 40-item security/reliability checklist against the web app (repo,

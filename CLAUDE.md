@@ -180,6 +180,30 @@ Core tables: `team` → `team_coaches` (membership/role) / `player` (with
 (always team-scoped, unlike drill — no coach-owned case) / `session_tactics`
 (the tactic equivalent of `session_drills`, added by migration 020).
 
+**Every drill is filed in exactly one collection** (migrations 046/047, spec
+`docs/superpowers/specs/2026-10-28-drill-collections-and-tags-design.md`).
+`drill.collection_id` is NOT NULL and replaced the `collection_drill` join
+table, which 047 dropped together with the free-text `drill.category` /
+`subcategory` (backup outside the repo at
+`../drill_collections_category_backup_2026-10-28.json`). The
+`drill_collection_guard` trigger only checks the collection is in the drill's
+club and is drill-kind — it is security definer on purpose, because **a coach
+may file their own drill into any drill collection of their club, including
+ones they were never granted**; they still see that drill as its creator, and
+the collection's contents stay hidden from them. The pickers list those names
+through the `club_drill_collections(cid)` RPC, since a coach can't select
+`collection` rows they weren't granted. Each club has one `is_uncategorised`
+collection (can't be created by hand, renamed or deleted); deleting a drill
+collection goes through `delete_drill_collection`, which moves its drills
+there first (`collection_id` is ON DELETE RESTRICT). Tags are `club_tag` +
+`drill_tag`, club-wide and optional; `drillSlice`'s `fromRow` flattens them
+into `Drill.tag_ids`, and `withoutTags` strips that field before any write —
+it is not a column. Client code derives "which drills are in which
+collection" with `useCollectionDrillIds()` rather than fetching anything.
+Licensing stays per collection and is live: drills filed into a licensed
+collection later reach the licensee too. Tactics are untouched —
+`collection_tactic` is still a join table.
+
 **`session_drills` and `session_tactics` share ONE `order_index` sequence.**
 They are two tables because they reference two different documents, but the
 coach sees one ordered line-up (`SessionItemsPanel`), so the indices are
