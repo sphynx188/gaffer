@@ -47,6 +47,8 @@ export type {
   Collection,
   CollectionKind,
   ClubLicense,
+  ClubTag,
+  DrillCollectionOption,
 } from './types'
 export {
   PLAYER_POSITIONS,

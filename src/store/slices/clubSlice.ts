@@ -90,6 +90,8 @@ function clearClubScopedState() {
     drillsError: null,
     tactics: [],
     tacticsError: null,
+    clubTags: [],
+    drillCollectionOptions: [],
   }
 }
 

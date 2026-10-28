@@ -33,6 +33,10 @@ export function DesignPage() {
       name: 'New drill',
       orientation: preset.orientation,
       pitch: configFromPreset(preset),
+      // replaced in Task 4. null (not '') so the insert still succeeds until
+      // then: migration 046's guard trigger files a null into Uncategorised,
+      // whereas '' fails the uuid cast.
+      collection_id: null as unknown as string,
     }
     const draft = startDrillDraft(input)
     if (draft) {

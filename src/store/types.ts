@@ -390,6 +390,12 @@ export interface Drill {
   id: string
   team_id: string | null // demoted (club tenancy, 2026-08-28): vestigial, no new code writes or reads it — kept for the shelved team module
   club_id: string
+  // The one collection this drill is filed in (migration 046) — required.
+  collection_id: string
+  // Ids of the club tags on this drill. Not a column: flattened from the
+  // embedded `drill_tag` rows by drillSlice's `fromRow`, and stripped again
+  // before any write.
+  tag_ids: string[]
   created_by: string
   name: string
   scene: DrillScene
@@ -586,6 +592,9 @@ export interface Collection {
   name: string
   description: string | null
   kind: CollectionKind
+  // The club's holding collection for drills that predate required filing
+  // (migration 046). Can't be renamed, deleted, or picked when creating.
+  is_uncategorised: boolean
   created_by: string
   created_at: string
 }
@@ -621,4 +630,21 @@ export interface SessionTactic {
   order_index: number
   planned_duration_minutes: number | null
   notes: string | null
+}
+
+// A club's tag (migration 046). Club-wide, any drill can carry any of them.
+export interface ClubTag {
+  id: string
+  club_id: string
+  name: string
+  created_at: string
+}
+
+// One row of the create/move collection picker — names only, from the
+// club_drill_collections RPC, which lists every drill collection in the club
+// including ones the caller can't open.
+export interface DrillCollectionOption {
+  id: string
+  name: string
+  is_uncategorised: boolean
 }

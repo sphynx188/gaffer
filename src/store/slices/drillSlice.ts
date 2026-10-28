@@ -38,6 +38,10 @@ export interface NewDrillInput {
   scene?: DrillScene
   keyframes?: Keyframe[]
   duration_seconds?: number
+  // Required at creation (spec 2026-10-28): the collection the drill is filed
+  // in, and any tags.
+  collection_id: string
+  tag_ids?: string[]
 }
 
 // Deliberately does NOT carry scene/keyframes/duration_seconds/pitch. Those
@@ -48,6 +52,9 @@ export interface NewDrillInput {
 export interface DrillUpdateInput {
   name?: string
   orientation?: PitchOrientation
+
+  // Moving a drill to another collection. Tags change through setDrillTags.
+  collection_id?: string
 
   // Metadata (rework plan Stage 8.1). These *are* routed through here rather
   // than the autosave queue, deliberately: they're plain columns a coach types
@@ -134,6 +141,23 @@ function shareClient(token: string) {
   })
 }
 
+// Drills come back with their tag links embedded and leave without them:
+// `tag_ids` is a client-side field over the drill_tag table (migration 046),
+// so it is flattened in here and must never reach an insert or update.
+const DRILL_SELECT = '*, drill_tag(tag_id)'
+
+type DrillRow = Omit<Drill, 'tag_ids'> & { drill_tag?: { tag_id: string }[] }
+
+function fromRow(row: DrillRow): Drill {
+  const { drill_tag, ...rest } = row
+  return { ...rest, tag_ids: (drill_tag ?? []).map((t) => t.tag_id) } as Drill
+}
+
+function withoutTags<T extends { tag_ids?: string[] }>(row: T): Omit<T, 'tag_ids'> {
+  const { tag_ids: _tagIds, ...rest } = row
+  return rest
+}
+
 function snapshotOf(drill: Drill): DrillSnapshot {
   return {
     scene: drill.scene,
@@ -193,6 +217,14 @@ export interface DrillSlice {
   discardDrillDraft: (drillId: string) => void
   isDrillDraft: (drillId: string) => boolean
   updateDrill: (id: string, patch: DrillUpdateInput) => Promise<Drill | null>
+
+  // Replaces a drill's tags. Local state first, like updateDrill; a draft
+  // has no row yet, so its tags are written by its first save instead.
+  setDrillTags: (drillId: string, tagIds: string[]) => Promise<boolean>
+
+  // Files each drill in `collectionId`. Returns how many moved; RLS and the
+  // guard trigger decide which ones the caller may move.
+  moveDrillsToCollection: (drillIds: string[], collectionId: string) => Promise<number>
 
   // Whole-drill duplication (rework plan Stage 9.5) — the useful unit now
   // that a drill is one cast of entities plus keyframes rather than a list of
@@ -412,11 +444,16 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       const { error } = await runSupabaseAction<Drill[]>(
         () =>
           draftRow
-            ? supabase.from('drill').insert({ ...draftRow, ...payload, id: drillId }).select()
+            ? supabase.from('drill').insert({ ...withoutTags(draftRow), ...payload, id: drillId }).select()
             : supabase.from('drill').update(payload).eq('id', drillId).select(),
         isDraft ? "Couldn't create drill, try again." : "Couldn't save drill, try again."
       )
       if (isDraft && !error) unsavedDrafts.delete(drillId)
+      // A draft's tags can only be written once its row exists.
+      if (isDraft && !error) {
+        const tagIds = get().drills.find((d) => d.id === drillId)?.tag_ids ?? []
+        if (tagIds.length) await writeTagLinks(drillId, [], tagIds)
+      }
       // Deliberately does not merge the response back into `drills`. The
       // coach may well have edited again while this request was in flight,
       // and overwriting local state with the server's copy would discard
@@ -495,6 +532,27 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     )
   }
 
+  // Brings drill_tag in line with `next`, touching only what changed.
+  const writeTagLinks = async (drillId: string, previous: string[], next: string[]) => {
+    const add = next.filter((id) => !previous.includes(id))
+    const remove = previous.filter((id) => !next.includes(id))
+    if (remove.length) {
+      const { error } = await runSupabaseAction(
+        () => supabase.from('drill_tag').delete().eq('drill_id', drillId).in('tag_id', remove),
+        "Couldn't save the drill's tags, try again."
+      )
+      if (error) return error
+    }
+    if (add.length) {
+      const { error } = await runSupabaseAction(
+        () => supabase.from('drill_tag').insert(add.map((tag_id) => ({ drill_id: drillId, tag_id }))),
+        "Couldn't save the drill's tags, try again."
+      )
+      if (error) return error
+    }
+    return null
+  }
+
   const commit = (drillId: string, mutate: (drill: Drill) => Drill) => {
     const current = get().drills.find((d) => d.id === drillId)
     if (!current) return
@@ -548,17 +606,18 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
     fetchDrills: async () => {
       const callId = ++fetchDrillsCallId
       set({ drillsLoading: true, drillsError: null })
-      const { data, error } = await runSupabaseAction<Drill[]>(
-        () => supabase.from('drill').select('*').order('created_at', { ascending: true }),
+      const { data, error } = await runSupabaseAction<DrillRow[]>(
+        () => supabase.from('drill').select(DRILL_SELECT).order('created_at', { ascending: true }),
         "Couldn't load drills, try again."
       )
       if (callId !== fetchDrillsCallId) return // superseded by a newer fetch
-      let drills = data
-      if (data) {
+      const rows = data?.map(fromRow) ?? null
+      let drills = rows
+      if (rows) {
         // A refetch must not roll back edits that haven't been flushed yet —
         // every screen refetches on mount, so this happens just by navigating
         // away from the editor and back inside the debounce window.
-        drills = data.map((drill) => {
+        drills = rows.map((drill) => {
           const pending = pendingSaves.get(drill.id)
           return pending ? { ...drill, ...pending } : drill
         })
@@ -569,7 +628,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         // the server's list silently delete the drill the coach has open.
         const drafts = get().drills.filter((d) => unsavedDrafts.has(d.id))
         if (drafts.length) drills = [...drills!, ...drafts]
-        const visible = new Set([...data.map((d) => d.id), ...unsavedDrafts])
+        const visible = new Set([...rows.map((d) => d.id), ...unsavedDrafts])
         for (const drillId of [...history.keys()]) {
           if (!visible.has(drillId)) history.delete(drillId)
         }
@@ -605,6 +664,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         // keyframe edit would immediately overwrite anyway.
         duration_seconds:
           input.duration_seconds ?? scene.durationForCount((input.keyframes ?? [makeInitialKeyframe()]).length),
+        tag_ids: input.tag_ids ?? [],
         ...input,
       } as unknown as Drill
       unsavedDrafts.add(draft.id)
@@ -632,15 +692,20 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       // selected club; team_id is never written (club tenancy, 2026-08-28 —
       // demoted, not dropped, see NewDrillInput above).
       const seeded = {
-        ...input,
+        ...withoutTags(input),
         club_id: clubId,
         keyframes: input.keyframes ?? [makeInitialKeyframe()],
       }
-      const { data, error } = await runSupabaseAction<Drill[]>(
-        () => supabase.from('drill').insert(seeded).select(),
+      const { data, error } = await runSupabaseAction<DrillRow[]>(
+        () => supabase.from('drill').insert(seeded).select(DRILL_SELECT),
         "Couldn't create drill, try again."
       )
-      const drill = data?.[0] ?? null
+      const drill = data?.[0] ? fromRow(data[0]) : null
+      // Tags are links to the new row, so they can only follow the insert.
+      if (drill && input.tag_ids?.length) {
+        await writeTagLinks(drill.id, [], input.tag_ids)
+        drill.tag_ids = input.tag_ids
+      }
       set({
         drillsLoading: false,
         drillsError: error,
@@ -661,11 +726,11 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       const current = get().drills.find((d) => d.id === id)
       if (current) set({ drills: get().drills.map((d) => (d.id === id ? { ...d, ...patch } : d)) })
       set({ drillsLoading: true, drillsError: null })
-      const { data, error } = await runSupabaseAction<Drill[]>(
-        () => supabase.from('drill').update(patch).eq('id', id).select(),
+      const { data, error } = await runSupabaseAction<DrillRow[]>(
+        () => supabase.from('drill').update(patch).eq('id', id).select(DRILL_SELECT),
         "Couldn't save drill, try again."
       )
-      const server = data?.[0] ?? null
+      const server = data?.[0] ? fromRow(data[0]) : null
       // The response is the server's whole row, so merging it in as-is would
       // roll back any content edit still sitting in the autosave queue — which
       // is routine now that Stage 8's metadata fields commit from a drawer
@@ -680,6 +745,36 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         ...(drill ? { drills: get().drills.map((d) => (d.id === id ? drill : d)) } : {}),
       })
       return drill
+    },
+
+    setDrillTags: async (drillId, tagIds) => {
+      const current = get().drills.find((d) => d.id === drillId)
+      if (!current) return false
+      const previous = current.tag_ids ?? []
+      set({ drills: get().drills.map((d) => (d.id === drillId ? { ...d, tag_ids: tagIds } : d)) })
+      if (unsavedDrafts.has(drillId)) return true
+      const error = await writeTagLinks(drillId, previous, tagIds)
+      if (error) {
+        set({
+          drillsError: error,
+          drills: get().drills.map((d) => (d.id === drillId ? { ...d, tag_ids: previous } : d)),
+        })
+        return false
+      }
+      return true
+    },
+
+    moveDrillsToCollection: async (drillIds, collectionId) => {
+      let moved = 0
+      for (const id of drillIds) {
+        if (unsavedDrafts.has(id)) {
+          set({ drills: get().drills.map((d) => (d.id === id ? { ...d, collection_id: collectionId } : d)) })
+          moved++
+          continue
+        }
+        if (await get().updateDrill(id, { collection_id: collectionId })) moved++
+      }
+      return moved
     },
 
     duplicateDrill: async (drillId) => {
@@ -702,6 +797,8 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         scene: source.scene,
         keyframes: source.keyframes,
         duration_seconds: source.duration_seconds,
+        collection_id: source.collection_id,
+        tag_ids: source.tag_ids,
       })
       if (!created) return null
       // Metadata isn't part of NewDrillInput — createDrill's insert exists to
@@ -796,7 +893,9 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
       // which is the only way the page can be trusted to look the same to the
       // teammate it was sent to.
       const client = shareClient(token)
-      const { data, error } = await runSupabaseAction<Drill[]>(
+      // Plain '*' here: anon has no read on drill_tag, so the share page gets
+      // the drill with no tags (fromRow fills tag_ids with []).
+      const { data, error } = await runSupabaseAction<DrillRow[]>(
         () => client.from('drill').select('*').eq('share_token', token).limit(1),
         "Couldn't load this drill."
       )
@@ -804,7 +903,7 @@ export const createDrillSlice: StateCreator<StoreState, [], [], DrillSlice> = (s
         set({ drillsError: error })
         return null
       }
-      return data?.[0] ?? null
+      return data?.[0] ? fromRow(data[0]) : null
     },
 
     uploadDrillThumbnail: async (drillId, dataUrl) => {
