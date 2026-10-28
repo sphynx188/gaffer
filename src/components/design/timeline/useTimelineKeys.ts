@@ -4,11 +4,10 @@ import { stepKeyframe } from './cursor'
 import { FRAME_SECONDS, type TimelinePlayback } from './useTimelinePlayback'
 
 // Space play/pause, arrows step a frame, `,`/`.` jump keyframe to keyframe,
-// `K` adds or updates a keyframe (Stage 4.6). `T` and `G` toggle the two
-// movement visualisations, and Ctrl/Cmd+C/V copy and paste a whole keyframe
-// (TACTICS_BOARD_REWORK_PLAN.md Stages 5.5 and 5.6) — each only when the host
-// supplies a handler, so the drill editor doesn't grow silent shortcuts for
-// controls it doesn't have.
+// `K` adds or updates a keyframe (Stage 4.6), and Ctrl/Cmd+C/V copy and paste
+// a whole keyframe (TACTICS_BOARD_REWORK_PLAN.md Stage 5.6) — each only when
+// the host supplies a handler, so the drill editor doesn't grow silent
+// shortcuts for controls it doesn't have.
 
 function isTypingTarget(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null
@@ -21,8 +20,6 @@ export interface TimelineKeysOptions {
   playback: TimelinePlayback
   keyframes: Keyframe[]
   onToggleKeyframe?: () => void
-  onTogglePlayerPaths?: () => void
-  onToggleGhostTrails?: () => void
   onCopyKeyframe?: () => void
   onPasteKeyframe?: () => void
   enabled?: boolean
@@ -32,8 +29,6 @@ export function useTimelineKeys({
   playback,
   keyframes,
   onToggleKeyframe,
-  onTogglePlayerPaths,
-  onToggleGhostTrails,
   onCopyKeyframe,
   onPasteKeyframe,
   enabled = true,
@@ -94,14 +89,6 @@ export function useTimelineKeys({
         case 'K':
           onToggleKeyframe?.()
           break
-        case 't':
-        case 'T':
-          onTogglePlayerPaths?.()
-          break
-        case 'g':
-        case 'G':
-          onToggleGhostTrails?.()
-          break
       }
     }
 
@@ -115,8 +102,6 @@ export function useTimelineKeys({
     step,
     togglePlay,
     onToggleKeyframe,
-    onTogglePlayerPaths,
-    onToggleGhostTrails,
     onCopyKeyframe,
     onPasteKeyframe,
   ])

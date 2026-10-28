@@ -443,10 +443,10 @@ organisational — it never affects interpolation, which is why `frameAt` has
 never heard of one. Not to be confused with the drill `phases[]` model
 migration 014 dropped, which really was geometry.
 
-`PitchCanvas` documents a seven-layer Konva ceiling and now uses all seven.
-Player paths and ghost trails deliberately share ONE `MotionLayer`, carrying
-opacity per shape rather than per layer. Anything new that needs to draw should
-join an existing layer rather than add an eighth.
+`PitchCanvas` documents a seven-layer Konva ceiling. Onion skin, player paths
+and ghost trails — and with them `OnionSkinLayer` and `MotionLayer` — were
+removed on 2026-10-28 as not useful, which freed two of the seven; anything new
+that needs to draw should still join an existing layer before adding one.
 
 `Marking.kind` covers 13 drawable kinds, all storing geometry in the same
 `points` array — which is what lets selection, the Konva Transformer and

@@ -107,7 +107,7 @@ export interface PhasePoint {
 // player in two phases was two unrelated objects that happened to share an id,
 // which is why nothing could ever tween between phases (see DrillLibrary.tsx's
 // comment on why its preview cuts rather than interpolates). Everything the
-// rework adds downstream — interpolation, onion skin, movement paths, the
+// rework adds downstream — interpolation, playback, the
 // per-segment speed readout — is undefined without that identity.
 //
 // Coordinates stay normalized 0-1 exactly as phases[] used them, so a drill

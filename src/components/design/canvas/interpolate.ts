@@ -1,7 +1,7 @@
 import type { DrillScene, EntityState, Keyframe, Marking, SceneEntity } from '../../../store'
 
 // The correctness core of the drill editor (DRILL_CREATOR_REWORK_PLAN.md
-// Stage 3.1). Everything downstream — the canvas, playback, onion skin, the
+// Stage 3.1). Everything downstream — the canvas, playback, the
 // per-segment speed readout, a future 3D renderer — reads the drill through
 // this one pure function, so `(scene, keyframes, t)` in and a plain list of
 // placed shapes out is the whole contract. It never touches React, Konva,

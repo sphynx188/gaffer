@@ -71,7 +71,7 @@ export const TACTIC_TOUR_STEPS: TourStep[] = [
     id: 'animate',
     anchor: 'tactic-timeline',
     title: 'Watch it move',
-    body: 'Press play and the players travel between your keyframes. Paths and trails show the routes they take, and Speed up or Slow down changes how fast you watch it.',
+    body: 'Press play and the players travel between your keyframes. Speed up or Slow down changes how fast you watch it.',
     placement: 'left',
     openProperties: true,
   },

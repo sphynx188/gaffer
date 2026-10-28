@@ -14,7 +14,7 @@ import type {
 // Before this existed, `TimelineEditor` and `useKeyframeToggle` reached into
 // the store for `drill`-shaped actions, which made them drill-only for no
 // reason other than which slice they happened to call. Everything else in this
-// folder — TimelineBar, useTimelineKeys, useTimelinePlayback, onionSkin,
+// folder — TimelineBar, useTimelineKeys, useTimelinePlayback,
 // speeds, cursor — was already pure props and needed no change at all. So the
 // parameterisation is deliberately narrow: it is those two files, and nothing
 // else in the timeline knows a drill from a tactic.

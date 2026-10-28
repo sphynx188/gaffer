@@ -6,8 +6,6 @@ import type { Drill, EquipmentType, Marking, PhasePoint, PitchConfig } from '../
 import { EQUIPMENT_LABELS } from '../../../store'
 import { PitchCanvas, type EntityMove } from '../PitchCanvas'
 import { frameAt } from '../canvas/interpolate'
-import { onionFramesFor } from '../timeline/onionSkin'
-import { motionPathsFor, trailFramesFor } from '../timeline/motion'
 import { useTimelinePlayback } from '../timeline/useTimelinePlayback'
 import { useTimelineKeys } from '../timeline/useTimelineKeys'
 import { useKeyframeToggle } from '../timeline/useKeyframeToggle'
@@ -91,11 +89,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
   const [grid, setGrid] = useState<GridSettings>({ showGrid: false, snapToGrid: false, smartGuides: true })
   const [routeDraft, setRouteDraft] = useState<PhasePoint[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [onionSkin, setOnionSkin] = useState(false)
-  // Player paths and ghost trails (rework plan Stage 5.5). Independent of each
-  // other and of onion skin; each costs nothing while off.
-  const [playerPaths, setPlayerPaths] = useState(false)
-  const [ghostTrails, setGhostTrails] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
   const [propsOpen, setPropsOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -179,18 +172,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     () => frameAt(drill.scene, drill.keyframes, playback.currentTime),
     [drill.scene, drill.keyframes, playback.currentTime]
   )
-  const onion = useMemo(
-    () => (onionSkin ? onionFramesFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
-    [onionSkin, drill.scene, drill.keyframes, playback.currentTime]
-  )
-  const paths = useMemo(
-    () => (playerPaths ? motionPathsFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
-    [playerPaths, drill.scene, drill.keyframes, playback.currentTime]
-  )
-  const trails = useMemo(
-    () => (ghostTrails ? trailFramesFor(drill.scene, drill.keyframes, playback.currentTime) : undefined),
-    [ghostTrails, drill.scene, drill.keyframes, playback.currentTime]
-  )
   const timelineHost = useDrillTimelineHost(drill)
   const keyframeToggle = useKeyframeToggle(timelineHost, frame, playback)
 
@@ -203,8 +184,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
     playback,
     keyframes: drill.keyframes,
     onToggleKeyframe: keyframeToggle.toggle,
-    onTogglePlayerPaths: () => setPlayerPaths((v) => !v),
-    onToggleGhostTrails: () => setGhostTrails((v) => !v),
   })
 
   // Switching drills, or arming a different tool, abandons anything half-drawn
@@ -580,12 +559,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
       onRemoveSelection={() => removeSelection(selectedIds)}
       onDuplicateAlongLine={duplicateAlongLine}
       playback={playback}
-      onionSkin={onionSkin}
-      onToggleOnionSkin={() => setOnionSkin((v) => !v)}
-      playerPaths={playerPaths}
-      onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
-      ghostTrails={ghostTrails}
-      onToggleGhostTrails={() => setGhostTrails((v) => !v)}
       toolsTab={toolsTabProps}
     />
   )
@@ -597,9 +570,6 @@ export function DrillEditor({ drill }: { drill: Drill }) {
         onboardingAnchor="pitch-canvas"
         pitch={drill.pitch}
         frame={frame}
-        onionFrames={onion}
-        motionPaths={paths}
-        trailFrames={trails}
         // 720, then 1200, used to be the ceiling regardless of screen size,
         // leaving wide margins either side even once AppShell gave this route
         // more room to work with. PitchCanvas already measures its own

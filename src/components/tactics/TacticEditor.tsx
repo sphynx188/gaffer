@@ -13,8 +13,6 @@ import { recordGif } from '../design/export/recordGif'
 import { markingToolSpec, type MarkingTool } from '../design/editor/markingTools'
 import { useMarkingKeys } from '../design/editor/useMarkingKeys'
 import { useUndoKeys } from '../design/editor/useUndoKeys'
-import { motionPathsFor, trailFramesFor } from '../design/timeline/motion'
-import { onionFramesFor } from '../design/timeline/onionSkin'
 import { keyframeAt } from '../design/timeline/cursor'
 import { useTimelinePlayback } from '../design/timeline/useTimelinePlayback'
 import { TacticInspector, type InspectorTab } from './TacticInspector'
@@ -78,9 +76,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
   const [presenting, setPresenting] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [gifProgress, setGifProgress] = useState<number | null>(null)
-  const [onionSkin, setOnionSkin] = useState(false)
-  const [playerPaths, setPlayerPaths] = useState(false)
-  const [ghostTrails, setGhostTrails] = useState(false)
   const [pendingNote, setPendingNote] = useState<PhasePoint | null>(null)
   const [noteText, setNoteText] = useState('')
 
@@ -173,19 +168,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
       entities: frame.entities.filter((entity) => entity.kind !== 'player' || entity.team === side),
     }
   }, [frame, tactic.view, side])
-
-  const onion = useMemo(
-    () => (onionSkin ? onionFramesFor(tactic.scene, tactic.keyframes, playback.currentTime) : undefined),
-    [onionSkin, tactic.scene, tactic.keyframes, playback.currentTime]
-  )
-  const paths = useMemo(
-    () => (playerPaths ? motionPathsFor(tactic.scene, tactic.keyframes, playback.currentTime) : undefined),
-    [playerPaths, tactic.scene, tactic.keyframes, playback.currentTime]
-  )
-  const trails = useMemo(
-    () => (ghostTrails ? trailFramesFor(tactic.scene, tactic.keyframes, playback.currentTime) : undefined),
-    [ghostTrails, tactic.scene, tactic.keyframes, playback.currentTime]
-  )
 
   // Exports (Stage 8.1). Both live here rather than in ExportPanel because
   // the Konva stage is only reachable from this component — the same split
@@ -375,12 +357,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
       <TimelineControls
         host={host}
         playback={playback}
-        onionSkin={onionSkin}
-        onToggleOnionSkin={() => setOnionSkin((v) => !v)}
-        playerPaths={playerPaths}
-        onTogglePlayerPaths={() => setPlayerPaths((v) => !v)}
-        ghostTrails={ghostTrails}
-        onToggleGhostTrails={() => setGhostTrails((v) => !v)}
       />
       </div>
       <div className="border-t border-line pt-3">
@@ -414,9 +390,6 @@ export function TacticEditor({ tactic }: { tactic: Tactic }) {
         onboardingAnchor="tactic-canvas"
         pitch={tactic.pitch}
         frame={visible}
-        onionFrames={onion}
-        motionPaths={paths}
-        trailFrames={trails}
         maxWidth={1600}
         maxHeight={Math.max(260, viewportHeight - (boardOnly ? 120 : canvasTop + CANVAS_FOOTER))}
         // Matches the drill editor: the board fills its canvas rather than

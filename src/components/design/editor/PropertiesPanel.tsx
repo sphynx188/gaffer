@@ -2,8 +2,6 @@ import {
   ChevronUp,
   Clock,
   FastForward,
-  Footprints,
-  Layers,
   Pause,
   Play,
   Plus,
@@ -12,7 +10,6 @@ import {
   Route,
   SkipBack,
   SkipForward,
-  Spline,
   Trash2,
   Wrench,
 } from 'lucide-react'
@@ -83,18 +80,12 @@ interface PropertiesPanelProps {
 
   // The bottom timeline bar's controls, folded into the Keyframes view
   // instead (2026-08-29, first-phase-studio comparison) — a coach's whole
-  // keyframe workflow (add/seek/play/preview toggles) now lives in one place
+  // keyframe workflow (add/seek/play) now lives in one place
   // rather than split between this panel and a bar under the pitch. All
   // optional and gated together: a host that doesn't pass `playback` gets the
   // plain read-only keyframe list this panel has always had (which is what
   // the tactics editor still gets — this migration is drill-only for now).
   playback?: TimelinePlayback
-  onionSkin?: boolean
-  onToggleOnionSkin?: () => void
-  playerPaths?: boolean
-  onTogglePlayerPaths?: () => void
-  ghostTrails?: boolean
-  onToggleGhostTrails?: () => void
 
   // The Tools/Timeline tab pair (2026-08-31), gated together with `playback`
   // above and for the same reason: drill-only. TacticInspector's own call
@@ -219,12 +210,6 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
               <TimelineControls
                 host={host}
                 playback={playback}
-                onionSkin={props.onionSkin}
-                onToggleOnionSkin={props.onToggleOnionSkin}
-                playerPaths={props.playerPaths}
-                onTogglePlayerPaths={props.onTogglePlayerPaths}
-                ghostTrails={props.ghostTrails}
-                onToggleGhostTrails={props.onToggleGhostTrails}
               />
             )}
           </div>
@@ -506,21 +491,9 @@ export function PropertiesPanel(props: PropertiesPanelProps) {
 export function TimelineControls({
   host,
   playback,
-  onionSkin,
-  onToggleOnionSkin,
-  playerPaths,
-  onTogglePlayerPaths,
-  ghostTrails,
-  onToggleGhostTrails,
 }: {
   host: TimelineHost
   playback: TimelinePlayback
-  onionSkin?: boolean
-  onToggleOnionSkin?: () => void
-  playerPaths?: boolean
-  onTogglePlayerPaths?: () => void
-  ghostTrails?: boolean
-  onToggleGhostTrails?: () => void
 }) {
   const previous = stepKeyframe(host.keyframes, playback.currentTime, -1)
   const next = stepKeyframe(host.keyframes, playback.currentTime, 1)
@@ -619,49 +592,6 @@ export function TimelineControls({
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onToggleOnionSkin?.()}
-        aria-pressed={onionSkin}
-        className={'w-full ' + ROW + ' justify-between ' + (onionSkin ? ON : OFF)}
-        title="Show the keyframes either side at low opacity"
-      >
-        <span className="flex items-center gap-1.5">
-          <Layers className="h-3.5 w-3.5" />
-          Onion skin
-        </span>
-        <span className={'h-2 w-2 rounded-full ' + (onionSkin ? 'bg-white' : 'bg-line-strong')} />
-      </button>
-      {onTogglePlayerPaths && (
-        <button
-          type="button"
-          onClick={onTogglePlayerPaths}
-          aria-pressed={playerPaths}
-          className={'w-full ' + ROW + ' justify-between ' + (playerPaths ? ON : OFF)}
-          title="Show the route each moving player takes (T)"
-        >
-          <span className="flex items-center gap-1.5">
-            <Spline className="h-3.5 w-3.5" />
-            Player paths
-          </span>
-          <span className={'h-2 w-2 rounded-full ' + (playerPaths ? 'bg-white' : 'bg-line-strong')} />
-        </button>
-      )}
-      {onToggleGhostTrails && (
-        <button
-          type="button"
-          onClick={onToggleGhostTrails}
-          aria-pressed={ghostTrails}
-          className={'w-full ' + ROW + ' justify-between ' + (ghostTrails ? ON : OFF)}
-          title="Trail faded copies behind whatever is moving (G)"
-        >
-          <span className="flex items-center gap-1.5">
-            <Footprints className="h-3.5 w-3.5" />
-            Ghost trails
-          </span>
-          <span className={'h-2 w-2 rounded-full ' + (ghostTrails ? 'bg-white' : 'bg-line-strong')} />
-        </button>
-      )}
     </div>
   )
 }

@@ -1,11 +1,11 @@
-import { ChevronDown, ChevronUp, Footprints, Layers, Pause, Play, Plus, Repeat, SkipBack, SkipForward, Spline } from 'lucide-react'
+import { ChevronDown, ChevronUp, Pause, Play, Plus, Repeat, SkipBack, SkipForward } from 'lucide-react'
 import type { Keyframe } from '../../../store'
 import { formatClock, keyframeAt, stepKeyframe } from './cursor'
 import type { TimelinePlayback } from './useTimelinePlayback'
 import { useTimelineKeys } from './useTimelineKeys'
 
 // The always-visible strip under the pitch (Stage 4.2): clock, keyframe count,
-// transport, speed, loop, onion skin, and the handle that opens the track
+// transport, speed, loop, and the handle that opens the track
 // editor. Presentational — it owns no drill state and mutates nothing; every
 // action is either a playback call or a callback the host passes in, the same
 // separation PitchCanvas keeps.
@@ -14,8 +14,6 @@ interface TimelineBarProps {
   playback: TimelinePlayback
   duration: number
   keyframes: Keyframe[]
-  onionSkin: boolean
-  onToggleOnionSkin: () => void
   expanded: boolean
   onToggleExpanded: () => void
   // `K`, and the context-aware button in the track editor, share this.
@@ -25,15 +23,6 @@ interface TimelineBarProps {
   // Optional the same way onToggleKeyframe is: a host that doesn't pass it
   // just doesn't get the strip.
   onAppendKeyframe?: () => void
-
-  // Player paths (`T`) and ghost trails (`G`), rework plan Stage 5.5. Optional
-  // and independent of each other and of onion skin — a coach turns on the one
-  // that answers the question they have. A host that doesn't pass them simply
-  // doesn't get the buttons.
-  playerPaths?: boolean
-  onTogglePlayerPaths?: () => void
-  ghostTrails?: boolean
-  onToggleGhostTrails?: () => void
 
   // Ctrl+C / Ctrl+V over the keyframe under the playhead (Stage 5.6).
   onCopyKeyframe?: () => void
@@ -49,16 +38,10 @@ export function TimelineBar({
   playback,
   duration,
   keyframes,
-  onionSkin,
-  onToggleOnionSkin,
   expanded,
   onToggleExpanded,
   onToggleKeyframe,
   onAppendKeyframe,
-  playerPaths,
-  onTogglePlayerPaths,
-  ghostTrails,
-  onToggleGhostTrails,
   onCopyKeyframe,
   onPasteKeyframe,
   className,
@@ -69,8 +52,6 @@ export function TimelineBar({
     playback,
     keyframes,
     onToggleKeyframe,
-    onTogglePlayerPaths,
-    onToggleGhostTrails,
     onCopyKeyframe,
     onPasteKeyframe,
   })
@@ -181,43 +162,6 @@ export function TimelineBar({
         <Repeat className="h-3.5 w-3.5" />
         Loop
       </button>
-
-      <button
-        type="button"
-        onClick={onToggleOnionSkin}
-        aria-pressed={onionSkin}
-        className={onionSkin ? TOGGLE_ON : TOGGLE_OFF}
-        title="Show the keyframes either side at low opacity"
-      >
-        <Layers className="h-3.5 w-3.5" />
-        Onion skin
-      </button>
-
-      {onTogglePlayerPaths && (
-        <button
-          type="button"
-          onClick={onTogglePlayerPaths}
-          aria-pressed={playerPaths}
-          className={playerPaths ? TOGGLE_ON : TOGGLE_OFF}
-          title="Show the route each moving player takes (T)"
-        >
-          <Spline className="h-3.5 w-3.5" />
-          Paths
-        </button>
-      )}
-
-      {onToggleGhostTrails && (
-        <button
-          type="button"
-          onClick={onToggleGhostTrails}
-          aria-pressed={ghostTrails}
-          className={ghostTrails ? TOGGLE_ON : TOGGLE_OFF}
-          title="Trail faded copies behind whatever is moving (G)"
-        >
-          <Footprints className="h-3.5 w-3.5" />
-          Trails
-        </button>
-      )}
 
       <button
         type="button"
