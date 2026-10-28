@@ -11,7 +11,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://zaougjiavbqdlgweidpc.supabase.co; connect-src 'self' https://zaougjiavbqdlgweidpc.supabase.co wss://zaougjiavbqdlgweidpc.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://zaougjiavbqdlgweidpc.supabase.co; media-src 'self' https://zaougjiavbqdlgweidpc.supabase.co; connect-src 'self' https://zaougjiavbqdlgweidpc.supabase.co wss://zaougjiavbqdlgweidpc.supabase.co; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         },
         {
           "key": "X-Frame-Options",
