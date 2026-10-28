@@ -56,7 +56,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'name',
     anchor: 'topbar-name',
     title: 'Name your drill',
-    body: 'Tap the name at any time to rename it. Everything else here is autosaved as you go — there is no separate save button.',
+    body: 'Tap the name at any time to rename it, and use Details to change its collection or tags. Everything here is autosaved as you go — there is no separate save button.',
     placement: 'bottom',
   },
   {
@@ -136,7 +136,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'details',
     anchor: 'rail-details',
     title: 'Drill details',
-    body: 'Objective, coaching points, level and player count all live here — this is what makes a drill findable later in the library.',
+    body: 'Collection, tags, objective, coaching points, level and player count all live here — this is what makes a drill findable later in the library.',
     placement: 'right',
     openTools: true,
   },
